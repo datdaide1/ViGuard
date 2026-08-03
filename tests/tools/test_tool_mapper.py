@@ -81,6 +81,20 @@ class ToolMapperTests(unittest.TestCase):
                 self.mapper.map_proposal(payload)
             self.assertEqual(raised.exception.code, code)  # type: ignore[attr-defined]
 
+    def test_malformed_proposal_identity_is_rejected_before_digest(self) -> None:
+        cases = (
+            ("proposal_id", 123),
+            ("session_id", ""),
+            ("source_turn_id", None),
+        )
+        for field, value in cases:
+            with self.subTest(field=field), self.assertRaises(
+                UnsupportedToolMappingError
+            ) as raised:
+                self.mapper.map_proposal(proposal(**{field: value}))
+            self.assertEqual(raised.exception.code, "INVALID_ACTION_PROPOSAL")
+            self.assertFalse(raised.exception.execution_allowed)
+
     def test_startup_validator_rejects_ambiguous_or_inconsistent_rules(self) -> None:
         valid = MappingRule("control_access", "open", "driver_door", "open_door")
         with self.assertRaises(MappingReadinessError) as duplicate:

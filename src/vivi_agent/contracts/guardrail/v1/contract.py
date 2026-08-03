@@ -98,10 +98,12 @@ def _reject_extra_fields(payload: Mapping[str, Any], fields: set[str], kind: str
         )
 
 
-def _require_identifier(value: Any, field: str) -> None:
+def _require_identifier(
+    value: Any, field: str, *, code: str = "MALFORMED_GUARDRAIL_RESPONSE"
+) -> None:
     if not isinstance(value, str) or not 1 <= len(value) <= 128:
         raise ContractValidationError(
-            "MALFORMED_GUARDRAIL_RESPONSE", f"{field} must be a non-empty identifier"
+            code, f"{field} must be a non-empty identifier"
         )
 
 
@@ -136,6 +138,15 @@ def validate_action_proposal(proposal: Mapping[str, Any]) -> None:
         )
     if not isinstance(proposal["arguments"], Mapping):
         raise ContractValidationError("INVALID_ACTION_PROPOSAL", "arguments must be an object")
+    for field in (
+        "proposal_id",
+        "session_id",
+        "source_turn_id",
+        "tool",
+        "model_provider",
+        "model_id",
+    ):
+        _require_identifier(proposal[field], field, code="INVALID_ACTION_PROPOSAL")
 
 
 def proposal_digest(proposal: Mapping[str, Any]) -> str:

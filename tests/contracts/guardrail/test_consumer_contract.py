@@ -125,6 +125,26 @@ class ContractFixtureTests(unittest.TestCase):
         trace_only["model_id"] = "another-model"
         self.assertEqual(proposal_digest(trace_only), digest)
 
+    def test_action_proposal_identifiers_are_bounded_non_empty_strings(self) -> None:
+        invalid_values = (None, "", 123, "x" * 129)
+        fields = (
+            "proposal_id",
+            "session_id",
+            "source_turn_id",
+            "tool",
+            "model_provider",
+            "model_id",
+        )
+        for field in fields:
+            for value in invalid_values:
+                malformed = copy.deepcopy(self.examples["action_proposal"])
+                malformed[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(
+                    ContractValidationError
+                ) as raised:
+                    validate_action_proposal(malformed)
+                self.assertEqual(raised.exception.code, "INVALID_ACTION_PROPOSAL")
+
     def test_every_local_schema_reference_resolves(self) -> None:
         definitions = self.schema["$defs"]
 
