@@ -172,7 +172,7 @@ def validate_guardrail_result(result: Mapping[str, Any]) -> None:
     if kind == "error":
         _require_fields(
             result,
-            {"contract_version", "kind", "request_id", "error"},
+            _ERROR_FIELDS,
             "GuardrailError",
         )
         error = result["error"]
