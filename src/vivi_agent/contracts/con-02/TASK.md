@@ -1,6 +1,6 @@
 ﻿# CON-02 — Khóa Agent–UI contract
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/contracts  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục CON-02)
@@ -29,4 +29,16 @@
 - UI có thể render toàn bộ lifecycle chỉ từ public payloads.
 - Không public event nào chứa secret hoặc hidden reasoning.
 - Agent event ordering được định nghĩa rõ và test được.
+
+## Implementation evidence
+
+- Versioned schema: `src/vivi_agent/contracts/agent_ui/v1/agent-ui.schema.json`.
+- Semantic redaction and ordering validator: `src/vivi_agent/contracts/agent_ui/v1/contract.py`.
+- Five request types, five response statuses, six hero fixtures and three scenario streams: `src/vivi_agent/contracts/agent_ui/v1/fixtures.json`.
+- Public contract and ordering documentation: `src/vivi_agent/contracts/agent_ui/v1/README.md`.
+- UI mock consumer suite: `tests/contracts/agent_ui/test_consumer_contract.py`.
+
+All local Agent-side acceptance checks pass. Status remains `review` until UI
+ownership approves external gate `G-EXT-05`; this task does not claim that
+external approval.
 
