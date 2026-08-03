@@ -54,13 +54,18 @@ tasks:
     title: 'Khóa Agent–UI contract'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/contracts
     task_file: src/vivi_agent/contracts/con-02/TASK.md
     depends_on: [CON-01]
     external_gate_ids: [G-EXT-05]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/contracts/agent_ui/v1/agent-ui.schema.json
+      - src/vivi_agent/contracts/agent_ui/v1/fixtures.json
+      - src/vivi_agent/contracts/agent_ui/v1/contract.py
+      - src/vivi_agent/contracts/agent_ui/v1/README.md
+      - tests/contracts/agent_ui/test_consumer_contract.py
   - id: CAT-01
     title: 'Xây runtime intent/behavior manifest'
     priority: P0
