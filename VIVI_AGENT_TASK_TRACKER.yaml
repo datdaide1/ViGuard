@@ -70,12 +70,16 @@ tasks:
     title: 'Xây runtime intent/behavior manifest'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/catalog
     task_file: src/vivi_agent/catalog/cat-01/TASK.md
     depends_on: [CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/catalog/intent_manifest.v1.json
+      - src/vivi_agent/catalog/manifest.py
+      - src/vivi_agent/catalog/README.md
+      - tests/catalog/test_intent_manifest.py
   - id: TOOL-01
     title: 'Định nghĩa Domain Tool Registry'
     priority: P0
