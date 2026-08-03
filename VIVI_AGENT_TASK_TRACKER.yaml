@@ -111,12 +111,17 @@ tasks:
     title: 'Xây ModelProviderAdapter cho OpenAI và Gemini'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/model_providers/contracts.py
+      - src/vivi_agent/model_providers/adapters.py
+      - src/vivi_agent/model_providers/selection.py
+      - src/vivi_agent/model_providers/README.md
+      - tests/model_providers/test_model_providers.py
   - id: ORC-01
     title: 'Xây ViVi Agent Orchestrator nền tảng'
     priority: P0
