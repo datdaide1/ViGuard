@@ -1,80 +1,155 @@
-# Guardrail
+# ViGuard — Guardrail-first ViVi Agent Simulator
 
-Guardrail là hệ thống phân loại ý định và ra quyết định theo trạng thái xe cho AI Agent trên xe VinFast. Pipeline có hai bước nối tiếp: (1) nhận một câu nói của tài xế (văn bản, đã qua nhận dạng giọng nói) và trả về một ý định (intent) đã chuẩn hoá, bằng cách rẻ và nhanh nhất có thể; (2) khớp ý định đó với một trạng thái xe mô phỏng và một bộ luật, trả về kết quả cho phép/từ chối/hỏi lại, minh hoạ bằng một actuator giả lập.
+ViGuard là môi trường mô phỏng và đánh giá local cho một AI Agent trên xe. Mọi
+câu lệnh văn bản phải đi qua Guardrail trước khi ViVi Agent được phép phản hồi
+hoặc thực hiện hành động mô phỏng.
 
-> **Trạng thái:** Dự án đang ở giai đoạn đặc tả và chuẩn bị pilot; repository hiện chứa tài liệu nghiên cứu, PRD, đề xuất kiến trúc và dữ liệu catalog, chưa có ứng dụng chạy được.
+Mục tiêu của pilot là biến một nguyên tắc kiến trúc thành bằng chứng quan sát
+được: cùng một câu lệnh có thể tạo kết quả khác nhau khi trạng thái xe thay đổi;
+đường bị chặn không được gọi actuator; đường được cho phép phải truy vết được từ
+câu lệnh, intent, state snapshot và rule đã áp dụng.
 
-## Bài toán
+> **Trạng thái hiện tại:** repository đang trong giai đoạn triển khai theo task.
+> Hai contract nền tảng Guardrail–Agent và Agent–UI đã được merge; runtime
+> classifier, constraint engine, vehicle simulator, actuator và web UI chưa hoàn
+> thiện. Đây chưa phải ứng dụng điều khiển xe và không phải bằng chứng policy đã
+> được chứng nhận cho xe thật.
 
-Đưa mọi câu nói thẳng vào một mô hình ngôn ngữ (LLM) để hiểu ý định thì chậm (0.2–2s), tốn (phần lớn lệnh lặp lại đúng khuôn mẫu), và dễ bị lợi dụng (prompt injection — lượt nào không cần gọi LLM thì kiểu tấn công này không có cửa để len vào).
+## Luồng sản phẩm
 
-Danh mục yêu cầu của một trợ lý trên xe là hữu hạn và đóng: 55 intent, 53 trong phạm vi pilot. Đây không phải bài toán hiểu ngôn ngữ mở, mà là bài toán phân loại — hệ thống phân loại trước bằng phương pháp tất định và rẻ, chỉ gọi LLM khi thật sự cần. Nhưng phân loại đúng ý định thôi chưa đủ: "mở cửa xe" hợp lệ về ngôn ngữ nhưng nguy hiểm ở tốc độ cao — nên pilot còn phải chứng minh được bước quyết định dựa trên trạng thái xe, không dựa trên câu nói.
+```text
+Text Input UI
+      │
+      ▼
+Guardrail Gateway
+  ├─ kiểm tra và chuẩn hóa text
+  ├─ phân loại intent qua T1 → T2 → T3
+  ├─ đọc Vehicle State Mock
+  └─ đánh giá constraint
+      │
+      ▼
+Guardrail Decision
+      │
+      ▼
+ViVi Agent
+  ├─ phản hồi có căn cứ
+  ├─ yêu cầu xác nhận và đánh giá lại state
+  └─ gọi Mock Actuator chỉ trên đường hợp lệ
+      │
+      ▼
+Vehicle events, state changes và audit trace
+```
+
+Guardrail đứng ngoài và trước ViVi Agent. Classifier chỉ xác định người dùng
+muốn gì; nó không tự quyết định an toàn. Kết quả cuối chỉ được tạo sau khi intent
+được đánh giá cùng Vehicle State Mock và constraint tương ứng.
 
 ## Phạm vi pilot
 
-Hai thành phần nối tiếp nhau:
+Theo PRD hiện hành, sản phẩm mục tiêu bao gồm:
 
-- **Guardrail** — nhận văn bản, trả về một intent label thuộc 53 intent trong catalog (hoặc `UNKNOWN`), kèm tầng đã xử lý (`T1`/`T2`/`T3`) và latency. Guardrail không đọc trạng thái xe, không tự quyết định cho phép/chặn.
-- **Decision Demo** — với intent thuộc lớp hành động, khớp `(intent, trạng thái xe mô phỏng)` với một bộ luật, trả về một trong 5 mức kết quả (`ALLOW`/`BLOCK_UNSAFE`/`BLOCK_UNAVAILABLE`/`CONFIRM`/`NOT_VOICE_ACTIONABLE`), rồi gọi một actuator giả lập nếu kết quả là cho phép.
+- text input đi qua một Guardrail Gateway duy nhất;
+- catalog đóng gồm 53 intent trong phạm vi pilot;
+- policy workbook gồm 109 constraint: 104 rule `gate` và 5 rule `monitor`;
+- ba tầng phân loại T1/T2/T3, trong đó T3 chỉ là fallback;
+- Vehicle State Mock là nguồn sự thật cho constraint evaluation;
+- ViVi Agent chuyển decision thành phản hồi, confirmation hoặc hành động mô phỏng;
+- Mock Actuator cho action/UI intent;
+- confirmation dùng một lần và luôn re-evaluate trên state mới;
+- monitor có thể dừng active action khi điều kiện không còn phù hợp;
+- trace đủ để tái dựng toàn bộ lượt xử lý.
 
-Trạng thái xe trong pilot là **mô phỏng, nhập/chỉnh tay** — không đọc từ xe thật. Cơ chế cưỡng chế "không thể đi vòng" cấp production (capability object, token chống dùng lại, giám sát liên tục, tích hợp xe thật) nằm ngoài phạm vi 6 tuần — xem lý do ở `specs/architecture/Architecture_Guardrail_FINAL.md` §5.9.
+Guardrail công bố đúng bảy outcome:
 
-## Kiến trúc định hướng
+| Outcome | Ý nghĩa ở biên Agent |
+| --- | --- |
+| `ALLOW` | Agent có thể đi vào execution path hợp lệ. |
+| `BLOCK_UNSAFE` | Chặn do điều kiện an toàn hiện tại. |
+| `BLOCK_UNAVAILABLE` | Chặn vì tính năng không khả dụng. |
+| `CONFIRM` | Chưa được thực thi; cần xác nhận và đánh giá lại. |
+| `NOT_VOICE_ACTIONABLE` | Không thực hiện qua luồng điều khiển bằng giọng nói. |
+| `ANSWER` | Trả lời từ state hoặc dữ liệu mô phỏng có căn cứ. |
+| `UNKNOWN` | Không có dữ liệu phù hợp để trả lời hoặc hành động. |
 
-**Guardrail — pipeline phân loại 3 tầng, tất định trước, LLM là phương án dự phòng:**
+## Các bất biến bắt buộc
 
-- **Bộ lọc dấu hiệu buộc từ chối** — 6 nhóm (phủ định, câu ghép, nghi vấn, điều kiện/thì tương lai, đại từ mơ hồ, đa khớp), chạy trước mọi tầng.
-- **T1 — Khớp mẫu tất định:** so trực tiếp với mẫu câu soạn tay cho 53 intent.
-- **T2 — Nearest-neighbor text similarity:** so với tập neo paraphrase cấp intent, chỉ ship nếu đo được ngưỡng giữ accuracy 100%.
-- **T3 — Input Guard + LLM:** phương án dự phòng khi hai tầng trên không xử lý được; Input Guard chỉ chạy ở tầng này.
+- UI không gửi raw text trực tiếp cho ViVi Agent.
+- ViVi Agent không tự đổi outcome do Guardrail trả về.
+- Nội dung người dùng khai báo về state không thay thế Vehicle State Mock.
+- Block, error và confirmation-pending không được tạo execution hợp lệ.
+- Confirmation cũ, hết hạn hoặc replay không được gọi actuator.
+- Policy lỗi phải fail closed; không tiếp tục bằng tập rule bị thiếu hoặc mâu thuẫn.
+- Public event không chứa permit, credential, system prompt hoặc hidden reasoning.
+- Pilot đo mức độ implementation tuân theo workbook, không đo “physical safety accuracy”.
 
-**Decision Demo — quyết định theo trạng thái xe mô phỏng:**
+## Trạng thái triển khai
 
-- **Vehicle State Mock** — cấu trúc trong bộ nhớ, chỉnh tay qua giao diện demo.
-- **Decision Function (PDP-lite)** — khớp intent × state với bộ luật đọc từ file, trả một trong 5 mức kết quả.
-- **Mock Actuator** — đích thực thi giả lập, chỉ được gọi khi kết quả là `ALLOW`.
+| Hạng mục | Trạng thái | Evidence |
+| --- | --- | --- |
+| Guardrail–Agent contract (`CON-01`) | Implementation đã merge; chờ external acceptance | `src/vivi_agent/contracts/guardrail/v1/` |
+| Agent–UI contract (`CON-02`) | Implementation đã merge; chờ external acceptance | `src/vivi_agent/contracts/agent_ui/v1/` |
+| Runtime Agent/Vehicle, integration, evaluation và release | Theo tracker, phần lớn chưa triển khai | `VIVI_AGENT_TASK_TRACKER.yaml` |
+| Guardrail classifier/constraint runtime và web UI hoàn chỉnh | Chưa có trong checkout hiện tại | PRD và implementation plan |
 
-Nguyên tắc bất biến: T2 không bao giờ được suy ra ngoài một intent label; Decision Function luôn dùng giá trị thật trong Vehicle State Mock, không bao giờ dùng giá trị nêu trong câu nói.
+Status trong tracker chỉ chuyển sang `done` khi acceptance gate tương ứng đã có
+evidence; merge code không tự động đồng nghĩa với external approval.
 
 ## Cấu trúc repository
 
 ```text
 .
-├── brief/                             # Brief bài toán ban đầu
-├── research/                          # Nghiên cứu và phân tích cạnh tranh
 ├── specs/
-│   ├── prd/
-│   │   ├── PRD_Guardrail_FINAL.md     # PRD chính thức — scope Guardrail
-│   │   └── old/                       # Các bản PRD ViGuard cũ, phạm vi rộng hơn
-│   └── architecture/
-│       ├── Architecture_Guardrail_FINAL.md   # ADR chính thức — kiến trúc Guardrail
-│       ├── Spec_T2_TFIDF_vs_PhoBERT.md       # Kế hoạch spike T2, đang hoạt động
-│       └── old/                       # Các bản ADR/Proposal ViGuard cũ, phạm vi rộng hơn
-├── Driver_intent_FINAL_v2.xlsx        # Catalog intent (sheet `Catalog` dùng cho Guardrail)
-├── AGENTS.md                          # Quy tắc cộng tác trong workspace
-└── CLAUDE.md                          # Chỉ dẫn tương thích cho AI assistant
+│   ├── prd/                         # Product requirements và scope chuẩn
+│   ├── architecture/                # Kiến trúc Guardrail
+│   └── agent/                       # ViVi Agent spec và implementation plan
+├── src/vivi_agent/
+│   ├── contracts/                   # Contract đã triển khai và task specs
+│   └── ...                          # Feature boundaries cho các task tiếp theo
+├── tests/                           # Contract, integration, E2E và performance
+├── evals/                           # Evaluation task boundaries
+├── docs/agent/                      # Integration/runbook work
+├── Driver_constraints.xlsx         # Policy workbook trong workspace hiện tại
+├── VIVI_AGENT_TASK_TRACKER.yaml     # Tracker và acceptance evidence
+└── VIVI_AGENT_WORKSPACE.md          # Quy ước workspace triển khai Agent
 ```
 
-Tài liệu trung tâm: [`specs/prd/PRD_Guardrail_FINAL.md`](specs/prd/PRD_Guardrail_FINAL.md) (sản phẩm) và [`specs/architecture/Architecture_Guardrail_FINAL.md`](specs/architecture/Architecture_Guardrail_FINAL.md) (kỹ thuật).
+## Kiểm tra phần đã triển khai
 
-Một vài file trong `specs/prd/` và `specs/architecture/` (ngoài `old/`) vẫn đang chờ được archive thủ công vào `old/` — chúng đã được đánh dấu **Superseded** ở đầu file, không dùng để tham chiếu scope hiện tại.
+Checkout hiện tại chưa có application runtime hoặc quy trình cài đặt hoàn chỉnh.
+Các contract tests có thể chạy bằng Python từ repository root:
 
-## Bắt đầu
+```powershell
+python -m unittest `
+  tests.contracts.guardrail.test_consumer_contract `
+  tests.contracts.agent_ui.test_consumer_contract
+```
 
-Repository chưa có runtime để cài đặt hoặc khởi chạy. Để nắm dự án:
+Contract suite kiểm tra version mismatch, fail-closed permit semantics, closed
+public payloads, redaction, correlation, event ordering, execution lifecycle và
+khả năng UI mock dựng lại ba demo scenario chỉ từ public events.
 
-1. Đọc [`brief/brief.md`](brief/brief.md) để hiểu bài toán guardrail ban đầu.
-2. Đọc [`specs/prd/PRD_Guardrail_FINAL.md`](specs/prd/PRD_Guardrail_FINAL.md) để xem phạm vi, user stories, requirements và acceptance criteria.
-3. Đọc [`specs/architecture/Architecture_Guardrail_FINAL.md`](specs/architecture/Architecture_Guardrail_FINAL.md) để xem quyết định kiến trúc T1/T2/T3, lộ trình theo sprint.
-4. Tham khảo `Driver_intent_FINAL_v2.xlsx` (sheet `Catalog`) cho danh mục 55 intent của pilot.
-5. Xem thư mục `research/` để biết bối cảnh kỹ thuật và cạnh tranh (lưu ý: phần lớn nội dung ở đây phục vụ lớp policy/PDP, hiện ngoài phạm vi pilot).
+## Nguồn yêu cầu chuẩn
 
-## Chỉ số đánh giá dự kiến
+- [PRD Guardrail hiện hành](specs/prd/PRD_Guardrail_FINAL.md) — phạm vi sản phẩm,
+  business rules, requirements, acceptance criteria và success metrics.
+- [Kiến trúc Guardrail](specs/architecture/Architecture_Guardrail_FINAL.md) —
+  component boundaries và quyết định kỹ thuật.
+- [ViVi Agent specification](specs/agent/VIVI_VEHICLE_AGENT_SPEC.md) — contract,
+  behavior và simulator requirements phía Agent.
+- [ViVi Agent implementation plan](specs/agent/VIVI_IMPLEMENTATION_PLAN.md) —
+  task sequencing, dependencies và release gates.
 
-- độ chính xác đường nhanh (T1/T2) trên tập test giữ lại — ngưỡng 100%;
-- độ phủ đường nhanh — đo, không đánh đổi lấy độ chính xác;
-- tỷ lệ chặn prompt injection (Input Guard, T3);
-- tỷ lệ từ chối oan (câu ý rõ nhưng bị đẩy xuống tầng chậm hơn);
-- latency theo từng tầng, đo ở p99 và max.
+Các tài liệu có nhãn `Superseded` hoặc `Archived` không được dùng làm nguồn scope
+hiện tại.
 
-Chi tiết success metrics, acceptance criteria và benchmark plan được duy trì trong PRD và Architecture doc.
+## Ngoài phạm vi
+
+- ASR và voice pipeline production;
+- CAN bus, ECU hoặc actuator xe thật;
+- trợ lý hội thoại mở ngoài catalog pilot;
+- cloud production deployment và multi-vehicle operation;
+- chứng nhận ISO 26262, phê duyệt OEM hoặc khẳng định policy đúng cho xe thật.
+
+ViGuard hiện là software pilot trên dữ liệu và trạng thái mô phỏng. Mọi tuyên bố
+về an toàn vật lý hoặc tuân thủ thực tế cần evidence và chủ sở hữu chuyên môn bên
+ngoài repository này.

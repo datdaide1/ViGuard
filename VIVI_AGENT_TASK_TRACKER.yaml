@@ -2,7 +2,7 @@
 project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
-branch: codex/con-01-guardrail-agent-contract
+branch: vivi-agent/scafford
 status_values: [planned, ready, in_progress, blocked, review, done]
 task_count: 48
 p0_count: 39
