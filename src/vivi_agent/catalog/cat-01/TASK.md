@@ -1,6 +1,6 @@
 ﻿# CAT-01 — Xây runtime intent/behavior manifest
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/catalog  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục CAT-01)
@@ -28,4 +28,16 @@
 - Manifest có đúng 53 intent duy nhất.
 - Không chứa dynamics intent ngoài catalog.
 - Manifest thiếu hoặc thừa intent làm Agent readiness fail.
+
+## Implementation evidence
+
+- Versioned 53-intent manifest: `src/vivi_agent/catalog/intent_manifest.v1.json`.
+- Immutable loader, checksum, and fail-closed readiness validator: `src/vivi_agent/catalog/manifest.py`.
+- Startup usage and ownership boundary: `src/vivi_agent/catalog/README.md`.
+- Coverage/tamper tests: `tests/catalog/test_intent_manifest.py`.
+
+The intent inventory and five monitor rule IDs were checked against the approved
+`Driver_constraints.xlsx` workbook. No Guardrail condition or outcome policy is
+stored in the manifest. Agent-side acceptance and regression tests pass locally;
+the task remains `review` pending PM review.
 
