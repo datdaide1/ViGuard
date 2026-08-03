@@ -1,6 +1,6 @@
 ﻿# TOOL-01 — Định nghĩa Domain Tool Registry
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/tools/registry  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục TOOL-01)
@@ -28,4 +28,17 @@
 - Model chỉ nhìn thấy registered tools.
 - Invalid tool/argument bị chặn trước Guardrail call.
 - Tool arguments không chấp nhận state, outcome, rule hoặc permit do model cung cấp.
+
+## Implementation evidence
+
+- Versioned closed registry: `src/vivi_agent/tools/registry/domain_tools.v1.json`.
+- Checksum loader, JSON Schema projection, validation, and structured clarification:
+  `src/vivi_agent/tools/registry/registry.py`.
+- Ownership and integration boundary: `src/vivi_agent/tools/registry/README.md`.
+- Valid/invalid/tamper tests: `tests/tools/test_domain_tool_registry.py`.
+
+The registry exposes exactly the ten domain tools approved by CAT-01 and accepts
+only `action`, `target`, and optional `value`. It intentionally contains no
+vehicle state, Guardrail policy/outcome, permit, or canonical mapping. Internal
+acceptance tests pass; the task remains `review` pending PM review.
 

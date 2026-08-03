@@ -84,12 +84,16 @@ tasks:
     title: 'Định nghĩa Domain Tool Registry'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/tools/registry
     task_file: src/vivi_agent/tools/registry/tool-01/TASK.md
     depends_on: [CAT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/registry/domain_tools.v1.json
+      - src/vivi_agent/tools/registry/registry.py
+      - src/vivi_agent/tools/registry/README.md
+      - tests/tools/test_domain_tool_registry.py
   - id: MAP-01
     title: 'Xây mapping nền tảng cho vertical slice'
     priority: P0
