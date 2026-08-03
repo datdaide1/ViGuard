@@ -98,12 +98,15 @@ tasks:
     title: 'Xây mapping nền tảng cho vertical slice'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/tools/mapping
     task_file: src/vivi_agent/tools/mapping/map-01/TASK.md
     depends_on: [TOOL-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/mapping/mapper.py
+      - src/vivi_agent/tools/mapping/README.md
+      - tests/tools/test_tool_mapper.py
   - id: MOD-01
     title: 'Xây ModelProviderAdapter cho OpenAI và Gemini'
     priority: P0
