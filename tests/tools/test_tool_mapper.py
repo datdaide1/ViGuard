@@ -36,6 +36,10 @@ class ToolMapperTests(unittest.TestCase):
     def test_runtime_loads_one_reviewed_vertical_slice_mapping(self) -> None:
         self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 1)
         self.assertEqual(RUNTIME_TOOL_MAPPER.rules[0].intent, "open_door")
+        self.assertEqual(
+            RUNTIME_TOOL_MAPPER.rules[0].key,
+            ("control_access", "open", "driver_door", None),
+        )
 
     def test_valid_call_maps_to_one_canonical_intent_and_event(self) -> None:
         result = self.mapper.map_proposal(proposal())

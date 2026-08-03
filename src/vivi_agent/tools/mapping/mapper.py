@@ -18,6 +18,19 @@ from ...contracts.guardrail.v1.contract import (
 )
 from ..registry import ClarificationRequest, ToolRegistry, ValidatedToolCall
 
+MappingKey = tuple[str, str, str, str | None]
+
+
+def _mapping_key(tool_name: str, arguments: Mapping[str, str]) -> MappingKey:
+    """Build the single canonical lookup key used at startup and runtime."""
+
+    return (
+        tool_name,
+        arguments["action"],
+        arguments["target"],
+        arguments.get("value"),
+    )
+
 
 class MappingReadinessError(RuntimeError):
     """Raised when reviewed mappings are invalid or ambiguous at startup."""
@@ -48,8 +61,11 @@ class MappingRule:
     value: str | None = None
 
     @property
-    def key(self) -> tuple[str, str, str, str | None]:
-        return (self.tool_name, self.action, self.target, self.value)
+    def key(self) -> MappingKey:
+        arguments = {"action": self.action, "target": self.target}
+        if self.value is not None:
+            arguments["value"] = self.value
+        return _mapping_key(self.tool_name, arguments)
 
 
 @dataclass(frozen=True)
@@ -107,11 +123,11 @@ class ToolMapper:
 
     def _validate_rules(
         self, rules: tuple[MappingRule, ...]
-    ) -> Mapping[tuple[str, str, str, str | None], MappingRule]:
+    ) -> Mapping[MappingKey, MappingRule]:
         if not rules:
             raise MappingReadinessError("EMPTY_MAPPING", "at least one reviewed mapping is required")
 
-        validated: dict[tuple[str, str, str, str | None], MappingRule] = {}
+        validated: dict[MappingKey, MappingRule] = {}
         for rule in rules:
             if rule.key in validated:
                 raise MappingReadinessError(
@@ -158,12 +174,7 @@ class ToolMapper:
         arguments = MappingProxyType(
             {key: call.arguments[key] for key in ("action", "target", "value") if key in call.arguments}
         )
-        key = (
-            call.tool_name,
-            arguments["action"],
-            arguments["target"],
-            arguments.get("value"),
-        )
+        key = _mapping_key(call.tool_name, arguments)
         rule = self._rules.get(key)
         if rule is None:
             raise UnsupportedToolMappingError(
