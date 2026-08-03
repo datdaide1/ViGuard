@@ -2,7 +2,7 @@
 project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
-branch: codex/vivi-agent-implementation-scaffold
+branch: codex/con-01-guardrail-agent-contract
 status_values: [planned, ready, in_progress, blocked, review, done]
 task_count: 48
 p0_count: 39
@@ -38,13 +38,18 @@ tasks:
     title: 'Khóa Guardrail–Agent contract'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/contracts
     task_file: src/vivi_agent/contracts/con-01/TASK.md
     depends_on: []
     external_gate_ids: [G-EXT-01, G-EXT-03, G-EXT-04]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/contracts/guardrail/v1/guardrail-agent.schema.json
+      - src/vivi_agent/contracts/guardrail/v1/examples.json
+      - src/vivi_agent/contracts/guardrail/v1/contract.py
+      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - tests/contracts/guardrail/test_consumer_contract.py
   - id: CON-02
     title: 'Khóa Agent–UI contract'
     priority: P0
