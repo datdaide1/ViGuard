@@ -1,0 +1,531 @@
+﻿version: 1
+project: vivi-vehicle-agent-simulator
+scope: agent-only
+source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
+branch: codex/vivi-agent-implementation-scaffold
+status_values: [planned, ready, in_progress, blocked, review, done]
+task_count: 48
+p0_count: 39
+completed_count: 0
+external_gate_count: 6
+external_gates:
+  - id: G-EXT-01
+    title: 'Guardrail contract'
+    owner: guardrail-team
+    status: pending
+  - id: G-EXT-02
+    title: 'Guardrail real endpoint'
+    owner: guardrail-team
+    status: pending
+  - id: G-EXT-03
+    title: 'Permit semantics'
+    owner: guardrail-team
+    status: pending
+  - id: G-EXT-04
+    title: 'Vehicle state contract'
+    owner: guardrail-and-agent-teams
+    status: pending
+  - id: G-EXT-05
+    title: 'UI contract'
+    owner: ui-and-agent-teams
+    status: pending
+  - id: G-EXT-06
+    title: 'UI integration build'
+    owner: ui-team
+    status: pending
+tasks:
+  - id: CON-01
+    title: 'Khóa Guardrail–Agent contract'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/contracts
+    task_file: src/vivi_agent/contracts/con-01/TASK.md
+    depends_on: []
+    external_gate_ids: [G-EXT-01, G-EXT-03, G-EXT-04]
+    owner: unassigned
+    evidence: []
+  - id: CON-02
+    title: 'Khóa Agent–UI contract'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/contracts
+    task_file: src/vivi_agent/contracts/con-02/TASK.md
+    depends_on: [CON-01]
+    external_gate_ids: [G-EXT-05]
+    owner: unassigned
+    evidence: []
+  - id: CAT-01
+    title: 'Xây runtime intent/behavior manifest'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/catalog
+    task_file: src/vivi_agent/catalog/cat-01/TASK.md
+    depends_on: [CON-01]
+    owner: unassigned
+    evidence: []
+  - id: TOOL-01
+    title: 'Định nghĩa Domain Tool Registry'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/tools/registry
+    task_file: src/vivi_agent/tools/registry/tool-01/TASK.md
+    depends_on: [CAT-01]
+    owner: unassigned
+    evidence: []
+  - id: MAP-01
+    title: 'Xây mapping nền tảng cho vertical slice'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/tools/mapping
+    task_file: src/vivi_agent/tools/mapping/map-01/TASK.md
+    depends_on: [TOOL-01]
+    owner: unassigned
+    evidence: []
+  - id: MOD-01
+    title: 'Xây ModelProviderAdapter cho OpenAI và Gemini'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/model_providers
+    task_file: src/vivi_agent/model_providers/mod-01/TASK.md
+    depends_on: [TOOL-01]
+    owner: unassigned
+    evidence: []
+  - id: ORC-01
+    title: 'Xây ViVi Agent Orchestrator nền tảng'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/orchestrator
+    task_file: src/vivi_agent/orchestrator/orc-01/TASK.md
+    depends_on: [CON-01, CON-02, MAP-01, MOD-01]
+    owner: unassigned
+    evidence: []
+  - id: GRD-ADP-01
+    title: 'Xây Guardrail Client Adapter và mock server'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/adapters/guardrail
+    task_file: src/vivi_agent/adapters/guardrail/grd-adp-01/TASK.md
+    depends_on: [CON-01]
+    owner: unassigned
+    evidence: []
+  - id: VEH-01
+    title: 'Định nghĩa Vehicle State Model và invariants'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/vehicle/state
+    task_file: src/vivi_agent/vehicle/state/veh-01/TASK.md
+    depends_on: [CAT-01, CON-01]
+    owner: unassigned
+    evidence: []
+  - id: VEH-02
+    title: 'Xây Vehicle State Machine và event store'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/vehicle/state
+    task_file: src/vivi_agent/vehicle/state/veh-02/TASK.md
+    depends_on: [VEH-01]
+    owner: unassigned
+    evidence: []
+  - id: EXEC-01
+    title: 'Xây Vehicle Tool Gateway và permit verifier'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/vehicle/execution
+    task_file: src/vivi_agent/vehicle/execution/exec-01/TASK.md
+    depends_on: [CON-01, VEH-02]
+    owner: unassigned
+    evidence: []
+  - id: EXEC-02
+    title: 'Xây handler `open_door`'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/vehicle/execution
+    task_file: src/vivi_agent/vehicle/execution/exec-02/TASK.md
+    depends_on: [EXEC-01, VEH-02]
+    owner: unassigned
+    evidence: []
+  - id: EVT-01
+    title: 'Xây Agent/Vehicle typed event pipeline'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: src/vivi_agent/events
+    task_file: src/vivi_agent/events/evt-01/TASK.md
+    depends_on: [CON-02, ORC-01, VEH-02, EXEC-01]
+    owner: unassigned
+    evidence: []
+  - id: E2E-01
+    title: 'Khóa vertical slice `open_door`'
+    priority: P0
+    sprint: sprint-1
+    status: planned
+    area: tests/e2e/vertical_slice
+    task_file: tests/e2e/vertical_slice/e2e-01/TASK.md
+    depends_on: [ORC-01, GRD-ADP-01, EXEC-02, EVT-01]
+    owner: unassigned
+    evidence: []
+  - id: MAP-02
+    title: 'Hoàn thiện tool-to-intent mapping 53/53'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/tools/mapping
+    task_file: src/vivi_agent/tools/mapping/map-02/TASK.md
+    depends_on: [MAP-01, CAT-01]
+    owner: unassigned
+    evidence: []
+  - id: EXEC-03
+    title: 'Xây generic handler framework'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/vehicle/execution
+    task_file: src/vivi_agent/vehicle/execution/exec-03/TASK.md
+    depends_on: [EXEC-01, VEH-02]
+    owner: unassigned
+    evidence: []
+  - id: BEH-01
+    title: 'Khai báo behavior catalog đủ 47 action/UI intent'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/behaviors
+    task_file: src/vivi_agent/behaviors/beh-01/TASK.md
+    depends_on: [MAP-02, EXEC-03]
+    owner: unassigned
+    evidence: []
+  - id: QRY-01
+    title: 'Xây Query Responder đủ 6/6'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/queries
+    task_file: src/vivi_agent/queries/qry-01/TASK.md
+    depends_on: [MAP-02, VEH-02, CON-01]
+    owner: unassigned
+    evidence: []
+  - id: RSP-01
+    title: 'Xây Grounded Response Composer'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/responses
+    task_file: src/vivi_agent/responses/rsp-01/TASK.md
+    depends_on: [ORC-01, QRY-01, BEH-01]
+    owner: unassigned
+    evidence: []
+  - id: CNF-01
+    title: 'Tích hợp confirmation lifecycle'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/confirmation
+    task_file: src/vivi_agent/confirmation/cnf-01/TASK.md
+    depends_on: [CON-01, CON-02, ORC-01, EXEC-01]
+    owner: unassigned
+    evidence: []
+  - id: ACTV-01
+    title: 'Xây Active Action Registry'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/active_actions
+    task_file: src/vivi_agent/active_actions/actv-01/TASK.md
+    depends_on: [BEH-01, VEH-02]
+    owner: unassigned
+    evidence: []
+  - id: MON-ADP-01
+    title: 'Tích hợp Guardrail Monitor'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/adapters/monitor
+    task_file: src/vivi_agent/adapters/monitor/mon-adp-01/TASK.md
+    depends_on: [CON-01, GRD-ADP-01, ACTV-01, EXEC-01]
+    owner: unassigned
+    evidence: []
+  - id: SIM-01
+    title: 'Xây Simulation Control API và presets'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: src/vivi_agent/simulation
+    task_file: src/vivi_agent/simulation/sim-01/TASK.md
+    depends_on: [VEH-02, MON-ADP-01, CON-02]
+    owner: unassigned
+    evidence: []
+  - id: COV-01
+    title: 'Xây Agent capability coverage gate'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: tests/coverage
+    task_file: tests/coverage/cov-01/TASK.md
+    depends_on: [MAP-02, BEH-01, QRY-01, ACTV-01]
+    owner: unassigned
+    evidence: []
+  - id: INT-01
+    title: 'Chạy integration với Guardrail thật'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: tests/integration
+    task_file: tests/integration/int-01/TASK.md
+    depends_on: [GRD-ADP-01, COV-01, CNF-01, MON-ADP-01]
+    external_gate_ids: [G-EXT-02, G-EXT-03, G-EXT-04]
+    owner: unassigned
+    evidence: []
+  - id: INT-02
+    title: 'Chạy integration với UI thật'
+    priority: P0
+    sprint: sprint-2
+    status: planned
+    area: tests/integration
+    task_file: tests/integration/int-02/TASK.md
+    depends_on: [EVT-01, SIM-01, CON-02]
+    external_gate_ids: [G-EXT-06]
+    owner: unassigned
+    evidence: []
+  - id: HERO-01
+    title: 'Hoàn thiện `open_door` behavior'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: src/vivi_agent/behaviors/hero
+    task_file: src/vivi_agent/behaviors/hero/hero-01/TASK.md
+    depends_on: [INT-01, INT-02]
+    owner: unassigned
+    evidence: []
+  - id: HERO-02
+    title: 'Hoàn thiện HDA và AAC active behaviors'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: src/vivi_agent/behaviors/hero
+    task_file: src/vivi_agent/behaviors/hero/hero-02/TASK.md
+    depends_on: [ACTV-01, MON-ADP-01, INT-01]
+    owner: unassigned
+    evidence: []
+  - id: HERO-03
+    title: 'Hoàn thiện Autopark và Camp mode behaviors'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: src/vivi_agent/behaviors/hero
+    task_file: src/vivi_agent/behaviors/hero/hero-03/TASK.md
+    depends_on: [ACTV-01, MON-ADP-01, SIM-01]
+    owner: unassigned
+    evidence: []
+  - id: HERO-04
+    title: 'Hoàn thiện confirmation behavior'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: src/vivi_agent/behaviors/hero
+    task_file: src/vivi_agent/behaviors/hero/hero-04/TASK.md
+    depends_on: [CNF-01, INT-01, INT-02]
+    owner: unassigned
+    evidence: []
+  - id: SCN-01
+    title: 'Scenario “Agent bị lừa nhưng xe vẫn an toàn”'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: tests/e2e/scenarios
+    task_file: tests/e2e/scenarios/scn-01/TASK.md
+    depends_on: [HERO-01]
+    owner: unassigned
+    evidence: []
+  - id: SCN-02
+    title: 'Scenario “Confirmation không phải giấy phép vĩnh viễn”'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: tests/e2e/scenarios
+    task_file: tests/e2e/scenarios/scn-02/TASK.md
+    depends_on: [HERO-04]
+    owner: unassigned
+    evidence: []
+  - id: SCN-03
+    title: 'Scenario “Guardrail bảo vệ khi action đang chạy”'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: tests/e2e/scenarios
+    task_file: tests/e2e/scenarios/scn-03/TASK.md
+    depends_on: [HERO-02, SIM-01]
+    owner: unassigned
+    evidence: []
+  - id: EVAL-01
+    title: 'Xây Vietnamese tool-selection evaluation set'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: evals
+    task_file: evals/eval-01/TASK.md
+    depends_on: [MAP-02, MOD-01]
+    owner: unassigned
+    evidence: []
+  - id: EVAL-02
+    title: 'Xây adversarial execution-boundary suite'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: evals
+    task_file: evals/eval-02/TASK.md
+    depends_on: [EXEC-01, ORC-01, INT-01]
+    owner: unassigned
+    evidence: []
+  - id: PERF-01
+    title: 'Benchmark Agent/Vehicle latency và stability'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: tests/performance
+    task_file: tests/performance/perf-01/TASK.md
+    depends_on: [INT-01, INT-02, EVAL-01]
+    owner: unassigned
+    evidence: []
+  - id: OPS-01
+    title: 'Xây Agent/Vehicle reset và degraded mode'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: src/vivi_agent/operations
+    task_file: src/vivi_agent/operations/ops-01/TASK.md
+    depends_on: [SIM-01, ACTV-01, ORC-01]
+    owner: unassigned
+    evidence: []
+  - id: DOC-01
+    title: 'Viết Agent integration guide và demo runbook'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: docs/agent
+    task_file: docs/agent/doc-01/TASK.md
+    depends_on: [SCN-01, SCN-02, SCN-03, OPS-01]
+    owner: unassigned
+    evidence: []
+  - id: REL-01
+    title: 'Chạy Agent-only release gate'
+    priority: P0
+    sprint: sprint-3
+    status: planned
+    area: release
+    task_file: release/rel-01/TASK.md
+    depends_on: [CON-01, CON-02, CAT-01, TOOL-01, MAP-01, MOD-01, ORC-01, GRD-ADP-01, VEH-01, VEH-02, EXEC-01, EXEC-02, EVT-01, E2E-01, MAP-02, EXEC-03, BEH-01, QRY-01, RSP-01, CNF-01, ACTV-01, MON-ADP-01, SIM-01, COV-01, INT-01, INT-02, HERO-01, HERO-02, HERO-03, HERO-04, SCN-01, SCN-02, SCN-03, EVAL-01, EVAL-02, PERF-01, OPS-01, DOC-01]
+    external_gate_ids: [G-EXT-01, G-EXT-02, G-EXT-03, G-EXT-04, G-EXT-05, G-EXT-06]
+    owner: unassigned
+    evidence: []
+  - id: P1-STREAM
+    title: 'Streaming token/progress nâng cao'
+    priority: P1
+    sprint: backlog
+    status: planned
+    area: backlog/p1
+    task_file: backlog/p1/p1-stream/TASK.md
+    depends_on: []
+    start_condition: 'P0 event ordering đã ổn định'
+    owner: unassigned
+    evidence: []
+  - id: P1-WORKFLOW
+    title: 'Compound predefined workflows'
+    priority: P1
+    sprint: backlog
+    status: planned
+    area: backlog/p1
+    task_file: backlog/p1/p1-workflow/TASK.md
+    depends_on: []
+    start_condition: 'Single-action safety gates đã đạt'
+    owner: unassigned
+    evidence: []
+  - id: P1-PERSONA
+    title: 'Persona verbalization nâng cao'
+    priority: P1
+    sprint: backlog
+    status: planned
+    area: backlog/p1
+    task_file: backlog/p1/p1-persona/TASK.md
+    depends_on: []
+    start_condition: 'Deterministic grounded responses hoàn chỉnh'
+    owner: unassigned
+    evidence: []
+  - id: P1-CACHE
+    title: 'Model/session optimization'
+    priority: P1
+    sprint: backlog
+    status: planned
+    area: backlog/p1
+    task_file: backlog/p1/p1-cache/TASK.md
+    depends_on: []
+    start_condition: 'Có benchmark chứng minh bottleneck'
+    owner: unassigned
+    evidence: []
+  - id: P2-DYN-RESEARCH
+    title: 'Nghiên cứu start/accelerate/brake/stop intents'
+    priority: P2
+    sprint: backlog
+    status: planned
+    area: backlog/p2
+    task_file: backlog/p2/p2-dyn-research/TASK.md
+    depends_on: []
+    start_condition: 'Có variant VF8, nguồn chính thức và safety owner'
+    owner: unassigned
+    evidence: []
+  - id: P2-DYN-POLICY
+    title: 'Cùng Guardrail team thêm dynamics rules'
+    priority: P2
+    sprint: backlog
+    status: planned
+    area: backlog/p2
+    task_file: backlog/p2/p2-dyn-policy/TASK.md
+    depends_on: []
+    start_condition: 'Research và outcomes được duyệt'
+    owner: unassigned
+    evidence: []
+  - id: P2-PHYSICS
+    title: 'Physics-based vehicle dynamics'
+    priority: P2
+    sprint: backlog
+    status: planned
+    area: backlog/p2
+    task_file: backlog/p2/p2-physics/TASK.md
+    depends_on: []
+    start_condition: 'Có đủ thông số chính thức đúng phiên bản xe'
+    owner: unassigned
+    evidence: []
+  - id: P2-ASR
+    title: 'Speech input/output'
+    priority: P2
+    sprint: backlog
+    status: planned
+    area: backlog/p2
+    task_file: backlog/p2/p2-asr/TASK.md
+    depends_on: []
+    start_condition: 'Text Agent đã nghiệm thu'
+    owner: unassigned
+    evidence: []
+  - id: P2-HIL
+    title: 'Hardware-in-the-loop'
+    priority: P2
+    sprint: backlog
+    status: planned
+    area: backlog/p2
+    task_file: backlog/p2/p2-hil/TASK.md
+    depends_on: []
+    start_condition: 'Có hardware và production safety plan'
+    owner: unassigned
+    evidence: []
+
