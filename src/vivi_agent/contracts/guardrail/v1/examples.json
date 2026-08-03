@@ -1,0 +1,98 @@
+{
+  "action_proposal": {
+    "contract_version": "1.0.0",
+    "proposal_id": "prop-001",
+    "session_id": "demo-01",
+    "source_turn_id": "turn-001",
+    "tool": "control_access",
+    "arguments": { "action": "open", "target": "driver_door" },
+    "model_provider": "openai",
+    "model_id": "gpt-5-mini"
+  },
+  "confirmation_action_proposal": {
+    "contract_version": "1.0.0",
+    "proposal_id": "prop-003",
+    "session_id": "demo-01",
+    "source_turn_id": "turn-003",
+    "tool": "control_light",
+    "arguments": { "action": "on", "target": "interior_light" },
+    "model_provider": "openai",
+    "model_id": "gpt-5-mini"
+  },
+  "decisions": {
+    "ALLOW": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-allow",
+      "proposal_id": "prop-001", "intent": "open_door", "outcome": "ALLOW",
+      "rule_id": "R001", "state_version": 12,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "POLICY_CONDITION_MATCHED", "relevant_state": { "gear": "P", "speed": 0 },
+      "permit": {
+        "permit_id": "permit-001",
+        "proposal_digest": "sha256:19059c4c296d7113be0a339f044fe7dc88c7ce65e2a60bfed84fe848c1d766ce",
+        "intent": "open_door", "rule_id": "R001", "state_version": 12,
+        "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "issued_at": "2026-08-03T10:00:00Z", "expires_at": "2026-08-03T10:00:02Z",
+        "single_use": true
+      }
+    },
+    "BLOCK_UNSAFE": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-unsafe",
+      "proposal_id": "prop-001", "intent": "open_door", "outcome": "BLOCK_UNSAFE",
+      "rule_id": "R002", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "VEHICLE_MOVING", "relevant_state": { "gear": "D", "speed": 50 }
+    },
+    "BLOCK_UNAVAILABLE": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-unavailable",
+      "proposal_id": "prop-002", "intent": "activate_hda", "outcome": "BLOCK_UNAVAILABLE",
+      "rule_id": "R020", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "ACC_REQUIRED", "relevant_state": { "acc_state": "OFF" }
+    },
+    "CONFIRM": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-confirm",
+      "proposal_id": "prop-003", "intent": "turnon_interiorlight", "outcome": "CONFIRM",
+      "rule_id": "R030", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "DRIVER_CONFIRMATION_REQUIRED", "relevant_state": { "speed": 30 },
+      "confirmation": {
+        "confirmation_id": "confirm-001", "proposal_id": "prop-003",
+        "expires_at": "2026-08-03T10:00:30Z", "single_use": true
+      }
+    },
+    "NOT_VOICE_ACTIONABLE": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-ui-only",
+      "proposal_id": "prop-004", "intent": "open_settings", "outcome": "NOT_VOICE_ACTIONABLE",
+      "rule_id": "R040", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "UI_ONLY_CAPABILITY", "relevant_state": {}
+    },
+    "ANSWER": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-answer",
+      "proposal_id": "prop-005", "intent": "state_query", "outcome": "ANSWER",
+      "rule_id": "Q001", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "STATE_VALUE_AVAILABLE", "relevant_state": { "battery_pct": 42 },
+      "answer": { "grounded": true, "facts": { "battery_pct": 42 } }
+    },
+    "UNKNOWN": {
+      "contract_version": "1.0.0", "kind": "decision", "request_id": "req-unknown",
+      "proposal_id": "prop-006", "intent": "state_query", "outcome": "UNKNOWN",
+      "rule_id": "Q002", "state_version": 13,
+      "policy_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "STATE_VALUE_UNAVAILABLE", "relevant_state": { "battery_pct": null }
+    }
+  },
+  "error": {
+    "contract_version": "1.0.0", "kind": "error", "request_id": "req-error",
+    "error": { "code": "GUARDRAIL_TIMEOUT", "message": "Guardrail timed out", "retryable": true }
+  },
+  "confirmation_request": {
+    "contract_version": "1.0.0", "request_id": "req-confirm-2",
+    "confirmation_id": "confirm-001", "session_id": "demo-01"
+  },
+  "monitor_request": {
+    "contract_version": "1.0.0", "request_id": "req-monitor-1",
+    "active_action_id": "active-hda-001", "intent": "activate_hda"
+  }
+}

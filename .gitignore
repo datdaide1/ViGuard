@@ -7,3 +7,7 @@ ViGuard_Tracker.xlsx
 AGENTS.md
 CLAUDE.md
 achive/
+
+# Python-generated artifacts
+__pycache__/
+*.py[cod]

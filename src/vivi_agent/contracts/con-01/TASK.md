@@ -1,6 +1,6 @@
 ﻿# CON-01 — Khóa Guardrail–Agent contract
 
-**Trạng thái:** planned  
+**Trạng thái:** review  
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/contracts  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục CON-01)
@@ -30,4 +30,14 @@
 - Agent reject response thiếu `intent/outcome/rule_id/state_version` khi các field đó bắt buộc.
 - Block/error/confirm-pending response không thể chứa usable permit.
 - Contract version mismatch tạo typed integration error và zero execution.
+
+## Implementation evidence
+
+- Versioned schema: `src/vivi_agent/contracts/guardrail/v1/guardrail-agent.schema.json`.
+- Outcome/request/response fixtures: `src/vivi_agent/contracts/guardrail/v1/examples.json`.
+- Fail-closed validator and digest reference: `src/vivi_agent/contracts/guardrail/v1/contract.py`.
+- Deterministic HTTP protocol mock: `src/vivi_agent/contracts/guardrail/v1/mock_server.py`.
+- Consumer suite: `tests/contracts/guardrail/test_consumer_contract.py`.
+
+Agent-side acceptance tests pass locally. Status remains `review` until the Guardrail team approves `G-EXT-01`, `G-EXT-03`, and the shared portion of `G-EXT-04`; this task does not claim that external approval.
 
