@@ -139,12 +139,16 @@ tasks:
     title: 'Xây Guardrail Client Adapter và mock server'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/adapters/guardrail
     task_file: src/vivi_agent/adapters/guardrail/grd-adp-01/TASK.md
     depends_on: [CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/adapters/guardrail/__init__.py
+      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - tests/adapters/guardrail/test_guardrail_adapter.py
   - id: VEH-01
     title: 'Định nghĩa Vehicle State Model và invariants'
     priority: P0
