@@ -1,6 +1,6 @@
 ﻿# GRD-ADP-01 — Xây Guardrail Client Adapter và mock server
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/adapters/guardrail  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục GRD-ADP-01)
@@ -28,4 +28,11 @@
 - Mock và real adapter dùng cùng public interface.
 - Demo/release mode hiển thị rõ nếu đang dùng mock Guardrail.
 - Invalid Guardrail response không thể tới Vehicle Tool Gateway.
+
+**Implementation evidence:**
+
+- `src/vivi_agent/adapters/guardrail/client.py`
+- `src/vivi_agent/adapters/guardrail/__init__.py`
+- `src/vivi_agent/contracts/guardrail/v1/mock_server.py`
+- `tests/adapters/guardrail/test_guardrail_adapter.py`
 
