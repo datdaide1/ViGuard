@@ -1,6 +1,6 @@
-﻿# EXEC-02 — Xây handler `open_door`
+# EXEC-02 — Xây handler `open_door`
 
-**Trạng thái:** planned  
+**Trạng thái:** done  
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/vehicle/execution  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục EXEC-02)
