@@ -41,6 +41,21 @@ class GuardrailAdapterTests(unittest.TestCase):
             GuardrailClientConfig(self.base_url, provider, retry_backoff_seconds=0)
         )
 
+    def test_config_rejects_negative_retry_backoff(self) -> None:
+        with self.assertRaisesRegex(ValueError, "retry_backoff_seconds"):
+            GuardrailClientConfig(
+                self.base_url,
+                GuardrailProvider.REAL,
+                retry_backoff_seconds=-0.01,
+            )
+
+        config = GuardrailClientConfig(
+            self.base_url,
+            GuardrailProvider.MOCK,
+            retry_backoff_seconds=0,
+        )
+        self.assertEqual(config.retry_backoff_seconds, 0)
+
     def test_mock_and_real_use_the_same_interface_and_visible_metadata(self) -> None:
         for provider in GuardrailProvider:
             client = self.client(provider)

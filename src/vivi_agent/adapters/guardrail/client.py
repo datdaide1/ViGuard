@@ -51,6 +51,8 @@ class GuardrailClientConfig:
             raise ValueError("timeout_seconds must be positive")
         if self.read_only_retries < 0:
             raise ValueError("read_only_retries cannot be negative")
+        if self.retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds cannot be negative")
 
 
 class GuardrailClientAdapter:
@@ -117,7 +119,6 @@ class GuardrailClientAdapter:
         self, path: str, payload: Mapping[str, Any], *, read_only: bool
     ) -> Mapping[str, Any]:
         attempts = 1 + (self.config.read_only_retries if read_only else 0)
-        last_error: BaseException | None = None
         for attempt in range(attempts):
             try:
                 request = urllib.request.Request(
@@ -150,7 +151,6 @@ class GuardrailClientAdapter:
                     f"Guardrail returned HTTP {exc.code} without a typed error envelope",
                 ) from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
-                last_error = exc
                 if attempt + 1 < attempts:
                     self._sleep(self.config.retry_backoff_seconds * (attempt + 1))
                     continue
@@ -161,4 +161,3 @@ class GuardrailClientAdapter:
                 raise GuardrailAdapterError(
                     "MALFORMED_GUARDRAIL_RESPONSE", "Guardrail response is not valid JSON"
                 ) from exc
-        raise GuardrailAdapterError("GUARDRAIL_UNAVAILABLE", str(last_error))
