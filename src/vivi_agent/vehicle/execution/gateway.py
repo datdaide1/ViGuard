@@ -1,0 +1,245 @@
+"""Vehicle Tool Gateway implementation."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Callable, Mapping
+from datetime import datetime
+from typing import Any
+
+from vivi_agent.orchestrator.orchestrator import ExecutionResult, TurnError
+from .errors import (
+    ExecutionError,
+    HandlerNotFoundError,
+    PermitVerificationError,
+    ReplayAttackError,
+)
+from .verifier import PermitStore, PermitVerifier
+
+ActuatorHandler = Callable[[Mapping[str, Any]], Mapping[str, Any]]
+
+
+class HandlerRegistry:
+    """Registry mapping tool or intent names to actuator handlers."""
+
+    def __init__(self) -> None:
+        self._handlers: dict[str, ActuatorHandler] = {}
+
+    def register(self, tool_or_intent: str, handler: ActuatorHandler) -> None:
+        """Register an actuator handler for a tool or intent name."""
+        if not tool_or_intent or not isinstance(tool_or_intent, str):
+            raise ValueError("tool_or_intent must be a non-empty string")
+        self._handlers[tool_or_intent] = handler
+
+    def get(self, tool_or_intent: str) -> ActuatorHandler | None:
+        """Retrieve handler registered for tool or intent name."""
+        return self._handlers.get(tool_or_intent)
+
+    def unregister(self, tool_or_intent: str) -> None:
+        """Remove a handler registration."""
+        self._handlers.pop(tool_or_intent, None)
+
+
+class VehicleToolGateway:
+    """Single execution boundary for vehicle tools.
+
+    Guarantees fail-closed authorization verification using Guardrail permits
+    before delegating to registered actuator handlers.
+    """
+
+    def __init__(
+        self,
+        verifier: PermitVerifier | None = None,
+        registry: HandlerRegistry | None = None,
+    ) -> None:
+        self._verifier = verifier or PermitVerifier()
+        self._registry = registry or HandlerRegistry()
+
+    @property
+    def verifier(self) -> PermitVerifier:
+        return self._verifier
+
+    @property
+    def store(self) -> PermitStore:
+        return self._verifier.store
+
+    @property
+    def registry(self) -> HandlerRegistry:
+        return self._registry
+
+    def execute(
+        self,
+        proposal: Mapping[str, Any],
+        decision_or_permit: Mapping[str, Any],
+        cancellation: Any = None,
+        current_time: datetime | None = None,
+    ) -> ExecutionResult:
+        """Execute authorized vehicle tool call.
+
+        Parameters
+        ----------
+        proposal:
+            Canonical ActionProposal dictionary.
+        decision_or_permit:
+            Either a full Guardrail decision object (containing outcome and permit)
+            or an ActionPermit object directly.
+        cancellation:
+            Optional cancellation token.
+        current_time:
+            Optional override for current timestamp (for deterministic testing).
+
+        Returns
+        -------
+        ExecutionResult:
+            Typed result containing success flag, execution_id, message, state_version,
+            facts, or error details.
+        """
+        execution_id = f"exec-{uuid.uuid4().hex[:12]}"
+
+        # Extract permit and decision context
+        decision: Mapping[str, Any] | None = None
+        permit: Mapping[str, Any] | None = None
+
+        if isinstance(decision_or_permit, Mapping):
+            kind = decision_or_permit.get("kind")
+            if kind == "decision":
+                decision = decision_or_permit
+                outcome = decision.get("outcome")
+                if outcome != "ALLOW":
+                    return ExecutionResult(
+                        success=False,
+                        execution_id=execution_id,
+                        message=f"Execution denied: policy outcome is {outcome}",
+                        error=TurnError(
+                            code="EXECUTION_DENIED",
+                            message=f"Policy outcome {outcome!r} does not permit execution",
+                            retryable=False,
+                        ),
+                    )
+                permit = decision.get("permit")
+                if not isinstance(permit, Mapping):
+                    return ExecutionResult(
+                        success=False,
+                        execution_id=execution_id,
+                        message="Execution denied: ALLOW decision missing permit",
+                        error=TurnError(
+                            code="INVALID_PERMIT",
+                            message="ALLOW decision missing permit object",
+                            retryable=False,
+                        ),
+                    )
+            elif "permit_id" in decision_or_permit:
+                permit = decision_or_permit
+            else:
+                return ExecutionResult(
+                    success=False,
+                    execution_id=execution_id,
+                    message="Execution denied: Invalid decision or permit payload",
+                    error=TurnError(
+                        code="INVALID_PERMIT",
+                        message="Payload is neither a decision nor an ActionPermit",
+                        retryable=False,
+                    ),
+                )
+        else:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message="Execution denied: Missing decision/permit payload",
+                error=TurnError(
+                    code="INVALID_PERMIT",
+                    message="Missing decision or permit",
+                    retryable=False,
+                ),
+            )
+
+        # Step 1: Verify permit (fail closed, 0 handler call count on failure)
+        try:
+            self._verifier.verify(
+                proposal=proposal,
+                permit=permit,
+                decision=decision,
+                current_time=current_time,
+            )
+        except PermitVerificationError as exc:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message=f"Permit verification failed: {exc.message}",
+                error=TurnError(
+                    code=exc.code,
+                    message=exc.message,
+                    retryable=False,
+                ),
+            )
+
+        # Step 2: Atomic permit consumption (mark used in store)
+        permit_id = permit["permit_id"]
+        try:
+            self._verifier.store.mark_used(permit_id)
+        except ReplayAttackError as exc:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message=f"Permit consumption failed: {exc.message}",
+                error=TurnError(
+                    code=exc.code,
+                    message=exc.message,
+                    retryable=False,
+                ),
+            )
+
+        # Step 3: Lookup handler by tool or intent
+        tool_name = proposal.get("tool")
+        intent_name = permit.get("intent")
+
+        handler = self._registry.get(tool_name) or (self._registry.get(intent_name) if intent_name else None)
+        if handler is None:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message=f"No handler registered for tool {tool_name!r} / intent {intent_name!r}",
+                error=TurnError(
+                    code="HANDLER_NOT_FOUND",
+                    message=f"No handler found for tool {tool_name!r}",
+                    retryable=False,
+                ),
+            )
+
+        # Step 4: Invoke actuator handler
+        try:
+            handler_output = handler(proposal)
+            state_version = (
+                handler_output.get("state_version")
+                if isinstance(handler_output, Mapping)
+                else None
+            )
+            facts = (
+                handler_output.get("facts", {})
+                if isinstance(handler_output, Mapping)
+                else {}
+            )
+            msg = (
+                handler_output.get("message", "Tool execution succeeded")
+                if isinstance(handler_output, Mapping)
+                else "Tool execution succeeded"
+            )
+
+            return ExecutionResult(
+                success=True,
+                execution_id=execution_id,
+                message=str(msg),
+                state_version=state_version,
+                facts=facts if isinstance(facts, Mapping) else {},
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message=f"Handler execution error: {exc}",
+                error=TurnError(
+                    code="EXECUTION_FAILED",
+                    message=str(exc),
+                    retryable=False,
+                ),
+            )
