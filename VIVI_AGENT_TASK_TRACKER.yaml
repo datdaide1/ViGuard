@@ -1,4 +1,4 @@
-﻿version: 1
+version: 1
 project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
@@ -167,12 +167,15 @@ tasks:
     title: 'Xây Vehicle State Machine và event store'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: done
     area: src/vivi_agent/vehicle/state
     task_file: src/vivi_agent/vehicle/state/veh-02/TASK.md
     depends_on: [VEH-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/state/machine.py
+      - src/vivi_agent/vehicle/state/events.py
+      - tests/vehicle/state/test_state_machine.py
   - id: EXEC-01
     title: 'Xây Vehicle Tool Gateway và permit verifier'
     priority: P0
