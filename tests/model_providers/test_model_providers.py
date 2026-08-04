@@ -89,6 +89,8 @@ class AdapterTests(unittest.TestCase):
 
         payload = transport.calls[0][0]
         self.assertFalse(payload["parallel_tool_calls"])
+        self.assertEqual(payload["max_completion_tokens"], 512)
+        self.assertNotIn("max_output_tokens", payload)
         self.assertTrue(all(tool["function"]["strict"] for tool in payload["tools"]))
         self.assertEqual(len(payload["tools"]), 10)
         self.assertNotIn("backend-secret", repr(payload))
@@ -134,6 +136,47 @@ class AdapterTests(unittest.TestCase):
                 [{"role": "user", "content": "open"}]
             )
         self.assertEqual(raised.exception.code, ModelErrorCode.MALFORMED_OUTPUT)
+
+    def test_context_bound_preserves_system_instructions(self) -> None:
+        transport = SequenceTransport(OPENAI_ACTION)
+        adapter = self.adapter(OpenAIAdapter, transport)
+        adapter.propose_tool(
+            [
+                {"role": "system", "content": "mandatory-safety-policy"},
+                {"role": "user", "content": "old" * 5_000},
+                {"role": "assistant", "content": "recent" * 500},
+                {"role": "user", "content": "open driver door"},
+            ]
+        )
+        sent = transport.calls[0][0]["messages"]
+        self.assertEqual(sent[0], {"role": "system", "content": "mandatory-safety-policy"})
+        self.assertNotIn({"role": "user", "content": "old" * 5_000}, sent)
+        self.assertEqual(sent[-1], {"role": "user", "content": "open driver door"})
+
+    def test_context_bound_rejects_unfit_mandatory_or_latest_message(self) -> None:
+        adapter = self.adapter(OpenAIAdapter, SequenceTransport(OPENAI_ACTION))
+        with self.assertRaises(ModelProviderError) as raised:
+            adapter.propose_tool([{"role": "system", "content": "x" * 16_001}])
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
+        adapter = self.adapter(OpenAIAdapter, SequenceTransport(OPENAI_ACTION))
+        with self.assertRaises(ModelProviderError) as raised:
+            adapter.propose_tool(
+                [
+                    {"role": "system", "content": "mandatory"},
+                    {"role": "user", "content": "x" * 16_000},
+                ]
+            )
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
+    def test_provider_exception_detail_never_echoes_transport_secret(self) -> None:
+        leaked = "https://provider.invalid?key=super-secret"
+        adapter = self.adapter(OpenAIAdapter, SequenceTransport(RuntimeError(leaked)))
+        with self.assertRaises(ModelProviderError) as raised:
+            adapter.propose_tool([{"role": "user", "content": "open"}])
+        self.assertEqual(raised.exception.code, ModelErrorCode.API_ERROR)
+        self.assertEqual(raised.exception.detail, "provider request failed")
+        self.assertNotIn("super-secret", str(raised.exception))
 
 
 class SelectionTests(unittest.TestCase):

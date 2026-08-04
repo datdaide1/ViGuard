@@ -62,19 +62,39 @@ class ModelProviderAdapter(ABC):
         return self._invoke(self._response_payload(encoded), proposal=False)
 
     def _bounded_messages(self, messages: Sequence[Mapping[str, str]]) -> list[dict[str, str]]:
-        normalized: list[dict[str, str]] = []
-        total = 0
-        for message in reversed(messages):
+        validated: list[dict[str, str]] = []
+        for message in messages:
             role, content = message.get("role"), message.get("content")
             if role not in {"system", "user", "assistant"} or not isinstance(content, str):
                 raise ModelProviderError(
                     ModelErrorCode.INVALID_CONFIG, "messages must contain valid role/content", provider=self.provider
                 )
-            if total + len(content) > self.MAX_CONTEXT_CHARS:
+            validated.append({"role": role, "content": content})
+
+        system_messages = [message for message in validated if message["role"] == "system"]
+        history = [message for message in validated if message["role"] != "system"]
+        mandatory_chars = sum(len(message["content"]) for message in system_messages)
+        if mandatory_chars > self.MAX_CONTEXT_CHARS:
+            raise ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                "system instructions exceed context bound",
+                provider=self.provider,
+            )
+
+        selected_history: list[dict[str, str]] = []
+        total = mandatory_chars
+        for message in reversed(history):
+            if total + len(message["content"]) > self.MAX_CONTEXT_CHARS:
+                if not selected_history:
+                    raise ModelProviderError(
+                        ModelErrorCode.INVALID_CONFIG,
+                        "latest conversation message exceeds context bound",
+                        provider=self.provider,
+                    )
                 break
-            normalized.append({"role": role, "content": content})
-            total += len(content)
-        return list(reversed(normalized))
+            selected_history.append(message)
+            total += len(message["content"])
+        return system_messages + list(reversed(selected_history))
 
     def _invoke(self, payload: Mapping[str, Any], *, proposal: bool) -> ModelActionProposal:
         if not self._api_key:
@@ -90,7 +110,10 @@ class ModelProviderAdapter(ABC):
             raise
         except Exception as exc:
             raise ModelProviderError(
-                ModelErrorCode.API_ERROR, str(exc), provider=self.provider, retryable=True
+                ModelErrorCode.API_ERROR,
+                "provider request failed",
+                provider=self.provider,
+                retryable=True,
             ) from exc
         latency_ms = max(0, round((self._clock() - started) * 1000))
         metadata = ProviderMetadata(self.provider, self.model_id, self.config_checksum, latency_ms)
@@ -135,7 +158,7 @@ class OpenAIAdapter(ModelProviderAdapter):
             "tools": tools,
             "tool_choice": "auto",
             "parallel_tool_calls": False,
-            "max_output_tokens": self.MAX_OUTPUT_TOKENS,
+            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
         }
 
     def _response_payload(self, grounded_facts: str) -> Mapping[str, Any]:
@@ -143,7 +166,7 @@ class OpenAIAdapter(ModelProviderAdapter):
             "model": self.model_id,
             "messages": [{"role": "user", "content": grounded_facts}],
             "tools": [],
-            "max_output_tokens": self.MAX_OUTPUT_TOKENS,
+            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
         }
 
     def _normalize(
