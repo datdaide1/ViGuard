@@ -228,6 +228,52 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(len(openai.calls), 1)
         self.assertEqual(len(gemini.calls), 1)
 
+    def test_non_retryable_error_stops_failover_and_leaves_turn_unpinned(self) -> None:
+        openai = SequenceTransport(
+            ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                "provider configuration is invalid",
+                provider="openai",
+                retryable=False,
+            )
+        )
+        gemini = SequenceTransport(GEMINI_ACTION)
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="one", gemini_api_key="two"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": openai, "gemini": gemini},
+        )
+        turn = TurnBinding()
+
+        with self.assertRaises(ModelProviderError) as raised:
+            router.propose_tool([{"role": "user", "content": "open"}], turn)
+
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(gemini.calls), 0)
+        self.assertIsNone(turn.provider)
+        self.assertFalse(turn.pinned)
+
+    def test_all_unavailable_reports_last_error_and_leaves_turn_unpinned(self) -> None:
+        openai = SequenceTransport(TimeoutError())
+        gemini = SequenceTransport(TimeoutError())
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="one", gemini_api_key="two"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": openai, "gemini": gemini},
+        )
+        turn = TurnBinding()
+
+        with self.assertRaises(ModelProviderError) as raised:
+            router.propose_tool([{"role": "user", "content": "open"}], turn)
+
+        self.assertEqual(raised.exception.code, ModelErrorCode.ALL_UNAVAILABLE)
+        self.assertIn("last_error=MODEL_PROVIDER_TIMEOUT", raised.exception.detail)
+        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(gemini.calls), 1)
+        self.assertIsNone(turn.provider)
+        self.assertFalse(turn.pinned)
+
     def test_pinned_turn_never_fails_over_during_response(self) -> None:
         openai = SequenceTransport(
             OPENAI_ACTION,
