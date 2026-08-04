@@ -57,3 +57,11 @@ class GatewayExecutionError(ExecutionError):
 
     def __init__(self, message: str, code: str = "EXECUTION_FAILED", retryable: bool = False) -> None:
         super().__init__(code, message, retryable=retryable)
+
+
+class InvalidDoorTargetError(ExecutionError):
+    """Door target is missing or unsupported."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__("INVALID_DOOR_TARGET", message)
+
