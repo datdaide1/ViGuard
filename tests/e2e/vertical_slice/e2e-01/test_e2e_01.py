@@ -424,7 +424,7 @@ class E2EOpenDoorVerticalSliceTests(unittest.TestCase):
         # Assert baseline restoration
         self.assertEqual(env.spy_actuator.call_count, 0)
         self.assertEqual(env.spy_executor.call_count, 0)
-        self.assertEqual(env.state_machine.snapshot().state_version, 0)
+        self.assertEqual(env.state_machine.snapshot().state_version, 2)
         driver_door = next(d for d in env.state_machine.snapshot().access.doors if d.door_id == "driver_door")
         self.assertEqual(driver_door.position, DoorPosition.CLOSED)
         self.assertEqual(driver_door.lock, LockState.LOCKED)

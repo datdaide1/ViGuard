@@ -101,12 +101,14 @@ class E2EMockGuardrailClient:
         reason_code: str = "SAFE_PARKED_STATE",
         custom_response: dict[str, Any] | None = None,
         permit_override: dict[str, Any] | None = None,
+        state_machine: VehicleStateMachine | None = None,
     ) -> None:
         self.outcome = outcome
         self.rule_id = rule_id
         self.reason_code = reason_code
         self.custom_response = custom_response
         self.permit_override = permit_override
+        self.state_machine = state_machine
         self.calls: int = 0
         self.last_proposal: dict[str, Any] | None = None
 
@@ -117,6 +119,16 @@ class E2EMockGuardrailClient:
             return self.custom_response
 
         digest = proposal_digest(proposal)
+        state_ver = 1
+        relevant_state: dict[str, Any] = {"speed": 0, "gear": "P"}
+        if self.state_machine is not None:
+            snap = self.state_machine.snapshot()
+            state_ver = snap.state_version
+            relevant_state = {
+                "speed": snap.motion.speed_kph,
+                "gear": snap.transmission.gear.value,
+            }
+
         response: dict[str, Any] = {
             "contract_version": CONTRACT_VERSION,
             "kind": "decision",
@@ -125,10 +137,10 @@ class E2EMockGuardrailClient:
             "intent": "open_door",
             "outcome": self.outcome,
             "rule_id": self.rule_id,
-            "state_version": 1,
+            "state_version": state_ver,
             "policy_checksum": "sha256:" + "a" * 64,
             "reason_code": self.reason_code,
-            "relevant_state": {"speed": 0, "gear": "P"},
+            "relevant_state": relevant_state,
         }
 
         if self.outcome == "ALLOW":
@@ -140,7 +152,7 @@ class E2EMockGuardrailClient:
                     "proposal_digest": digest,
                     "intent": "open_door",
                     "rule_id": self.rule_id,
-                    "state_version": 1,
+                    "state_version": state_ver,
                     "policy_checksum": "sha256:" + "a" * 64,
                     "issued_at": "2026-08-04T00:00:00Z",
                     "expires_at": "2099-01-01T00:00:00Z",
@@ -163,9 +175,8 @@ class E2ETestEnvironment:
     event_pipeline: AgentEventPipeline
 
     def reset(self) -> None:
-        """Reset state machine and event store to baseline."""
-        from vivi_agent.vehicle.state.model import DEFAULT_VEHICLE_STATE
-        self.state_machine._state = DEFAULT_VEHICLE_STATE
+        """Reset state machine and event store to baseline via public API."""
+        self.state_machine.reset("parked_powered_off")
         self.event_store.clear()
         self.spy_actuator.call_count = 0
         self.spy_actuator.calls.clear()
@@ -218,6 +229,7 @@ def create_e2e_environment(
         rule_id=guardrail_rule_id,
         reason_code=guardrail_reason_code,
         custom_response=guardrail_custom_response,
+        state_machine=state_machine,
     )
     model_router = E2EMockModelRouter()
     event_store = AgentEventStore()
