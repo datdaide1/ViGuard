@@ -1,6 +1,6 @@
-﻿# EVT-01 — Xây Agent/Vehicle typed event pipeline
+# EVT-01 — Xây Agent/Vehicle typed event pipeline
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/events  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục EVT-01)

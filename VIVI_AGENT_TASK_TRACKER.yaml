@@ -209,12 +209,21 @@ tasks:
     title: 'Xây Agent/Vehicle typed event pipeline'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: completed
     area: src/vivi_agent/events
     task_file: src/vivi_agent/events/evt-01/TASK.md
     depends_on: [CON-02, ORC-01, VEH-02, EXEC-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/events/models.py
+      - src/vivi_agent/events/redaction.py
+      - src/vivi_agent/events/store.py
+      - src/vivi_agent/events/adapters.py
+      - src/vivi_agent/events/pipeline.py
+      - src/vivi_agent/events/replay.py
+      - src/vivi_agent/events/fixtures.py
+      - src/vivi_agent/events/__init__.py
+      - tests/events/test_event_pipeline.py
   - id: E2E-01
     title: 'Khóa vertical slice `open_door`'
     priority: P0
