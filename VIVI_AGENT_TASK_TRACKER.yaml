@@ -126,12 +126,15 @@ tasks:
     title: 'Xây ViVi Agent Orchestrator nền tảng'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/orchestrator
     task_file: src/vivi_agent/orchestrator/orc-01/TASK.md
     depends_on: [CON-01, CON-02, MAP-01, MOD-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/orchestrator/orchestrator.py
+      - src/vivi_agent/orchestrator/endpoint.py
+      - tests/orchestrator/test_orchestrator.py
   - id: GRD-ADP-01
     title: 'Xây Guardrail Client Adapter và mock server'
     priority: P0

@@ -1,6 +1,6 @@
 ﻿# ORC-01 — Xây ViVi Agent Orchestrator nền tảng
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/orchestrator  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục ORC-01)
