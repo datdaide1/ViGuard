@@ -1,6 +1,6 @@
-﻿# VEH-02 — Xây Vehicle State Machine và event store
+# VEH-02 — Xây Vehicle State Machine và event store
 
-**Trạng thái:** planned  
+**Trạng thái:** done  
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/vehicle/state  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục VEH-02)

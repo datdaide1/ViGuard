@@ -1,4 +1,4 @@
-"""Typed, immutable Vehicle State Model owned by the simulator."""
+"""Vehicle State Model, State Machine, and Event Store."""
 
 from .model import (
     DEFAULT_VEHICLE_STATE,
@@ -36,8 +36,11 @@ from .model import (
     pip_provenance,
 )
 from .presets import PRESETS, VehicleStatePreset, get_preset
+from .events import ActorKind, StateChangedEvent, VehicleEventStore
+from .machine import TransitionError, VersionConflictError, VehicleStateMachine
 
 __all__ = [
+    # --- VEH-01: Model ---
     "DEFAULT_VEHICLE_STATE",
     "PIP_FIELD_NAMES",
     "POWER_DEPENDENT_ADAS_INTENTS",
@@ -74,4 +77,11 @@ __all__ = [
     "VehicleStateValidationError",
     "get_preset",
     "pip_provenance",
+    # --- VEH-02: State Machine & Events ---
+    "ActorKind",
+    "StateChangedEvent",
+    "TransitionError",
+    "VehicleEventStore",
+    "VehicleStateMachine",
+    "VersionConflictError",
 ]
