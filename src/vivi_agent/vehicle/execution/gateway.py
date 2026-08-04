@@ -10,6 +10,7 @@ from typing import Any
 from vivi_agent.orchestrator.orchestrator import ExecutionResult, TurnError
 from .errors import (
     ExecutionError,
+    GatewayExecutionError,
     HandlerNotFoundError,
     PermitVerificationError,
     ReplayAttackError,
@@ -84,7 +85,7 @@ class VehicleToolGateway:
             Either a full Guardrail decision object (containing outcome and permit)
             or an ActionPermit object directly.
         cancellation:
-            Optional cancellation token.
+            Optional cancellation token (e.g. CancellationToken with .cancelled property).
         current_time:
             Optional override for current timestamp (for deterministic testing).
 
@@ -95,6 +96,19 @@ class VehicleToolGateway:
             facts, or error details.
         """
         execution_id = f"exec-{uuid.uuid4().hex[:12]}"
+
+        # Step 0: Check cancellation prior to processing
+        if cancellation is not None and getattr(cancellation, "cancelled", False):
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message="Execution cancelled",
+                error=TurnError(
+                    code="EXECUTION_CANCELLED",
+                    message="Action execution was cancelled prior to completion",
+                    retryable=False,
+                ),
+            )
 
         # Extract permit and decision context
         decision: Mapping[str, Any] | None = None
@@ -169,7 +183,7 @@ class VehicleToolGateway:
                 error=TurnError(
                     code=exc.code,
                     message=exc.message,
-                    retryable=False,
+                    retryable=exc.retryable,
                 ),
             )
 
@@ -185,7 +199,7 @@ class VehicleToolGateway:
                 error=TurnError(
                     code=exc.code,
                     message=exc.message,
-                    retryable=False,
+                    retryable=exc.retryable,
                 ),
             )
 
@@ -195,42 +209,58 @@ class VehicleToolGateway:
 
         handler = self._registry.get(tool_name) or (self._registry.get(intent_name) if intent_name else None)
         if handler is None:
+            err = HandlerNotFoundError(tool_name or intent_name or "unknown")
             return ExecutionResult(
                 success=False,
                 execution_id=execution_id,
-                message=f"No handler registered for tool {tool_name!r} / intent {intent_name!r}",
+                message=err.message,
                 error=TurnError(
-                    code="HANDLER_NOT_FOUND",
-                    message=f"No handler found for tool {tool_name!r}",
-                    retryable=False,
+                    code=err.code,
+                    message=err.message,
+                    retryable=err.retryable,
                 ),
             )
 
         # Step 4: Invoke actuator handler
         try:
             handler_output = handler(proposal)
-            state_version = (
-                handler_output.get("state_version")
-                if isinstance(handler_output, Mapping)
-                else None
-            )
-            facts = (
-                handler_output.get("facts", {})
-                if isinstance(handler_output, Mapping)
-                else {}
-            )
-            msg = (
-                handler_output.get("message", "Tool execution succeeded")
-                if isinstance(handler_output, Mapping)
-                else "Tool execution succeeded"
-            )
+            if not isinstance(handler_output, Mapping):
+                err = GatewayExecutionError(
+                    "Actuator handler return value must be a dictionary or Mapping",
+                    code="INVALID_HANDLER_OUTPUT",
+                )
+                return ExecutionResult(
+                    success=False,
+                    execution_id=execution_id,
+                    message=err.message,
+                    error=TurnError(
+                        code=err.code,
+                        message=err.message,
+                        retryable=err.retryable,
+                    ),
+                )
+
+            state_version = handler_output.get("state_version")
+            facts = handler_output.get("facts", {})
+            msg = handler_output.get("message", "Tool execution succeeded")
 
             return ExecutionResult(
                 success=True,
                 execution_id=execution_id,
                 message=str(msg),
-                state_version=state_version,
+                state_version=state_version if isinstance(state_version, int) else None,
                 facts=facts if isinstance(facts, Mapping) else {},
+            )
+        except ExecutionError as exc:
+            return ExecutionResult(
+                success=False,
+                execution_id=execution_id,
+                message=f"Handler execution error: {exc.message}",
+                error=TurnError(
+                    code=exc.code,
+                    message=exc.message,
+                    retryable=exc.retryable,
+                ),
             )
         except Exception as exc:
             return ExecutionResult(

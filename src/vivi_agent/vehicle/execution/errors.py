@@ -6,10 +6,11 @@ from __future__ import annotations
 class ExecutionError(Exception):
     """Base class for vehicle tool execution exceptions."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, retryable: bool = False) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        self.retryable = retryable
 
 
 class PermitVerificationError(ExecutionError):
@@ -54,5 +55,5 @@ class HandlerNotFoundError(ExecutionError):
 class GatewayExecutionError(ExecutionError):
     """Error during handler execution."""
 
-    def __init__(self, message: str, code: str = "EXECUTION_FAILED") -> None:
-        super().__init__(code, message)
+    def __init__(self, message: str, code: str = "EXECUTION_FAILED", retryable: bool = False) -> None:
+        super().__init__(code, message, retryable=retryable)

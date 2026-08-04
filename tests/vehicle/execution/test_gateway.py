@@ -9,8 +9,10 @@ from typing import Any, Mapping
 import pytest
 
 from vivi_agent.contracts.guardrail.v1.contract import proposal_digest
+from vivi_agent.orchestrator.orchestrator import CancellationToken
 from vivi_agent.vehicle.execution import (
     ExpiredPermitError,
+    GatewayExecutionError,
     HandlerRegistry,
     InvalidPermitError,
     PermitStore,
@@ -24,16 +26,16 @@ from vivi_agent.vehicle.execution import (
 class ActuatorSpy:
     """Spy wrapper for vehicle actuator handlers to assert execution boundary rules."""
 
-    def __init__(self, return_value: Mapping[str, Any] | None = None) -> None:
+    def __init__(self, return_value: Any = None) -> None:
         self.call_count = 0
         self.last_proposal: Mapping[str, Any] | None = None
-        self.return_value = return_value or {
+        self.return_value = return_value if return_value is not None else {
             "state_version": 42,
             "message": "Actuator executed successfully",
             "facts": {"door": "driver_door", "target_state": "open"},
         }
 
-    def __call__(self, proposal: Mapping[str, Any]) -> Mapping[str, Any]:
+    def __call__(self, proposal: Mapping[str, Any]) -> Any:
         self.call_count += 1
         self.last_proposal = proposal
         return self.return_value
@@ -199,6 +201,26 @@ def test_gateway_successful_execution():
     assert gateway.store.is_used(decision["permit"]["permit_id"]) is True
 
 
+def test_gateway_cancellation_token_cancels_execution():
+    spy = ActuatorSpy()
+    registry = HandlerRegistry()
+    registry.register("open_door", spy)
+
+    gateway = VehicleToolGateway(registry=registry)
+    proposal = make_proposal()
+    decision = make_decision(proposal)
+
+    cancellation = CancellationToken()
+    cancellation.cancel()
+
+    result = gateway.execute(proposal, decision, cancellation=cancellation)
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "EXECUTION_CANCELLED"
+    assert spy.call_count == 0
+
+
 @pytest.mark.parametrize(
     "outcome",
     ["BLOCK_UNSAFE", "BLOCK_UNAVAILABLE", "CONFIRM", "ANSWER", "UNKNOWN"],
@@ -297,7 +319,45 @@ def test_gateway_missing_handler_fails_after_permit_check():
     assert result.error.code == "HANDLER_NOT_FOUND"
 
 
-def test_gateway_handler_exception_wrapped():
+def test_gateway_non_mapping_handler_output_fails():
+    spy = ActuatorSpy(return_value="unexpected_string_output")
+    registry = HandlerRegistry()
+    registry.register("open_door", spy)
+
+    gateway = VehicleToolGateway(registry=registry)
+    proposal = make_proposal()
+    decision = make_decision(proposal)
+
+    now = datetime.fromisoformat("2026-08-04T12:01:00+00:00")
+    result = gateway.execute(proposal, decision, current_time=now)
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "INVALID_HANDLER_OUTPUT"
+
+
+def test_gateway_structured_execution_error_propagated():
+    def custom_failing_handler(prop: Mapping[str, Any]) -> dict[str, Any]:
+        raise GatewayExecutionError("Door mechanical jam detected", code="HARDWARE_JAM", retryable=True)
+
+    registry = HandlerRegistry()
+    registry.register("open_door", custom_failing_handler)
+
+    gateway = VehicleToolGateway(registry=registry)
+    proposal = make_proposal()
+    decision = make_decision(proposal)
+
+    now = datetime.fromisoformat("2026-08-04T12:01:00+00:00")
+    result = gateway.execute(proposal, decision, current_time=now)
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "HARDWARE_JAM"
+    assert result.error.message == "Door mechanical jam detected"
+    assert result.error.retryable is True
+
+
+def test_gateway_handler_generic_exception_wrapped():
     def failing_handler(prop: Mapping[str, Any]) -> dict[str, Any]:
         raise RuntimeError("Hardware actuator communication failure")
 
