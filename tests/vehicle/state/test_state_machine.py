@@ -454,6 +454,20 @@ class TestCodeReviewFixes(unittest.TestCase):
         self.assertEqual(event.next_version, 6)
         self.assertNotEqual(event.sequence, event.next_version)
 
+    def test_clock_alignment_across_snapshot_provenance_and_event(self) -> None:
+        """Sourcery recommendation: clock injection aligns state timestamp,
+        provenance observed_at, and event occurred_at to the exact same instant.
+        """
+        fixed_time = datetime(2026, 8, 4, 15, 0, 0, tzinfo=timezone.utc)
+        machine = VehicleStateMachine(_clock=lambda: fixed_time)
+        event = machine.apply(lambda s: s, **_ACTOR)
+
+        self.assertEqual(event.occurred_at, fixed_time)
+        self.assertEqual(event.snapshot.timestamp, fixed_time)
+        for prov in event.snapshot.pip_field_provenance:
+            self.assertEqual(prov.observed_at, fixed_time)
+
 
 if __name__ == "__main__":
     unittest.main()
+

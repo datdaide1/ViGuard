@@ -103,6 +103,7 @@ class VehicleStateMachine:
         initial_state: VehicleState | None = None,
         *,
         event_store: VehicleEventStore | None = None,
+        _clock: Callable[[], datetime] | None = None,
     ) -> None:
         from .model import DEFAULT_VEHICLE_STATE
 
@@ -110,7 +111,10 @@ class VehicleStateMachine:
             initial_state if initial_state is not None else DEFAULT_VEHICLE_STATE
         )
         self._lock = threading.Lock()
-        self._event_store = event_store if event_store is not None else VehicleEventStore()
+        self._clock = _clock if _clock is not None else (lambda: datetime.now(tz=timezone.utc))
+        self._event_store = (
+            event_store if event_store is not None else VehicleEventStore(_clock=self._clock)
+        )
 
     # ------------------------------------------------------------------
     # Public read API
@@ -210,7 +214,7 @@ class VehicleStateMachine:
             # Build next state
             previous_version = current.state_version
             next_version = previous_version + 1
-            now = datetime.now(tz=timezone.utc)
+            now = self._clock()
 
             # Issue 3 fix: extend try/except to cover both patch_fn() and
             # replace() so non-VehicleState returns (None, dict, etc.) are
@@ -257,6 +261,7 @@ class VehicleStateMachine:
                 actor_kind=actor_kind,
                 actor_id=actor_id,
                 snapshot=next_state,
+                occurred_at=now,
             )
 
     def reset(
@@ -305,7 +310,7 @@ class VehicleStateMachine:
         with self._lock:
             previous_version = self._state.state_version
             next_version = previous_version + 1
-            now = datetime.now(tz=timezone.utc)
+            now = self._clock()
             # get_preset raises KeyError before self._state is assigned, so
             # state is never mutated on an unknown preset.
             next_state = get_preset(preset_id, state_version=next_version, timestamp=now)
@@ -319,4 +324,5 @@ class VehicleStateMachine:
                 actor_kind=ActorKind.SYSTEM,
                 actor_id=actor_id,
                 snapshot=next_state,
+                occurred_at=now,
             )

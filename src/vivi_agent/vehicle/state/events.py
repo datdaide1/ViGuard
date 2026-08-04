@@ -164,6 +164,7 @@ class VehicleEventStore:
         actor_kind: ActorKind,
         actor_id: str,
         snapshot: VehicleState,
+        occurred_at: datetime | None = None,
     ) -> StateChangedEvent:
         """Atomically assign sequence, build event, and append to store."""
         with self._lock:
@@ -176,7 +177,7 @@ class VehicleEventStore:
                 next_version=next_version,
                 actor_kind=actor_kind,
                 actor_id=actor_id,
-                occurred_at=self._clock(),
+                occurred_at=occurred_at if occurred_at is not None else self._clock(),
                 snapshot=snapshot,
             )
             self._events.append(event)
