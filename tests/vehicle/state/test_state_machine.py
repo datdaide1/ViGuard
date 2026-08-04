@@ -311,6 +311,139 @@ class TestConcurrency(unittest.TestCase):
         self.assertEqual(machine.snapshot().state_version, 20)
         self.assertEqual(len(machine.event_store), 20)
 
+    def test_concurrent_snapshot_version_matches_latest_event(self) -> None:
+        """Issue 1 fix regression: snapshot.state_version == store.latest().next_version
+        must hold for any observer after a transition completes.
+        No observer should ever see a committed state without a corresponding event.
+        """
+        machine = _make_machine()
+        errors: list[str] = []
+        lock = threading.Lock()
+
+        def worker() -> None:
+            machine.apply(lambda s: s, **_ACTOR)
+            snap = machine.snapshot()
+            latest = machine.event_store.latest()
+            if latest is None or snap.state_version != latest.next_version:
+                with lock:
+                    errors.append(
+                        f"state_version={snap.state_version} "
+                        f"latest.next_version={latest.next_version if latest else None}"
+                    )
+
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [], msg=f"Consistency violations: {errors}")
+
+
+class TestCodeReviewFixes(unittest.TestCase):
+    """Regression tests for issues found during VEH-02 code review."""
+
+    # Issue 2: empty actor_id / correlation_id rejected before lock
+    def test_empty_actor_id_raises_before_state_change(self) -> None:
+        machine = _make_machine()
+        before = machine.snapshot().state_version
+        with self.assertRaises(ValueError) as ctx:
+            machine.apply(lambda s: s, actor_kind=ActorKind.AGENT,
+                          actor_id="", correlation_id="x")
+        self.assertIn("actor_id", str(ctx.exception))
+        self.assertEqual(machine.snapshot().state_version, before)
+        self.assertEqual(len(machine.event_store), 0)
+
+    def test_empty_correlation_id_raises_before_state_change(self) -> None:
+        machine = _make_machine()
+        before = machine.snapshot().state_version
+        with self.assertRaises(ValueError) as ctx:
+            machine.apply(lambda s: s, actor_kind=ActorKind.AGENT,
+                          actor_id="agent-1", correlation_id="")
+        self.assertIn("correlation_id", str(ctx.exception))
+        self.assertEqual(machine.snapshot().state_version, before)
+        self.assertEqual(len(machine.event_store), 0)
+
+    def test_reset_empty_actor_id_raises_before_state_change(self) -> None:
+        machine = _make_machine()
+        before = machine.snapshot().state_version
+        with self.assertRaises(ValueError):
+            machine.reset("parked_ready", actor_id="", correlation_id="reset")
+        self.assertEqual(machine.snapshot().state_version, before)
+
+    # Issue 3: patch_fn returning None raises TransitionError
+    def test_patch_fn_returning_none_raises_transition_error(self) -> None:
+        machine = _make_machine()
+        before = machine.snapshot().state_version
+        with self.assertRaises(TransitionError) as ctx:
+            machine.apply(lambda s: None, **_ACTOR)  # type: ignore[return-value]
+        self.assertIsInstance(ctx.exception.cause, TypeError)
+        self.assertIn("VehicleState", str(ctx.exception.cause))
+        self.assertEqual(machine.snapshot().state_version, before)
+        self.assertEqual(len(machine.event_store), 0)
+
+    # Issue 4: provenance source and available are preserved by apply()
+    def test_apply_preserves_provenance_source_from_patch_fn(self) -> None:
+        """apply() must not overwrite source/available in pip_field_provenance."""
+        from dataclasses import replace as dc_replace
+        from datetime import timezone
+        from src.vivi_agent.vehicle.state import (
+            pip_provenance, StateSource, VehicleStateValidationError,
+        )
+        # Use DEFAULT_VEHICLE_STATE (timestamp=epoch).  Provenance observed_at
+        # must not exceed the *candidate* snapshot timestamp (still epoch here;
+        # machine will stamp it to `now` later while preserving source/available).
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        machine = _make_machine()  # initial state_version=0, timestamp=epoch
+
+        def patch_with_operator_provenance(s: VehicleState) -> VehicleState:
+            # observed_at <= s.timestamp (both are epoch) to pass __post_init__
+            op_provenance = pip_provenance(
+                StateSource.OPERATOR, epoch,
+                unavailable_fields=frozenset({"rain_sensor"}),
+            )
+            return dc_replace(s, pip_field_provenance=op_provenance)
+
+        event = machine.apply(patch_with_operator_provenance, **_ACTOR)
+        snap = event.snapshot
+
+        rain_prov = next(
+            p for p in snap.pip_field_provenance if p.field_name == "rain_sensor"
+        )
+        # source must be preserved by apply()
+        self.assertEqual(rain_prov.source, StateSource.OPERATOR)
+        # available=False must be preserved by apply()
+        self.assertFalse(rain_prov.available)
+        # observed_at must be refreshed to now (not epoch) by apply()
+        self.assertGreater(rain_prov.observed_at, epoch)
+
+        # to_guardrail_snapshot must raise because rain_sensor is unavailable
+        with self.assertRaises(VehicleStateValidationError) as ctx:
+            snap.to_guardrail_snapshot()
+        self.assertEqual(ctx.exception.code, "INCOMPLETE_GUARDRAIL_SNAPSHOT")
+
+    # Issue 5: to_dict() occurred_at is always UTC Z format
+    def test_to_dict_occurred_at_is_utc_z_format(self) -> None:
+        machine = _make_machine()
+        event = machine.apply(lambda s: s, **_ACTOR)
+        d = event.to_dict()
+        self.assertTrue(
+            d["occurred_at"].endswith("Z"),
+            msg=f"occurred_at must end with Z, got: {d['occurred_at']!r}",
+        )
+
+    # Issue 6: sequence vs next_version when initial_state.state_version > 0
+    def test_sequence_and_version_documented_not_always_equal(self) -> None:
+        """sequence != next_version when initial state_version > 0."""
+        initial = get_preset("parked_ready", state_version=5, timestamp=_NOW)
+        machine = VehicleStateMachine(initial)
+        event = machine.apply(lambda s: s, **_ACTOR)
+        # sequence starts from 1 (first event in store)
+        self.assertEqual(event.sequence, 1)
+        # but version jumps from 5 to 6
+        self.assertEqual(event.next_version, 6)
+        self.assertNotEqual(event.sequence, event.next_version)
+
 
 if __name__ == "__main__":
     unittest.main()

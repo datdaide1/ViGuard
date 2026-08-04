@@ -1,4 +1,4 @@
-﻿"""Vehicle state-change events and in-memory event store.
+"""Vehicle state-change events and in-memory event store.
 
 Every successful transition emitted by :class:`VehicleStateMachine` produces
 exactly one :class:`StateChangedEvent`.  The store retains all events for the
@@ -9,9 +9,10 @@ Design notes
 ------------
 * Events are immutable frozen dataclasses -- safe to hand to any consumer.
 * ``sequence`` is the 1-based position of the event in the store; it is
-  distinct from ``next_version`` but will equal it after every normal
-  transition.  Keeping them separate preserves extensibility (e.g. a future
-  out-of-band system event could advance sequence without touching state).
+  distinct from ``next_version``.  They are equal only when the machine
+  starts from ``state_version=0`` and no out-of-band events exist.
+  Keeping them separate preserves extensibility (e.g. a future out-of-band
+  system event could advance sequence without touching state).
 * The store uses a dedicated ``threading.Lock`` so reads and writes are
   serialised independently of the machine lock.
 """
@@ -94,6 +95,8 @@ class StateChangedEvent:
             raise ValueError("actor_id must be non-empty")
         if not isinstance(self.occurred_at, datetime) or self.occurred_at.tzinfo is None:
             raise ValueError("occurred_at must be a timezone-aware datetime")
+        if self.occurred_at.utcoffset() and self.occurred_at.utcoffset().total_seconds() != 0:
+            raise ValueError("occurred_at must be in UTC (utcoffset must be zero)")
         if not isinstance(self.snapshot, VehicleState):
             raise ValueError("snapshot must be a VehicleState")
 
@@ -110,7 +113,7 @@ class StateChangedEvent:
             "next_version": self.next_version,
             "actor_kind": self.actor_kind.value,
             "actor_id": self.actor_id,
-            "occurred_at": self.occurred_at.isoformat().replace("+00:00", "Z"),
+            "occurred_at": self.occurred_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
             "snapshot": self.snapshot.to_guardrail_snapshot(),
         }
 

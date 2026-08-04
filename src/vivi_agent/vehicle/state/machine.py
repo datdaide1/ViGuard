@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from .events import ActorKind, StateChangedEvent, VehicleEventStore
-from .model import VehicleState, VehicleStateValidationError, pip_provenance, StateSource
+from .model import VehicleState, VehicleStateValidationError
 from .presets import get_preset
 
 
@@ -153,12 +153,15 @@ class VehicleStateMachine:
             machine will call it inside the write lock and assign the new
             ``state_version`` and ``timestamp`` automatically.  The function
             **must not** mutate the input (frozen dataclass prevents this).
+            It must return a :class:`VehicleState` instance; returning any
+            other type raises :class:`TransitionError`.
         actor_kind:
             Category of the actor initiating the transition.
         actor_id:
-            Opaque identifier for the specific actor.
+            Opaque identifier for the specific actor.  Must be non-empty.
         correlation_id:
             Opaque string linking this transition to a higher-level request.
+            Must be non-empty.
         expected_version:
             If provided, the transition is rejected with
             :class:`VersionConflictError` if the current ``state_version``
@@ -171,13 +174,30 @@ class VehicleStateMachine:
 
         Raises
         ------
+        ValueError
+            ``actor_id`` or ``correlation_id`` is empty (no state change).
         VersionConflictError
             Optimistic-locking conflict (state unchanged).
         TransitionError
-            The patch function raised an exception (state unchanged).
+            The patch function raised an exception or returned a non-
+            ``VehicleState`` value (state unchanged).
         VehicleStateValidationError
             The new snapshot violates invariants (state unchanged).
+
+        Note
+        ----
+        State commit and event emission are both performed under ``self._lock``
+        to guarantee that ``snapshot().state_version`` never exceeds
+        ``event_store.latest().next_version`` from a concurrent observer's
+        point of view.
         """
+        # Issue 2 fix: validate metadata before acquiring the lock so a bad
+        # call never touches state.
+        if not actor_id:
+            raise ValueError("actor_id must be non-empty")
+        if not correlation_id:
+            raise ValueError("correlation_id must be non-empty")
+
         with self._lock:
             current = self._state
 
@@ -192,39 +212,52 @@ class VehicleStateMachine:
             next_version = previous_version + 1
             now = datetime.now(tz=timezone.utc)
 
+            # Issue 3 fix: extend try/except to cover both patch_fn() and
+            # replace() so non-VehicleState returns (None, dict, etc.) are
+            # caught and wrapped as TransitionError.
             try:
                 candidate = patch_fn(current)
-            except VehicleStateValidationError:
-                raise  # invariant violations propagate directly
+                if not isinstance(candidate, VehicleState):
+                    raise TransitionError(
+                        TypeError(
+                            f"patch_fn must return VehicleState, got {type(candidate).__name__}"
+                        )
+                    )
+                # Issue 4 fix: preserve caller-set source and available per
+                # field; only refresh observed_at to prevent
+                # FUTURE_FIELD_OBSERVATION from the timestamp stamp below.
+                updated_provenance = tuple(
+                    replace(p, observed_at=now)
+                    for p in candidate.pip_field_provenance
+                )
+                # Stamp version + timestamp.  VehicleState.__post_init__
+                # validates invariants -- if it raises, the assignment below
+                # never happens (state unchanged).
+                next_state = replace(
+                    candidate,
+                    state_version=next_version,
+                    timestamp=now,
+                    pip_field_provenance=updated_provenance,
+                )
+            except (VehicleStateValidationError, TransitionError):
+                raise  # propagate directly without wrapping
             except Exception as exc:
                 raise TransitionError(exc) from exc
 
-            # Stamp version + timestamp; also refresh provenance so that
-            # observed_at timestamps never exceed the new snapshot timestamp.
-            # VehicleState.__post_init__ validates invariants -- if it raises,
-            # the assignment below never happens (state unchanged).
-            updated_provenance = pip_provenance(
-                StateSource.VEHICLE_HANDLER, now
-            )
-            next_state = replace(
-                candidate,
-                state_version=next_version,
-                timestamp=now,
-                pip_field_provenance=updated_provenance,
-            )
-
-            # Commit
+            # Commit state
             self._state = next_state
 
-        # Emit event outside the machine lock (store has its own lock)
-        return self._event_store._build_and_append(
-            correlation_id=correlation_id,
-            previous_version=previous_version,
-            next_version=next_version,
-            actor_kind=actor_kind,
-            actor_id=actor_id,
-            snapshot=next_state,
-        )
+            # Issue 1 fix: emit event inside the machine lock so that
+            # snapshot().state_version == event_store.latest().next_version
+            # is guaranteed for any concurrent observer.
+            return self._event_store._build_and_append(
+                correlation_id=correlation_id,
+                previous_version=previous_version,
+                next_version=next_version,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                snapshot=next_state,
+            )
 
     def reset(
         self,
@@ -241,8 +274,10 @@ class VehicleStateMachine:
             ID of a preset defined in :mod:`.presets` (e.g. ``"parked_ready"``).
         actor_id:
             Identifier for the reset initiator; defaults to ``"system"``.
+            Must be non-empty.
         correlation_id:
             Opaque correlation string; defaults to ``"reset"``.
+            Must be non-empty.
 
         Returns
         -------
@@ -251,21 +286,37 @@ class VehicleStateMachine:
 
         Raises
         ------
+        ValueError
+            ``actor_id`` or ``correlation_id`` is empty (no state change).
         KeyError
-            Unknown ``preset_id``.
+            Unknown ``preset_id`` (no state change).
+
+        Note
+        ----
+        State commit and event emission are both performed under ``self._lock``
+        (same guarantee as :meth:`apply`).
         """
+        # Issue 2 fix: validate metadata before acquiring the lock.
+        if not actor_id:
+            raise ValueError("actor_id must be non-empty")
+        if not correlation_id:
+            raise ValueError("correlation_id must be non-empty")
+
         with self._lock:
             previous_version = self._state.state_version
             next_version = previous_version + 1
             now = datetime.now(tz=timezone.utc)
+            # get_preset raises KeyError before self._state is assigned, so
+            # state is never mutated on an unknown preset.
             next_state = get_preset(preset_id, state_version=next_version, timestamp=now)
             self._state = next_state
 
-        return self._event_store._build_and_append(
-            correlation_id=correlation_id,
-            previous_version=previous_version,
-            next_version=next_version,
-            actor_kind=ActorKind.SYSTEM,
-            actor_id=actor_id,
-            snapshot=next_state,
-        )
+            # Issue 1 fix: emit event inside the lock.
+            return self._event_store._build_and_append(
+                correlation_id=correlation_id,
+                previous_version=previous_version,
+                next_version=next_version,
+                actor_kind=ActorKind.SYSTEM,
+                actor_id=actor_id,
+                snapshot=next_state,
+            )
