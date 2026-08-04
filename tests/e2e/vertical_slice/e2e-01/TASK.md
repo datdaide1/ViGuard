@@ -1,6 +1,6 @@
-﻿# E2E-01 — Khóa vertical slice `open_door`
+# E2E-01 — Khóa vertical slice `open_door`
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-1  
 **Code area:** tests/e2e/vertical_slice  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục E2E-01)

@@ -228,12 +228,14 @@ tasks:
     title: 'Khóa vertical slice `open_door`'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: completed
     area: tests/e2e/vertical_slice
     task_file: tests/e2e/vertical_slice/e2e-01/TASK.md
     depends_on: [ORC-01, GRD-ADP-01, EXEC-02, EVT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - tests/e2e/vertical_slice/e2e-01/fixtures.py
+      - tests/e2e/vertical_slice/e2e-01/test_e2e_01.py
   - id: MAP-02
     title: 'Hoàn thiện tool-to-intent mapping 53/53'
     priority: P0
