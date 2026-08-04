@@ -1,6 +1,6 @@
-﻿# EXEC-01 — Xây Vehicle Tool Gateway và permit verifier
+# EXEC-01 — Xây Vehicle Tool Gateway và permit verifier
 
-**Trạng thái:** planned  
+**Trạng thái:** done  
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/vehicle/execution  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục EXEC-01)

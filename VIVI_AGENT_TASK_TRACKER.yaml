@@ -180,12 +180,16 @@ tasks:
     title: 'Xây Vehicle Tool Gateway và permit verifier'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: done
     area: src/vivi_agent/vehicle/execution
     task_file: src/vivi_agent/vehicle/execution/exec-01/TASK.md
     depends_on: [CON-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/execution/gateway.py
+      - src/vivi_agent/vehicle/execution/verifier.py
+      - src/vivi_agent/vehicle/execution/errors.py
+      - tests/vehicle/execution/test_gateway.py
   - id: EXEC-02
     title: 'Xây handler `open_door`'
     priority: P0
