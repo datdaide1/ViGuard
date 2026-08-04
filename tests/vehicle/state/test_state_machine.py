@@ -312,23 +312,33 @@ class TestConcurrency(unittest.TestCase):
         self.assertEqual(len(machine.event_store), 20)
 
     def test_concurrent_snapshot_version_matches_latest_event(self) -> None:
-        """Issue 1 fix regression: snapshot.state_version == store.latest().next_version
-        must hold for any observer after a transition completes.
-        No observer should ever see a committed state without a corresponding event.
+        """Issue 1 fix regression: every committed state_version must have a
+        corresponding event persisted in the store under the correct sequence.
+
+        Previous approach re-read snapshot() and latest() without a lock after
+        apply() returned, so a concurrent thread could advance both between the
+        two reads -- producing spurious failures with correct code.
+
+        Correct approach: use the StateChangedEvent returned by apply() as the
+        single source of truth, then verify the store has it at the claimed
+        sequence with the matching next_version.
         """
         machine = _make_machine()
         errors: list[str] = []
         lock = threading.Lock()
 
         def worker() -> None:
-            machine.apply(lambda s: s, **_ACTOR)
-            snap = machine.snapshot()
-            latest = machine.event_store.latest()
-            if latest is None or snap.state_version != latest.next_version:
+            event = machine.apply(lambda s: s, **_ACTOR)
+            # Verify the store contains this exact event at the claimed sequence.
+            stored = machine.event_store.get_event(event.sequence)
+            if stored is None:
+                with lock:
+                    errors.append(f"sequence={event.sequence} not found in store")
+            elif stored.next_version != event.next_version:
                 with lock:
                     errors.append(
-                        f"state_version={snap.state_version} "
-                        f"latest.next_version={latest.next_version if latest else None}"
+                        f"sequence={event.sequence}: stored.next_version="
+                        f"{stored.next_version} != event.next_version={event.next_version}"
                     )
 
         threads = [threading.Thread(target=worker) for _ in range(20)]
