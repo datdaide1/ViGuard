@@ -130,12 +130,16 @@ def test_open_door_via_gateway_success() -> None:
         ("driver", "driver_door"),
         ("front_passenger_door", "front_passenger_door"),
         ("front_passenger", "front_passenger_door"),
+        ("passenger_door", "front_passenger_door"),
         ("rear_left_door", "rear_left_door"),
         ("rear_left", "rear_left_door"),
         ("rear_right_door", "rear_right_door"),
         ("rear_right", "rear_right_door"),
+        ("Driver_Door", "driver_door"),
+        ("  driver  ", "driver_door"),
     ],
 )
+
 def test_open_door_all_valid_door_inputs(door_input: str, canonical_id: str) -> None:
     state_machine = VehicleStateMachine()
     handler = OpenDoorHandler(state_machine)
