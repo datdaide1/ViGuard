@@ -42,6 +42,9 @@ PIP_FIELD_NAMES = frozenset(
         "autopark_state",
     }
 )
+POWER_DEPENDENT_ADAS_INTENTS = frozenset(
+    {"activate_aac", "activate_hda", "activate_autopark"}
+)
 
 
 class VehicleStateValidationError(ValueError):
@@ -497,8 +500,10 @@ class VehicleState:
                 or self.adas.hda_active
                 or self.adas.autopark_state is AutoparkState.ACTIVE
             )
-            running_intents = {"activate_aac", "activate_hda", "activate_autopark"}
-            if running_adas or any(action.intent in running_intents for action in self.active_actions):
+            if running_adas or any(
+                action.intent in POWER_DEPENDENT_ADAS_INTENTS
+                for action in self.active_actions
+            ):
                 raise VehicleStateValidationError(
                     "POWER_OFF_ACTIVE_ADAS",
                     "powered-off vehicle cannot keep AAC, HDA or autopark active",

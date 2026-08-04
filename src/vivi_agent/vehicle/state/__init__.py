@@ -3,6 +3,7 @@
 from .model import (
     DEFAULT_VEHICLE_STATE,
     PIP_FIELD_NAMES,
+    POWER_DEPENDENT_ADAS_INTENTS,
     REQUIRED_DOOR_IDS,
     VEHICLE_STATE_SCHEMA_VERSION,
     AccState,
@@ -39,6 +40,7 @@ from .presets import PRESETS, VehicleStatePreset, get_preset
 __all__ = [
     "DEFAULT_VEHICLE_STATE",
     "PIP_FIELD_NAMES",
+    "POWER_DEPENDENT_ADAS_INTENTS",
     "PRESETS",
     "REQUIRED_DOOR_IDS",
     "VEHICLE_STATE_SCHEMA_VERSION",

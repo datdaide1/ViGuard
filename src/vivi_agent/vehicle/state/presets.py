@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime
+from types import MappingProxyType
 
 from .model import (
     DEFAULT_VEHICLE_STATE,
@@ -30,18 +31,18 @@ class VehicleStatePreset:
     state: VehicleState
 
 
-PRESETS = {
-    "parked_powered_off": VehicleStatePreset(
+_PRESET_DEFINITIONS = (
+    VehicleStatePreset(
         preset_id="parked_powered_off",
         description="Default locked vehicle, parked and powered off.",
         state=DEFAULT_VEHICLE_STATE,
     ),
-    "parked_ready": VehicleStatePreset(
+    VehicleStatePreset(
         preset_id="parked_ready",
         description="Powered-on vehicle safely parked with EPB engaged.",
         state=replace(DEFAULT_VEHICLE_STATE, power=PowerState(powered_on=True)),
     ),
-    "charging": VehicleStatePreset(
+    VehicleStatePreset(
         preset_id="charging",
         description="Parked vehicle charging with cabin/accessory power available.",
         state=replace(
@@ -49,7 +50,7 @@ PRESETS = {
             power=PowerState(powered_on=True, charging=True),
         ),
     ),
-    "moving_drive": VehicleStatePreset(
+    VehicleStatePreset(
         preset_id="moving_drive",
         description="Powered-on vehicle moving in Drive at a synthetic demo speed.",
         state=replace(
@@ -60,7 +61,13 @@ PRESETS = {
             adas=AdasState(),
         ),
     ),
-}
+)
+
+PRESETS = MappingProxyType(
+    {preset.preset_id: preset for preset in _PRESET_DEFINITIONS}
+)
+if len(PRESETS) != len(_PRESET_DEFINITIONS):
+    raise RuntimeError("Vehicle preset IDs must be unique")
 
 
 def get_preset(preset_id: str, *, state_version: int, timestamp: datetime) -> VehicleState:

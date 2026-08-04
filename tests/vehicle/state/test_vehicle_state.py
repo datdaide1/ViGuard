@@ -3,10 +3,13 @@ from __future__ import annotations
 import unittest
 from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timezone
+from types import MappingProxyType
 
 from src.vivi_agent.vehicle.state import (
     DEFAULT_VEHICLE_STATE,
     PIP_FIELD_NAMES,
+    POWER_DEPENDENT_ADAS_INTENTS,
+    PRESETS,
     REQUIRED_DOOR_IDS,
     AccState,
     AccessState,
@@ -111,6 +114,11 @@ class VehicleStateTests(unittest.TestCase):
             )
         self.assertEqual(action_error.exception.code, "POWER_OFF_ACTIVE_ADAS")
 
+        self.assertEqual(
+            POWER_DEPENDENT_ADAS_INTENTS,
+            frozenset({"activate_aac", "activate_hda", "activate_autopark"}),
+        )
+
     def test_invalid_numeric_values_are_rejected(self) -> None:
         for value in (-1, 101, float("nan"), float("inf"), True):
             with self.subTest(value=value):
@@ -148,6 +156,12 @@ class VehicleStateTests(unittest.TestCase):
                 for item in charging.pip_field_provenance
             )
         )
+
+    def test_preset_index_is_immutable_and_derived_from_preset_ids(self) -> None:
+        self.assertIsInstance(PRESETS, MappingProxyType)
+        self.assertEqual(set(PRESETS), {preset.preset_id for preset in PRESETS.values()})
+        with self.assertRaises(TypeError):
+            PRESETS["drift"] = PRESETS["parked_ready"]  # type: ignore[index]
 
     def test_timestamp_must_be_timezone_aware(self) -> None:
         with self.assertRaises(VehicleStateValidationError) as raised:
