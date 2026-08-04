@@ -163,6 +163,53 @@ class EventPipelineTests(unittest.TestCase):
         self.assertEqual(len(polled), 1)
         self.assertEqual(polled[0]["event_id"], e1["event_id"])
 
+    def test_stream_adapter_unsubscribe(self) -> None:
+        session_id = "session-unsubscribe"
+        received_a: list[dict[str, Any]] = []
+        received_b: list[dict[str, Any]] = []
+
+        def callback_a(event: dict[str, Any]) -> None:
+            received_a.append(event)
+
+        def callback_b(event: dict[str, Any]) -> None:
+            received_b.append(event)
+
+        self.pipeline.stream_adapter.subscribe(callback_a)
+        self.pipeline.stream_adapter.subscribe(callback_b)
+
+        # Idempotent subscribe test
+        self.pipeline.stream_adapter.subscribe(callback_a)
+
+        e1 = self.pipeline.emit_proposal(session_id, "turn-1", "req-1", "open_door", "Mở cửa")
+
+        self.assertEqual(len(received_a), 1)
+        self.assertEqual(len(received_b), 1)
+
+        self.pipeline.stream_adapter.unsubscribe(callback_b)
+
+        e2 = self.pipeline.emit_proposal(session_id, "turn-2", "req-2", "close_door", "Đóng cửa")
+
+        self.assertEqual(len(received_a), 2)
+        self.assertEqual(len(received_b), 1)
+
+    def test_stream_adapter_stream_session_sequences(self) -> None:
+        session_id = "session-stream"
+
+        e1 = self.pipeline.emit_proposal(session_id, "turn-1", "req-1", "open_door", "Mở cửa")
+        e2 = self.pipeline.emit_proposal(session_id, "turn-2", "req-2", "close_door", "Đóng cửa")
+        e3 = self.pipeline.emit_proposal(session_id, "turn-3", "req-3", "open_door", "Mở cửa lần nữa")
+
+        all_events = list(
+            self.pipeline.stream_adapter.stream_session(session_id, since_sequence=0)
+        )
+        self.assertEqual([e["event_id"] for e in all_events], [e1["event_id"], e2["event_id"], e3["event_id"]])
+
+        mid_sequence = all_events[0]["sequence"]
+        later_events = list(
+            self.pipeline.stream_adapter.stream_session(session_id, since_sequence=mid_sequence)
+        )
+        self.assertEqual([e["event_id"] for e in later_events], [e2["event_id"], e3["event_id"]])
+
     def test_ui_mock_reconstructs_complete_vertical_slice(self) -> None:
         validate_event_stream(OPEN_DOOR_ALLOWED_SLICE)
         consumer = EventReplayConsumer()

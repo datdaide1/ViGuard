@@ -96,15 +96,17 @@ class AgentEventStore:
         ]
         
         if decision_event and len(execution_events) == 0:
-            return {
-                "session_id": session_id,
-                "proposal_id": proposal_id,
-                "decision_event": decision_event,
-                "outcome": decision_event.get("outcome"),
-                "reason_code": decision_event.get("reason_code"),
-                "execution_count": 0,
-                "has_no_execution_evidence": True,
-            }
+            outcome = str(decision_event.get("outcome", ""))
+            if outcome.startswith("BLOCK") or outcome in {"NOT_VOICE_ACTIONABLE", "CONFIRM"}:
+                return {
+                    "session_id": session_id,
+                    "proposal_id": proposal_id,
+                    "decision_event": decision_event,
+                    "outcome": outcome,
+                    "reason_code": decision_event.get("reason_code"),
+                    "execution_count": 0,
+                    "has_no_execution_evidence": True,
+                }
         return None
 
     def clear(self, session_id: str | None = None) -> None:

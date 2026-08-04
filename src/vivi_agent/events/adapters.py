@@ -37,7 +37,8 @@ class EventStreamAdapter:
 
     def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback for new emitted events."""
-        self._subscribers.append(callback)
+        if callback not in self._subscribers:
+            self._subscribers.append(callback)
 
     def unsubscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Remove a registered callback."""

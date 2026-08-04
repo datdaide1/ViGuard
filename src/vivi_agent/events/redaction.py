@@ -35,7 +35,14 @@ _FORBIDDEN_KEY_MARKERS = frozenset(
 def is_forbidden_key(raw_key: str) -> bool:
     """Check if a dictionary key matches any forbidden marker."""
     normalized_key = re.sub(r"[^a-z0-9]", "", str(raw_key).lower())
-    return any(marker in normalized_key for marker in _FORBIDDEN_KEY_MARKERS)
+    if normalized_key in _FORBIDDEN_KEY_MARKERS:
+        return True
+    tokens = re.split(r"[._:\-\s]+", str(raw_key).lower())
+    for token in tokens:
+        clean_token = re.sub(r"[^a-z0-9]", "", token)
+        if clean_token in _FORBIDDEN_KEY_MARKERS:
+            return True
+    return False
 
 
 def redact_event(payload: Mapping[str, Any]) -> dict[str, Any]:
