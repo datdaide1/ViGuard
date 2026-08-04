@@ -1,6 +1,6 @@
 ﻿# VEH-01 — Định nghĩa Vehicle State Model và invariants
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/vehicle/state  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục VEH-01)
@@ -28,4 +28,19 @@
 - State model cung cấp mọi field Guardrail contract yêu cầu.
 - Không field numeric nào được claim là thông số VF8 nếu thiếu nguồn.
 - Invalid state combination bị từ chối hoặc normalized theo rule được tài liệu hóa.
+
+## Implementation evidence
+
+- Immutable grouped state model and typed enums: `src/vivi_agent/vehicle/state/model.py`.
+- Cross-domain invariant validation and closed Guardrail PIP projection: `src/vivi_agent/vehicle/state/model.py`.
+- Deterministic default/preset schema: `src/vivi_agent/vehicle/state/presets.py`.
+- Source/derived-field and scope documentation: `src/vivi_agent/vehicle/state/README.md`.
+- Invariant, projection, immutability and preset tests: `tests/vehicle/state/test_vehicle_state.py`.
+- Current policy-field coverage checked against `Driver_constraints.xlsx`; unavailable
+  fields fail closed through per-field provenance instead of using preset defaults.
+
+Invalid combinations are rejected rather than silently normalized. Transition
+atomicity, version increments, event storage and preset application remain in
+`VEH-02`. All repository tests pass locally; the task remains `review` pending
+PM review.
 

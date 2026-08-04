@@ -153,12 +153,16 @@ tasks:
     title: 'Định nghĩa Vehicle State Model và invariants'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/vehicle/state
     task_file: src/vivi_agent/vehicle/state/veh-01/TASK.md
     depends_on: [CAT-01, CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/state/model.py
+      - src/vivi_agent/vehicle/state/presets.py
+      - src/vivi_agent/vehicle/state/README.md
+      - tests/vehicle/state/test_vehicle_state.py
   - id: VEH-02
     title: 'Xây Vehicle State Machine và event store'
     priority: P0
