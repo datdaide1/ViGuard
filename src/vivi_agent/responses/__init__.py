@@ -5,6 +5,7 @@ Exports ResponseComposer, response plan models, template catalogs, and state for
 
 from vivi_agent.responses.catalog import (
     APPROVED_RECOVERY_SUGGESTIONS,
+    SUCCESS_CLAIM_KEYWORDS,
     VIETNAMESE_RESPONSE_CATALOG,
     format_relevant_state,
     get_approved_recovery_suggestions,
@@ -27,6 +28,7 @@ __all__ = [
     "GroundedResponseComposer",
     "VIETNAMESE_RESPONSE_CATALOG",
     "APPROVED_RECOVERY_SUGGESTIONS",
+    "SUCCESS_CLAIM_KEYWORDS",
     "get_catalog_template",
     "get_approved_recovery_suggestions",
     "format_relevant_state",

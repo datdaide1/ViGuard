@@ -43,7 +43,7 @@ class ResponsePlan:
     policy_reason: str | None = None
     rule_id: str | None = None
     reason_code: str | None = None
-    recovery_suggestions: list[str] = field(default_factory=list)
+    recovery_suggestions: list[RecoverySuggestion] = field(default_factory=list)
     is_fallback: bool = False
     truncated: bool = False
 
@@ -56,7 +56,7 @@ class ResponsePlan:
             "policy_reason": self.policy_reason,
             "rule_id": self.rule_id,
             "reason_code": self.reason_code,
-            "recovery_suggestions": list(self.recovery_suggestions),
+            "recovery_suggestions": [s.message_vi for s in self.recovery_suggestions],
             "is_fallback": self.is_fallback,
             "truncated": self.truncated,
         }

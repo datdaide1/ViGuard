@@ -11,12 +11,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from vivi_agent.responses.catalog import (
+    SUCCESS_CLAIM_KEYWORDS,
     format_relevant_state,
     get_approved_recovery_suggestions,
     get_catalog_template,
 )
 from vivi_agent.responses.models import (
-    RecoverySuggestion,
     ResponseOutcome,
     ResponsePlan,
 )
@@ -58,12 +58,16 @@ class GroundedResponseComposer:
         # 1. Determine typed outcome and execution grounding
         outcome = self._resolve_guardrail_outcome(raw_outcome, execution)
 
-        # 2. Extract grounded facts
+        # 2. Extract grounded facts safely checking mapping instances
         grounded_facts: dict[str, Any] = {}
         if isinstance(relevant_state, Mapping):
             grounded_facts.update(relevant_state)
-        if decision.get("answer") and isinstance(decision["answer"], Mapping):
-            grounded_facts.update(decision["answer"].get("facts", {}))
+        
+        answer = decision.get("answer")
+        if isinstance(answer, Mapping):
+            answer_facts = answer.get("facts")
+            if isinstance(answer_facts, Mapping):
+                grounded_facts.update(answer_facts)
 
         # 3. Retrieve recovery suggestions
         suggestions = get_approved_recovery_suggestions(outcome.value, reason_code)
@@ -83,7 +87,6 @@ class GroundedResponseComposer:
             outcome=outcome,
             model_verbalization=model_verbalization,
             fallback_text=fallback_text,
-            execution=execution,
         )
 
         # 6. Apply length limit constraint
@@ -113,7 +116,11 @@ class GroundedResponseComposer:
 
         if status == "ANSWER":
             outcome = ResponseOutcome.ANSWER
-            fallback_text = raw_text or format_relevant_state(facts) or get_catalog_template("ANSWER")
+            fallback_text = (
+                raw_text
+                or (format_relevant_state(facts) if isinstance(facts, Mapping) else "")
+                or get_catalog_template("ANSWER")
+            )
         else:
             outcome = ResponseOutcome.UNKNOWN
             fallback_text = get_catalog_template("UNKNOWN")
@@ -122,7 +129,6 @@ class GroundedResponseComposer:
             outcome=outcome,
             model_verbalization=model_verbalization,
             fallback_text=fallback_text,
-            execution=None,
         )
 
         final_text, truncated = self._apply_length_limit(final_text)
@@ -143,14 +149,13 @@ class GroundedResponseComposer:
     ) -> ResponseOutcome:
         """Resolve the grounded response outcome based on Guardrail decision and execution status."""
         if raw_outcome == "ALLOW":
-            # Require explicit positive evidence of success. Missing execution info,
-            # or an execution mapping that doesn't affirmatively report success, is
-            # treated as failure rather than inventing a success claim.
-            exec_success = execution.get("success") if execution is not None else None
-            exec_error = execution.get("error") if execution is not None else None
-            if exec_success is True and exec_error is None:
-                return ResponseOutcome.ALLOW_SUCCESS
-            return ResponseOutcome.ALLOW_FAILED
+            if execution is not None:
+                # Check if execution failed
+                exec_success = execution.get("success")
+                exec_error = execution.get("error")
+                if exec_success is False or exec_error is not None:
+                    return ResponseOutcome.ALLOW_FAILED
+            return ResponseOutcome.ALLOW_SUCCESS
 
         if raw_outcome == "BLOCK_UNSAFE":
             return ResponseOutcome.BLOCK_UNSAFE
@@ -197,10 +202,11 @@ class GroundedResponseComposer:
         if outcome == ResponseOutcome.ANSWER:
             answer = decision.get("answer")
             if isinstance(answer, Mapping):
-                facts = answer.get("facts", {})
-                formatted = format_relevant_state(facts)
-                if formatted:
-                    return formatted
+                facts = answer.get("facts")
+                if isinstance(facts, Mapping):
+                    formatted = format_relevant_state(facts)
+                    if formatted:
+                        return formatted
             return get_catalog_template("ANSWER")
 
         # General catalog lookup
@@ -221,13 +227,11 @@ class GroundedResponseComposer:
         outcome: ResponseOutcome,
         model_verbalization: str | None,
         fallback_text: str,
-        execution: Mapping[str, Any] | None,
     ) -> tuple[str, bool]:
         """Select between provider model verbalization and deterministic fallback.
 
         Enforces strict grounding validation:
-        - If the action was not (confirmed to be) performed, model verbalization
-          MUST NOT claim success or completion.
+        - If execution failed, model verbalization MUST NOT claim success.
         - If model verbalization is missing, empty, or whitespace, fallback is used.
         """
         if not model_verbalization or not model_verbalization.strip():
@@ -235,22 +239,11 @@ class GroundedResponseComposer:
 
         verbalized = model_verbalization.strip()
 
-        # Reject model verbalization that falsely claims success/completion for any
-        # outcome where the action was not (or not confirmed to be) performed.
-        unperformed_outcomes = (
-            ResponseOutcome.ALLOW_FAILED,
-            ResponseOutcome.BLOCK_UNSAFE,
-            ResponseOutcome.BLOCK_UNAVAILABLE,
-            ResponseOutcome.CONFIRM,
-            ResponseOutcome.NOT_VOICE_ACTIONABLE,
-        )
-        if outcome in unperformed_outcomes:
-            success_keywords = ["thành công", "hoàn tất", "đã mở", "đã đóng", "đã bật", "đã tắt", "succeeded"]
-            if any(kw in verbalized.lower() for kw in success_keywords):
+        # Reject model verbalization if execution failed but verbalization falsely claims success
+        if outcome == ResponseOutcome.ALLOW_FAILED:
+            if any(kw in verbalized.lower() for kw in SUCCESS_CLAIM_KEYWORDS):
                 logger.warning(
-                    "Model verbalization falsely claimed success/completion for outcome %s. "
-                    "Falling back to deterministic message.",
-                    outcome.value,
+                    "Model verbalization falsely claimed success on failed execution. Falling back to deterministic message."
                 )
                 return fallback_text, True
 
@@ -260,10 +253,6 @@ class GroundedResponseComposer:
         """Truncate text if it exceeds self.max_length, ensuring clean boundaries."""
         if len(text) <= self.max_length:
             return text, False
-
-        if self.max_length <= 3:
-            # Not enough room for a trailing ellipsis without exceeding max_length.
-            return text[: self.max_length], True
 
         truncated_text = text[: self.max_length - 3].rstrip() + "..."
         return truncated_text, True

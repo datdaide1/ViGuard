@@ -8,6 +8,19 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from vivi_agent.responses.models import RecoverySuggestion
+
+# Keywords that indicate false success claims when execution has failed
+SUCCESS_CLAIM_KEYWORDS: tuple[str, ...] = (
+    "thành công",
+    "hoàn tất",
+    "đã mở",
+    "đã đóng",
+    "đã bật",
+    "đã tắt",
+    "succeeded",
+)
+
 # Deterministic template catalog indexed by outcome and optional reason_code
 VIETNAMESE_RESPONSE_CATALOG: dict[str, str] = {
     # Allow execution outcomes
@@ -27,7 +40,7 @@ VIETNAMESE_RESPONSE_CATALOG: dict[str, str] = {
     # Not voice actionable outcomes
     "NOT_VOICE_ACTIONABLE": "Thao tác này không thể thực hiện bằng giọng nói. Vui lòng sử dụng màn hình trung tâm.",
     # Query / Answer outcomes
-    "ANSWER": "Không có nội dung câu trả lời để hiển thị.",
+    "ANSWER": "{answer_text}",
     "UNKNOWN": "Tôi chưa có thông tin về nội dung này hoặc không tìm thấy dữ liệu phù hợp.",
     # General / execution errors
     "EXECUTION_ERROR": "Đã xảy ra lỗi trong quá trình xử lý yêu cầu.",
@@ -35,34 +48,70 @@ VIETNAMESE_RESPONSE_CATALOG: dict[str, str] = {
 }
 
 # Approved recovery suggestions indexed by outcome or reason_code
-APPROVED_RECOVERY_SUGGESTIONS: dict[str, list[str]] = {
+APPROVED_RECOVERY_SUGGESTIONS: dict[str, list[RecoverySuggestion]] = {
     "BLOCK_UNSAFE": [
-        "Vui lòng giảm tốc độ hoặc dừng xe an toàn trước khi thực hiện.",
-        "Chuyển số về P và bật phanh tay trước khi kích hoạt tính năng này.",
+        RecoverySuggestion(
+            code="REDUCE_SPEED",
+            message_vi="Vui lòng giảm tốc độ hoặc dừng xe an toàn trước khi thực hiện.",
+        ),
+        RecoverySuggestion(
+            code="SHIFT_PARK",
+            message_vi="Chuyển số về P và bật phanh tay trước khi kích hoạt tính năng này.",
+        ),
     ],
     "BLOCK_UNSAFE.HIGH_SPEED": [
-        "Giảm tốc độ xe xuống dưới mức cho phép để tiếp tục.",
+        RecoverySuggestion(
+            code="REDUCE_SPEED",
+            message_vi="Giảm tốc độ xe xuống dưới mức cho phép để tiếp tục.",
+        ),
     ],
     "BLOCK_UNSAFE.GEAR_NOT_PARK": [
-        "Dừng xe và gạt cần số về vị trí P (Đỗ).",
+        RecoverySuggestion(
+            code="SHIFT_PARK",
+            message_vi="Dừng xe và gạt cần số về vị trí P (Đỗ).",
+        ),
     ],
     "BLOCK_UNAVAILABLE": [
-        "Kiểm tra lại trạng thái kết nối hoặc cài đặt xe trên màn hình trung tâm.",
-        "Liên hệ trung tâm dịch vụ VinFast nếu lỗi tiếp tục xảy ra.",
+        RecoverySuggestion(
+            code="CHECK_SETTINGS",
+            message_vi="Kiểm tra lại trạng thái kết nối hoặc cài đặt xe trên màn hình trung tâm.",
+        ),
+        RecoverySuggestion(
+            code="CONTACT_SERVICE",
+            message_vi="Liên hệ trung tâm dịch vụ VinFast nếu lỗi tiếp tục xảy ra.",
+        ),
     ],
     "CONFIRM": [
-        "Nhấn xác nhận trên màn hình trung tâm hoặc trả lời 'Có' / 'Xác nhận'.",
-        "Nói 'Hủy' nếu bạn muốn bỏ qua yêu cầu này.",
+        RecoverySuggestion(
+            code="CONFIRM_UI_OR_VOICE",
+            message_vi="Nhấn xác nhận trên màn hình trung tâm hoặc trả lời 'Có' / 'Xác nhận'.",
+        ),
+        RecoverySuggestion(
+            code="CANCEL_VOICE",
+            message_vi="Nói 'Hủy' nếu bạn muốn bỏ qua yêu cầu này.",
+        ),
     ],
     "NOT_VOICE_ACTIONABLE": [
-        "Thực hiện thao tác trực tiếp trên màn hình cảm ứng trung tâm.",
+        RecoverySuggestion(
+            code="USE_TOUCHSCREEN",
+            message_vi="Thực hiện thao tác trực tiếp trên màn hình cảm ứng trung tâm.",
+        ),
     ],
     "ALLOW_FAILED": [
-        "Thử lại thao tác sau ít phút.",
-        "Kiểm tra bảng điều khiển để xác minh trạng thái thiết bị.",
+        RecoverySuggestion(
+            code="RETRY_LATER",
+            message_vi="Thử lại thao tác sau ít phút.",
+        ),
+        RecoverySuggestion(
+            code="CHECK_DASHBOARD",
+            message_vi="Kiểm tra bảng điều khiển để xác minh trạng thái thiết bị.",
+        ),
     ],
     "UNKNOWN": [
-        "Thử diễn đạt lại câu hỏi hoặc yêu cầu kiểm tra trạng thái xe cụ thể.",
+        RecoverySuggestion(
+            code="REPHRASE_QUERY",
+            message_vi="Thử diễn đạt lại câu hỏi hoặc yêu cầu kiểm tra trạng thái xe cụ thể.",
+        ),
     ],
 }
 
@@ -80,18 +129,24 @@ def get_catalog_template(outcome: str, reason_code: str | None = None) -> str:
     return VIETNAMESE_RESPONSE_CATALOG.get("EXECUTION_ERROR", "Đã xảy ra lỗi.")
 
 
-def get_approved_recovery_suggestions(outcome: str, reason_code: str | None = None) -> list[str]:
+def get_approved_recovery_suggestions(outcome: str, reason_code: str | None = None) -> list[RecoverySuggestion]:
     """Retrieve approved recovery suggestions for a given outcome or reason code."""
-    suggestions: list[str] = []
+    suggestions: list[RecoverySuggestion] = []
+    seen_codes: set[str] = set()
+
     if reason_code:
         specific_key = f"{outcome}.{reason_code}"
         if specific_key in APPROVED_RECOVERY_SUGGESTIONS:
-            suggestions.extend(APPROVED_RECOVERY_SUGGESTIONS[specific_key])
+            for item in APPROVED_RECOVERY_SUGGESTIONS[specific_key]:
+                if item.code not in seen_codes:
+                    suggestions.append(item)
+                    seen_codes.add(item.code)
 
     if outcome in APPROVED_RECOVERY_SUGGESTIONS:
         for item in APPROVED_RECOVERY_SUGGESTIONS[outcome]:
-            if item not in suggestions:
+            if item.code not in seen_codes:
                 suggestions.append(item)
+                seen_codes.add(item.code)
 
     return suggestions
 
