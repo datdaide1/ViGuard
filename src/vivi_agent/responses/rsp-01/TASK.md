@@ -1,6 +1,6 @@
-﻿# RSP-01 — Xây Grounded Response Composer
+# RSP-01 — Xây Grounded Response Composer
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-2  
 **Code area:** src/vivi_agent/responses  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục RSP-01)

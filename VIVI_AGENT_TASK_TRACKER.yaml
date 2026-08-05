@@ -299,12 +299,17 @@ tasks:
     title: 'Xây Grounded Response Composer'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/responses
     task_file: src/vivi_agent/responses/rsp-01/TASK.md
     depends_on: [ORC-01, QRY-01, BEH-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/responses/models.py
+      - src/vivi_agent/responses/catalog.py
+      - src/vivi_agent/responses/composer.py
+      - src/vivi_agent/responses/__init__.py
+      - tests/responses/test_response_composer.py
   - id: CNF-01
     title: 'Tích hợp confirmation lifecycle'
     priority: P0
