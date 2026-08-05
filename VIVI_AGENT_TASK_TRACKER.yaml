@@ -282,12 +282,19 @@ tasks:
     title: 'Xây Query Responder đủ 6/6'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: in_progress
     area: src/vivi_agent/queries
     task_file: src/vivi_agent/queries/qry-01/TASK.md
     depends_on: [MAP-02, VEH-02, CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/queries/models.py
+      - src/vivi_agent/queries/state_queries.py
+      - src/vivi_agent/queries/knowledge.py
+      - src/vivi_agent/queries/registry.py
+      - src/vivi_agent/queries/coverage.py
+      - src/vivi_agent/queries/__init__.py
+      - tests/queries/test_query_responder.py
   - id: RSP-01
     title: 'Xây Grounded Response Composer'
     priority: P0
