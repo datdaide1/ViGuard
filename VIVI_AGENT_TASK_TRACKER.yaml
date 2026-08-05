@@ -282,7 +282,7 @@ tasks:
     title: 'Xây Query Responder đủ 6/6'
     priority: P0
     sprint: sprint-2
-    status: in_progress
+    status: review
     area: src/vivi_agent/queries
     task_file: src/vivi_agent/queries/qry-01/TASK.md
     depends_on: [MAP-02, VEH-02, CON-01]
