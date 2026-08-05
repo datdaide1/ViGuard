@@ -330,6 +330,8 @@ class ActiveActionRegistry:
             record = self._records.get(action_id)
             if record is None:
                 raise KeyError(f"Active action '{action_id}' not found in registry")
+            if record.phase in (ActiveActionPhase.STOPPED, ActiveActionPhase.FAILED, ActiveActionPhase.COMPLETED):
+                raise ValueError(f"Cannot complete terminal active action '{action_id}' in phase {record.phase}")
 
             now_iso = datetime.now(timezone.utc).isoformat()
             completed_record = replace(
@@ -511,7 +513,7 @@ class ActiveActionRegistry:
         turn_id = record.turn_id or "unknown_turn"
         request_id = record.request_id or "unknown_request"
         phase_value = record.phase.value if isinstance(record.phase, ActiveActionPhase) else str(record.phase)
-        progress = record.progress if record.phase == ActiveActionPhase.PROGRESS else None
+        progress = record.progress if record.phase in (ActiveActionPhase.PROGRESS, ActiveActionPhase.COMPLETED) else None
 
         try:
             if hasattr(pipeline, "emit_active_action"):

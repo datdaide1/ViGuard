@@ -43,7 +43,8 @@ def test_only_monitored_behavior_creates_active_action():
 
 def test_lifecycle_transitions_and_query():
     """Test start, progress, complete lifecycle transitions and query endpoints."""
-    registry = ActiveActionRegistry()
+    events: list[ActiveActionEvent] = []
+    registry = ActiveActionRegistry(event_pipeline=events.append)
 
     # Start
     record = registry.start_action(
@@ -79,6 +80,11 @@ def test_lifecycle_transitions_and_query():
     assert completed.phase == ActiveActionPhase.COMPLETED
     assert completed.progress == 1.0
 
+    # Verify event emitted for COMPLETED includes final progress=1.0
+    completed_events = [e for e in events if e.phase == "completed"]
+    assert len(completed_events) == 1
+    assert completed_events[0].progress == 1.0
+
     # Verify no longer active
     assert len(registry.get_active_actions(session_id="sess-100")) == 0
 
@@ -86,6 +92,38 @@ def test_lifecycle_transitions_and_query():
     history = registry.query_actions(session_id="sess-100")
     assert len(history) == 1
     assert history[0].phase == ActiveActionPhase.COMPLETED
+
+
+def test_terminal_phase_guards():
+    """Verify that terminal-to-terminal transition attempts raise ValueError."""
+    registry = ActiveActionRegistry()
+
+    # 1. Action that completes
+    rec_complete = registry.start_action(intent="activate_hda", proposal_id="p-comp")
+    registry.complete_action(rec_complete.action_id)
+
+    with pytest.raises(ValueError, match="Cannot complete terminal active action"):
+        registry.complete_action(rec_complete.action_id)
+    with pytest.raises(ValueError, match="Cannot stop terminal active action"):
+        registry.stop_action(rec_complete.action_id)
+    with pytest.raises(ValueError, match="Cannot fail terminal active action"):
+        registry.fail_action(rec_complete.action_id)
+
+    # 2. Action that stops
+    rec_stop = registry.start_action(intent="activate_aac", proposal_id="p-stop")
+    registry.stop_action(rec_stop.action_id)
+
+    with pytest.raises(ValueError, match="Cannot complete terminal active action"):
+        registry.complete_action(rec_stop.action_id)
+    with pytest.raises(ValueError, match="Cannot stop terminal active action"):
+        registry.stop_action(rec_stop.action_id)
+
+    # 3. Action that fails
+    rec_fail = registry.start_action(intent="activate_autopark", proposal_id="p-fail")
+    registry.fail_action(rec_fail.action_id, error="sensor_error")
+
+    with pytest.raises(ValueError, match="Cannot complete terminal active action"):
+        registry.complete_action(rec_fail.action_id)
 
 
 def test_stop_and_fail_transitions():
@@ -148,7 +186,7 @@ def test_restart_reset_cleanup():
 
 
 def test_stop_handler_registry():
-    """Test stop handler registration and callback execution on stop/fail/reset."""
+    """Test stop handler registration and callback execution on stop, fail, and reset."""
     registry = ActiveActionRegistry()
 
     stop_calls: list[tuple[str, str]] = []
@@ -158,11 +196,23 @@ def test_stop_handler_registry():
 
     registry.register_stop_handler("activate_campmode", camp_stop_handler)
 
-    rec = registry.start_action(intent="activate_campmode", proposal_id="p-camp")
-    registry.stop_action(rec.action_id, reason="temperature_exceeded")
+    # Stop path
+    rec_stopped = registry.start_action(intent="activate_campmode", proposal_id="p-camp-stop")
+    registry.stop_action(rec_stopped.action_id, reason="temperature_exceeded")
 
-    assert len(stop_calls) == 1
-    assert stop_calls[0] == (rec.action_id, "temperature_exceeded")
+    # Fail path
+    rec_failed = registry.start_action(intent="activate_campmode", proposal_id="p-camp-fail")
+    registry.fail_action(rec_failed.action_id, error="sensor_error")
+
+    # Reset path
+    rec_reset = registry.start_action(intent="activate_campmode", proposal_id="p-camp-reset")
+    registry.reset_and_cleanup(reason="agent_restart")
+
+    assert stop_calls == [
+        (rec_stopped.action_id, "temperature_exceeded"),
+        (rec_failed.action_id, "failed: sensor_error"),
+        (rec_reset.action_id, "agent_restart"),
+    ]
 
 
 def test_ui_query_filtering():
@@ -203,8 +253,10 @@ def test_thread_safety():
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(worker, i) for i in range(20)]
-        concurrent.futures.wait(futures)
+        results = [f.result() for f in futures]
+        assert len(results) == 20
 
-    # Ensure no race conditions or corrupted internal state
+    # Ensure no race conditions, no remaining active actions, and all 20 records captured
+    assert len(registry.get_active_actions()) == 0
     all_actions = registry.query_actions(intent=intent)
-    assert len(all_actions) >= 1
+    assert len(all_actions) == 20
