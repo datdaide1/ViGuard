@@ -15,6 +15,21 @@ from vivi_agent.confirmation import (
     ConfirmationManager,
     ConfirmationState,
 )
+from vivi_agent.contracts.guardrail.v1.contract import proposal_digest
+
+
+def _make_action_proposal(proposal_id: str, tool: str) -> dict:
+    """Build a contract-valid ActionProposal so proposal_digest() can be computed on it."""
+    return {
+        "contract_version": "1.0.0",
+        "proposal_id": proposal_id,
+        "session_id": "session-1",
+        "source_turn_id": "turn-1",
+        "tool": tool,
+        "arguments": {},
+        "model_provider": "mock",
+        "model_id": "mock-1",
+    }
 
 
 def test_register_pending_stores_state_without_permit():
@@ -76,11 +91,11 @@ def test_confirm_triggers_fresh_guardrail_reevaluation_and_executes():
             "expires_at": "2099-01-01T00:00:00Z",
         },
     }
-    proposal = {"proposal_id": "prop-003", "tool": "open_window"}
+    proposal = _make_action_proposal("prop-003", "open_window")
     manager.register_pending(decision, proposal, turn_id="turn-1")
 
     guardrail_client = MagicMock()
-    fresh_permit = {"permit_id": "fresh-permit-003", "proposal_digest": "digest123"}
+    fresh_permit = {"permit_id": "fresh-permit-003", "proposal_digest": proposal_digest(proposal)}
     fresh_decision = {
         "outcome": "ALLOW",
         "reason_code": "CONFIRMATION_REEVALUATED_ALLOW",
@@ -153,11 +168,14 @@ def test_confirm_replay_rejection():
             "expires_at": "2099-01-01T00:00:00Z",
         },
     }
-    proposal = {"proposal_id": "prop-005", "tool": "open_door"}
+    proposal = _make_action_proposal("prop-005", "open_door")
     manager.register_pending(decision, proposal, turn_id="turn-1")
 
     guardrail_client = MagicMock()
-    guardrail_client.confirm.return_value = {"outcome": "ALLOW", "permit": {}}
+    guardrail_client.confirm.return_value = {
+        "outcome": "ALLOW",
+        "permit": {"proposal_digest": proposal_digest(proposal)},
+    }
     executor = MagicMock()
     executor.execute.return_value = {"success": True}
 

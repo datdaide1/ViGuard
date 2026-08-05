@@ -23,7 +23,10 @@ class ConfirmationState(str, Enum):
 
 @dataclass
 class PendingConfirmation:
-    """Immutable record of a pending confirmation requirement.
+    """Mutable record of a pending confirmation requirement.
+
+    Instances are stateful: the `state` field is updated in place as confirmations
+    progress through their lifecycle under ConfirmationManager lock synchronization.
 
     Deliberately excludes live Guardrail permits; permits are only issued after
     fresh Guardrail re-evaluation upon confirmation.

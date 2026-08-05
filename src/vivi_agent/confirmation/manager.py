@@ -36,7 +36,7 @@ class ConfirmationManager:
     ) -> PendingConfirmation:
         """Register a new pending confirmation from a Guardrail CONFIRM decision.
 
-        Deliberately strips any live execution permits to ensure no execution can occurs
+        Deliberately strips any live execution permits to ensure no execution can occur
         until explicit confirmation.
         """
         confirmation_info = decision.get("confirmation")
@@ -104,49 +104,68 @@ class ConfirmationManager:
         Acceptance criteria:
         - Never reuses old decisions or permits.
         - Obtains fresh decision & single-use permit from Guardrail `confirm`.
-        - Rejects expired or already consumed confirmations.
+        - Rejects expired, wrong session, or already consumed confirmations under lock.
         - Executes vehicle action ONLY if fresh decision outcome is `ALLOW`.
         """
         with self._lock:
             pending = self._pending.get(confirmation_id)
 
-        if pending is None:
-            return ConfirmationResult(
-                status="failed",
-                confirmation_id=confirmation_id,
-                state=ConfirmationState.REJECTED,
-                error={
-                    "code": "CONFIRMATION_NOT_FOUND",
-                    "message": f"Confirmation {confirmation_id} is unknown or invalid",
-                },
-                message="Yêu cầu xác nhận không tồn tại.",
-            )
+            if pending is None:
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.REJECTED,
+                    error={
+                        "code": "CONFIRMATION_NOT_FOUND",
+                        "message": f"Confirmation {confirmation_id} is unknown or invalid",
+                    },
+                    message="Yêu cầu xác nhận không tồn tại.",
+                )
 
-        if pending.state is not ConfirmationState.PENDING:
-            return ConfirmationResult(
-                status="failed",
-                confirmation_id=confirmation_id,
-                state=pending.state,
-                error={
-                    "code": "CONFIRMATION_ALREADY_CONSUMED",
-                    "message": f"Confirmation is already {pending.state.value}",
-                },
-                message="Yêu cầu xác nhận đã được xử lý trước đó.",
-            )
+            if (
+                session_id
+                and pending.session_id
+                and pending.session_id != "unknown"
+                and session_id != pending.session_id
+            ):
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=pending.state,
+                    error={
+                        "code": "SESSION_MISMATCH",
+                        "message": "Confirmation session ID does not match request session",
+                    },
+                    message="Phiên làm việc không trùng khớp.",
+                )
 
-        if self.is_expired(pending, now):
-            with self._lock:
+            if pending.state is not ConfirmationState.PENDING:
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=pending.state,
+                    error={
+                        "code": "CONFIRMATION_ALREADY_CONSUMED",
+                        "message": f"Confirmation is already {pending.state.value}",
+                    },
+                    message="Yêu cầu xác nhận đã được xử lý trước đó.",
+                )
+
+            if self.is_expired(pending, now):
                 pending.state = ConfirmationState.EXPIRED
-            return ConfirmationResult(
-                status="expired",
-                confirmation_id=confirmation_id,
-                state=ConfirmationState.EXPIRED,
-                error={
-                    "code": "CONFIRMATION_EXPIRED",
-                    "message": "Confirmation period has expired",
-                },
-                message="Yêu cầu xác nhận đã hết hạn.",
-            )
+                return ConfirmationResult(
+                    status="expired",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.EXPIRED,
+                    error={
+                        "code": "CONFIRMATION_EXPIRED",
+                        "message": "Confirmation period has expired",
+                    },
+                    message="Yêu cầu xác nhận đã hết hạn.",
+                )
+
+            # Mark in-flight / confirmed state under lock to prevent concurrent re-evaluation
+            pending.state = ConfirmationState.CONFIRMED
 
         # Re-evaluate with Guardrail client to get a fresh decision & permit
         try:
@@ -157,6 +176,8 @@ class ConfirmationManager:
             )
         except Exception as exc:
             logger.error("Guardrail confirmation re-evaluation failed: %s", exc)
+            with self._lock:
+                pending.state = ConfirmationState.PENDING  # Revert on transport error
             return ConfirmationResult(
                 status="failed",
                 confirmation_id=confirmation_id,
@@ -169,12 +190,13 @@ class ConfirmationManager:
             )
 
         with self._lock:
-            pending.state = ConfirmationState.CONFIRMED
+            pending.state = ConfirmationState.CONSUMED
 
         fresh_outcome = fresh_decision.get("outcome")
+        outcome_str = str(fresh_outcome) if fresh_outcome is not None else ""
 
         # Only execute if fresh decision outcome is ALLOW
-        if fresh_outcome == "ALLOW":
+        if outcome_str == "ALLOW":
             fresh_permit = fresh_decision.get("permit")
             if executor is not None:
                 try:
@@ -208,8 +230,9 @@ class ConfirmationManager:
             )
 
         # Fresh decision blocked or needs further confirmation
+        status_name = "blocked" if outcome_str.startswith("BLOCK") else "needs_confirmation"
         return ConfirmationResult(
-            status="blocked" if fresh_outcome.startswith("BLOCK") else "needs_confirmation",
+            status=status_name,
             confirmation_id=confirmation_id,
             state=ConfirmationState.CONSUMED,
             decision=dict(fresh_decision),
@@ -229,45 +252,60 @@ class ConfirmationManager:
         with self._lock:
             pending = self._pending.get(confirmation_id)
 
-        if pending is None:
-            return ConfirmationResult(
-                status="failed",
-                confirmation_id=confirmation_id,
-                state=ConfirmationState.REJECTED,
-                error={
-                    "code": "CONFIRMATION_NOT_FOUND",
-                    "message": f"Confirmation {confirmation_id} is unknown or invalid",
-                },
-                message="Yêu cầu xác nhận không tồn tại.",
-            )
+            if pending is None:
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.REJECTED,
+                    error={
+                        "code": "CONFIRMATION_NOT_FOUND",
+                        "message": f"Confirmation {confirmation_id} is unknown or invalid",
+                    },
+                    message="Yêu cầu xác nhận không tồn tại.",
+                )
 
-        if pending.state is not ConfirmationState.PENDING:
-            return ConfirmationResult(
-                status="failed",
-                confirmation_id=confirmation_id,
-                state=pending.state,
-                error={
-                    "code": "CONFIRMATION_ALREADY_CONSUMED",
-                    "message": f"Confirmation is already {pending.state.value}",
-                },
-                message="Yêu cầu xác nhận đã được xử lý trước đó.",
-            )
+            if (
+                session_id
+                and pending.session_id
+                and pending.session_id != "unknown"
+                and session_id != pending.session_id
+            ):
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=pending.state,
+                    error={
+                        "code": "SESSION_MISMATCH",
+                        "message": "Confirmation session ID does not match request session",
+                    },
+                    message="Phiên làm việc không trùng khớp.",
+                )
 
-        if self.is_expired(pending, now):
-            with self._lock:
+            if pending.state is not ConfirmationState.PENDING:
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=pending.state,
+                    error={
+                        "code": "CONFIRMATION_ALREADY_CONSUMED",
+                        "message": f"Confirmation is already {pending.state.value}",
+                    },
+                    message="Yêu cầu xác nhận đã được xử lý trước đó.",
+                )
+
+            if self.is_expired(pending, now):
                 pending.state = ConfirmationState.EXPIRED
-            return ConfirmationResult(
-                status="expired",
-                confirmation_id=confirmation_id,
-                state=ConfirmationState.EXPIRED,
-                error={
-                    "code": "CONFIRMATION_EXPIRED",
-                    "message": "Confirmation period has expired",
-                },
-                message="Yêu cầu xác nhận đã hết hạn.",
-            )
+                return ConfirmationResult(
+                    status="expired",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.EXPIRED,
+                    error={
+                        "code": "CONFIRMATION_EXPIRED",
+                        "message": "Confirmation period has expired",
+                    },
+                    message="Yêu cầu xác nhận đã hết hạn.",
+                )
 
-        with self._lock:
             pending.state = ConfirmationState.CANCELLED
 
         return ConfirmationResult(
