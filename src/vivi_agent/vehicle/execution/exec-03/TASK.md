@@ -1,6 +1,6 @@
-﻿# EXEC-03 — Xây generic handler framework
+# EXEC-03 — Xây generic handler framework
 
-**Trạng thái:** planned  
+**Trạng thái:** review  
 **Sprint:** sprint-2  
 **Code area:** src/vivi_agent/vehicle/execution  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục EXEC-03)
