@@ -109,6 +109,25 @@ class GuardrailClientAdapter:
         self._validate_result(result)
         return result
 
+    def confirm(
+        self,
+        confirmation_id: str,
+        session_id: str,
+        request_id: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Submit a confirmation request to Guardrail to obtain a fresh evaluation decision."""
+
+        req_id = request_id or f"req-{confirmation_id}"
+        payload = {
+            "contract_version": CONTRACT_VERSION,
+            "request_id": req_id,
+            "confirmation_id": confirmation_id,
+            "session_id": session_id,
+        }
+        result = self._post("/v1/confirmations/confirm", payload, read_only=False)
+        self._validate_result(result)
+        return result
+
     def _validate_result(self, result: Mapping[str, Any]) -> None:
         try:
             validate_guardrail_result(result)
