@@ -10,17 +10,12 @@ if query coverage is incomplete.
 
 from __future__ import annotations
 
-import json
 import pathlib
 from dataclasses import dataclass, field
 
+from vivi_agent.catalog.manifest import MANIFEST_PATH, load_manifest
 from vivi_agent.queries.registry import QueryResponderRegistry
 from vivi_agent.vehicle.execution.errors import BehaviorReadinessError
-
-# Default manifest path relative to project root
-_MANIFEST_DEFAULT = (
-    pathlib.Path(__file__).parents[3] / "src" / "vivi_agent" / "catalog" / "intent_manifest.v1.json"
-)
 
 
 @dataclass
@@ -59,22 +54,17 @@ def validate_query_coverage(
     QueryCoverageReport
         Detailed coverage result.
     """
-    path = pathlib.Path(manifest_path) if manifest_path else _MANIFEST_DEFAULT
-    with path.open(encoding="utf-8") as fh:
-        manifest = json.load(fh)
-
-    intents: list[dict] = manifest["intents"]
+    path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
+    manifest = load_manifest(path)
 
     query_intents: set[str] = set()
     non_query_intents: set[str] = set()
 
-    for entry in intents:
-        iid = entry["intent"]
-        kind = entry.get("kind", "action")
-        if kind == "query":
-            query_intents.add(iid)
+    for definition in manifest.intents:
+        if definition.is_query:
+            query_intents.add(definition.intent)
         else:
-            non_query_intents.add(iid)
+            non_query_intents.add(definition.intent)
 
     report = QueryCoverageReport(total_query_intents=len(query_intents))
 

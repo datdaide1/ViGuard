@@ -37,7 +37,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Kiểm soát hành trình thích ứng (AAC) tự động điều chỉnh tốc độ "
             "xe để duy trì khoảng cách an toàn với phương tiện phía trước bằng hệ thống radar và camera."
         ),
-        aliases=("aac", "adaptive_cruise_control", "khiem_soat_hanh_trinh_thich_ung", "cruise_control"),
+        aliases=("aac", "khiem_soat_hanh_trinh_thich_ung", "cruise_control"),
     ),
     FeatureKnowledge(
         canonical_id="auto_park",
@@ -47,7 +47,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Tự động đỗ xe (Autopark) sử dụng các cảm biến siêu âm và camera xung quanh xe "
             "để quét tìm không gian đỗ xe phù hợp và tự động đánh lái, chuyển số, phanh vào chỗ đỗ."
         ),
-        aliases=("autopark", "auto_park", "tu_dong_do_xe", "do_xe_tu_dong"),
+        aliases=("autopark", "tu_dong_do_xe", "do_xe_tu_dong"),
     ),
     FeatureKnowledge(
         canonical_id="auto_vehicle_hold",
@@ -57,7 +57,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Giữ phanh tự động (AVH) tự động giữ phanh khi xe đã dừng hoàn toàn "
             "(như khi chờ đèn đỏ hoặc kẹt xe) và tự động nhả phanh khi người lái nhấn ga."
         ),
-        aliases=("avh", "auto_vehicle_hold", "giu_phanh_tu_dong", "auto_hold"),
+        aliases=("avh", "giu_phanh_tu_dong", "auto_hold"),
     ),
     FeatureKnowledge(
         canonical_id="automatic_high_beam",
@@ -67,7 +67,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Đèn pha tự động (AHB) tự động bật đèn chiếu xa khi trời tối và "
             "tự động hạ xuống chiếu gần khi phát hiện ánh sáng từ phương tiện đi ngược chiều hoặc phía trước."
         ),
-        aliases=("ahb", "automatic_high_beam", "den_pha_tu_dong", "pha_tudong"),
+        aliases=("ahb", "den_pha_tu_dong", "pha_tudong"),
     ),
     FeatureKnowledge(
         canonical_id="camp_mode",
@@ -77,7 +77,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Chế độ cắm trại (Camp Mode) duy trì thông gió, điều hòa không khí và nguồn điện sinh hoạt "
             "trong khoang xe trong khi vô hiệu hóa hệ thống báo động chống trộm khi xe đang đỗ."
         ),
-        aliases=("camp_mode", "cam_trai", "che_do_cam_trai"),
+        aliases=("cam_trai", "che_do_cam_trai"),
     ),
     FeatureKnowledge(
         canonical_id="creep_mode",
@@ -87,7 +87,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Chế độ bò (Creep Mode) mô phỏng hành vi của xe số tự động truyền thống, "
             "cho phép xe di chuyển chậm khi người lái nhả chân phanh mà không cần nhấn chân ga."
         ),
-        aliases=("creep_mode", "che_do_bo", "creep"),
+        aliases=("che_do_bo", "creep"),
     ),
     FeatureKnowledge(
         canonical_id="electronic_parking_brake",
@@ -97,7 +97,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Phanh tay điện tử (EPB) giữ chặt phanh đỗ xe bằng mô tơ điện tử, "
             "tự động kích hoạt khi về số P và tự động nhả khi vào số D/R kèm nhấn ga."
         ),
-        aliases=("epb", "electronic_parking_brake", "phanh_tay_dien_tu", "phanh_tay"),
+        aliases=("epb", "phanh_tay_dien_tu", "phanh_tay"),
     ),
     FeatureKnowledge(
         canonical_id="electronic_stability_control",
@@ -107,7 +107,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Hệ thống Cân bằng điện tử (ESC) tự động can thiệp lực phanh từng bánh xe và công suất động cơ "
             "để ngăn ngừa tình trạng thiếu lái hoặc thừa lái khi vào cua gấp hoặc mặt đường trơn trượt."
         ),
-        aliases=("esc", "electronic_stability_control", "can_bang_dien_tu"),
+        aliases=("esc", "can_bang_dien_tu"),
     ),
     FeatureKnowledge(
         canonical_id="head_up_display",
@@ -117,7 +117,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Màn hình HUD (Head-Up Display) chiếu các thông tin như tốc độ, chỉ đường và cảnh báo an toàn "
             "trực tiếp lên kính chắn gió phía trước tầm mắt người lái để tăng cường sự tập trung."
         ),
-        aliases=("hud", "head_up_display", "hien_thi_kinh_lai", "man_hinh_hud"),
+        aliases=("hud", "hien_thi_kinh_lai", "man_hinh_hud"),
     ),
     FeatureKnowledge(
         canonical_id="highway_drive_assist",
@@ -127,7 +127,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Hỗ trợ lái trên cao tốc (HDA) kết hợp kiểm soát hành trình thích ứng (AAC) "
             "và hỗ trợ định tâm làn đường (LKA) để hỗ trợ điều khiển tốc độ và hướng di chuyển của xe trên cao tốc."
         ),
-        aliases=("hda", "highway_drive_assist", "ho_tro_lai_cao_toc"),
+        aliases=("hda", "ho_tro_lai_cao_toc"),
     ),
     FeatureKnowledge(
         canonical_id="lane_keeping_assist",
@@ -137,7 +137,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Tính năng Hỗ trợ giữ làn đường (LKA) sử dụng camera theo dõi vạch kẻ đường, "
             "cảnh báo người lái và can thiệp nhẹ vào lực lái nếu xe có nguy cơ rời khỏi làn đường mà không bật xi-nhan."
         ),
-        aliases=("lka", "lane_keeping_assist", "ho_tro_giu_lan", "giu_lan"),
+        aliases=("lka", "ho_tro_giu_lan", "giu_lan"),
     ),
     FeatureKnowledge(
         canonical_id="pet_mode",
@@ -147,7 +147,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Chế độ thú cưng (Pet Mode) duy trì điều hòa cabin ở nhiệt độ dễ chịu "
             "và hiển thị thông báo trên màn hình trung tâm để người bên ngoài biết thú cưng vẫn an toàn."
         ),
-        aliases=("pet_mode", "thu_cung", "che_do_thu_cung"),
+        aliases=("thu_cung", "che_do_thu_cung"),
     ),
     FeatureKnowledge(
         canonical_id="traction_control",
@@ -157,7 +157,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Hệ thống Kiểm soát lực kéo (TCS) phát hiện và điều chỉnh mô-men xoắn đến bánh xe bị trượt, "
             "giúp xe duy trì độ bám đường tối đa khi khởi hành hoặc tăng tốc."
         ),
-        aliases=("tcs", "traction_control", "kiem_soat_luc_keo"),
+        aliases=("tcs", "kiem_soat_luc_keo"),
     ),
     FeatureKnowledge(
         canonical_id="valet_mode",
@@ -167,7 +167,7 @@ FEATURE_KNOWLEDGE_BASE: tuple[FeatureKnowledge, ...] = (
             "Chế độ Valet (Valet Mode) bảo vệ riêng tư bằng cách khóa màn hình trung tâm, "
             "ẩn thông tin cá nhân, định vị và giới hạn tốc độ tối đa khi giao xe cho nhân viên đỗ xe."
         ),
-        aliases=("valet_mode", "valet", "che_do_valet"),
+        aliases=("valet", "che_do_valet"),
     ),
 )
 

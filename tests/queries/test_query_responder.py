@@ -193,6 +193,13 @@ class TestStateQueryResponders:
         assert res.facts["avh_active"] is False
         assert "đang tắt" in res.response_text
 
+    def test_state_queries_handle_none_state(self):
+        """State queries executed with state=None gracefully return UNKNOWN."""
+        for intent_id in ["get_current_speed", "get_battery_pct", "get_gear", "get_door_lock_status", "get_avh_status"]:
+            res = QUERY_RESPONDER_REGISTRY.execute({"intent": intent_id}, None)
+            assert res.status == QueryStatus.UNKNOWN
+            assert res.facts["available"] is False
+
 
 # ===========================================================================
 # AC-4 — Knowledge Query (explain_feature)

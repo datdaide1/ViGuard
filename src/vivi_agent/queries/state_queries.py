@@ -22,6 +22,8 @@ from vivi_agent.vehicle.state.model import Gear, LockState, VehicleState
 
 def _is_field_available(state: VehicleState, field_name: str) -> bool:
     """Helper checking whether a PIP field is marked available in provenance."""
+    if state is None:
+        return False
     if not hasattr(state, "pip_field_provenance"):
         return True
     for item in state.pip_field_provenance:
@@ -43,7 +45,7 @@ class SpeedQueryResponder:
                 facts={"available": False},
                 response_text="Hiện không có dữ liệu vận tốc xe.",
                 source=QueryResultSource.VEHICLE_STATE,
-                observed_at=state.timestamp,
+                observed_at=getattr(state, "timestamp", None),
             )
 
         speed = state.motion.speed_kph
@@ -73,7 +75,7 @@ class BatteryQueryResponder:
                 facts={"available": False},
                 response_text="Hiện không có dữ liệu dung lượng pin.",
                 source=QueryResultSource.VEHICLE_STATE,
-                observed_at=state.timestamp,
+                observed_at=getattr(state, "timestamp", None),
             )
 
         pct = state.power.battery_pct
@@ -111,7 +113,7 @@ class GearQueryResponder:
                 facts={"available": False},
                 response_text="Hiện không có dữ liệu vị trí số xe.",
                 source=QueryResultSource.VEHICLE_STATE,
-                observed_at=state.timestamp,
+                observed_at=getattr(state, "timestamp", None),
             )
 
         gear_enum = state.transmission.gear
@@ -141,7 +143,7 @@ class DoorLockQueryResponder:
                 facts={"available": False},
                 response_text="Hiện không có dữ liệu trạng thái khóa cửa.",
                 source=QueryResultSource.VEHICLE_STATE,
-                observed_at=state.timestamp,
+                observed_at=getattr(state, "timestamp", None),
             )
 
         overall_lock = state.access.door_lock_state
@@ -177,7 +179,7 @@ class AvhQueryResponder:
                 facts={"available": False},
                 response_text="Hiện không có dữ liệu trạng thái giữ phanh tự động (AVH).",
                 source=QueryResultSource.VEHICLE_STATE,
-                observed_at=state.timestamp,
+                observed_at=getattr(state, "timestamp", None),
             )
 
         avh_active = state.adas.avh_active

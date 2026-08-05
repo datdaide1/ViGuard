@@ -87,15 +87,18 @@ def build_default_query_registry() -> QueryResponderRegistry:
     """Instantiate and populate QueryResponderRegistry with all 6 default query responders."""
     registry = QueryResponderRegistry()
 
-    # 5 State Query Responders
-    registry.register("get_current_speed", SpeedQueryResponder())
-    registry.register("get_battery_pct", BatteryQueryResponder())
-    registry.register("get_gear", GearQueryResponder())
-    registry.register("get_door_lock_status", DoorLockQueryResponder())
-    registry.register("get_avh_status", AvhQueryResponder())
-
-    # 1 Knowledge Query Responder
-    registry.register("explain_feature", ExplainFeatureResponder())
+    # 5 State Query Responders + 1 Knowledge Query Responder. Each responder's
+    # own `intent_id` attribute is the single source of truth for its registry
+    # key, so it can never drift from the intent_id embedded in its QueryResult.
+    for responder in (
+        SpeedQueryResponder(),
+        BatteryQueryResponder(),
+        GearQueryResponder(),
+        DoorLockQueryResponder(),
+        AvhQueryResponder(),
+        ExplainFeatureResponder(),
+    ):
+        registry.register(responder.intent_id, responder)
 
     return registry
 
