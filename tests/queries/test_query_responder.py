@@ -175,6 +175,21 @@ class TestStateQueryResponders:
         assert res.facts["is_all_locked"] is False
         assert "Mở khóa" in res.response_text
 
+    def test_get_door_lock_status_unexpected_state(self):
+        """Unexpected or non-standard lock state returns UNKNOWN instead of assuming unlocked."""
+        from unittest.mock import MagicMock
+        mock_access = MagicMock()
+        mock_access.door_lock_state = "INVALID_LOCK_STATE"
+        mock_access.doors = ()
+        mock_state = MagicMock()
+        mock_state.access = mock_access
+        mock_state.pip_field_provenance = ()
+
+        res = QUERY_RESPONDER_REGISTRY.execute({"intent": "get_door_lock_status"}, mock_state)
+
+        assert res.status == QueryStatus.UNKNOWN
+        assert res.facts["available"] is False
+
     def test_get_avh_status_active(self):
         state = replace(
             DEFAULT_VEHICLE_STATE,

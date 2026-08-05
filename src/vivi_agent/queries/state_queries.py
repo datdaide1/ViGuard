@@ -147,16 +147,29 @@ class DoorLockQueryResponder:
             )
 
         overall_lock = state.access.door_lock_state
-        is_locked = overall_lock == LockState.LOCKED
         doors_info = {door.door_id: door.lock.value for door in state.access.doors}
 
-        response = "Tất cả các cửa xe đang ở trạng thái Khóa." if is_locked else "Cửa xe đang ở trạng thái Mở khóa."
+        if overall_lock == LockState.LOCKED:
+            response = "Tất cả các cửa xe đang ở trạng thái Khóa."
+            is_locked = True
+        elif overall_lock == LockState.UNLOCKED:
+            response = "Cửa xe đang ở trạng thái Mở khóa."
+            is_locked = False
+        else:
+            return QueryResult(
+                intent_id=self.intent_id,
+                status=QueryStatus.UNKNOWN,
+                facts={"available": False, "raw_state": str(overall_lock)},
+                response_text="Hiện không có dữ liệu trạng thái khóa cửa.",
+                source=QueryResultSource.VEHICLE_STATE,
+                observed_at=getattr(state, "timestamp", None),
+            )
 
         return QueryResult(
             intent_id=self.intent_id,
             status=QueryStatus.ANSWER,
             facts={
-                "overall_lock": overall_lock.value,
+                "overall_lock": overall_lock.value if hasattr(overall_lock, "value") else str(overall_lock),
                 "is_all_locked": is_locked,
                 "doors": doors_info,
             },
