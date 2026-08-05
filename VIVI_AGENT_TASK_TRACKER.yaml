@@ -1,4 +1,4 @@
-﻿version: 1
+version: 1
 project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
@@ -70,122 +70,172 @@ tasks:
     title: 'Xây runtime intent/behavior manifest'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/catalog
     task_file: src/vivi_agent/catalog/cat-01/TASK.md
     depends_on: [CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/catalog/intent_manifest.v1.json
+      - src/vivi_agent/catalog/manifest.py
+      - src/vivi_agent/catalog/README.md
+      - tests/catalog/test_intent_manifest.py
   - id: TOOL-01
     title: 'Định nghĩa Domain Tool Registry'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/tools/registry
     task_file: src/vivi_agent/tools/registry/tool-01/TASK.md
     depends_on: [CAT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/registry/domain_tools.v1.json
+      - src/vivi_agent/tools/registry/registry.py
+      - src/vivi_agent/tools/registry/README.md
+      - tests/tools/test_domain_tool_registry.py
   - id: MAP-01
     title: 'Xây mapping nền tảng cho vertical slice'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/tools/mapping
     task_file: src/vivi_agent/tools/mapping/map-01/TASK.md
     depends_on: [TOOL-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/mapping/mapper.py
+      - src/vivi_agent/tools/mapping/README.md
+      - tests/tools/test_tool_mapper.py
   - id: MOD-01
     title: 'Xây ModelProviderAdapter cho OpenAI và Gemini'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/model_providers/contracts.py
+      - src/vivi_agent/model_providers/adapters.py
+      - src/vivi_agent/model_providers/selection.py
+      - src/vivi_agent/model_providers/README.md
+      - tests/model_providers/test_model_providers.py
   - id: ORC-01
     title: 'Xây ViVi Agent Orchestrator nền tảng'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/orchestrator
     task_file: src/vivi_agent/orchestrator/orc-01/TASK.md
     depends_on: [CON-01, CON-02, MAP-01, MOD-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/orchestrator/orchestrator.py
+      - src/vivi_agent/orchestrator/endpoint.py
+      - tests/orchestrator/test_orchestrator.py
   - id: GRD-ADP-01
     title: 'Xây Guardrail Client Adapter và mock server'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/adapters/guardrail
     task_file: src/vivi_agent/adapters/guardrail/grd-adp-01/TASK.md
     depends_on: [CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/adapters/guardrail/__init__.py
+      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - tests/adapters/guardrail/test_guardrail_adapter.py
   - id: VEH-01
     title: 'Định nghĩa Vehicle State Model và invariants'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: review
     area: src/vivi_agent/vehicle/state
     task_file: src/vivi_agent/vehicle/state/veh-01/TASK.md
     depends_on: [CAT-01, CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/state/model.py
+      - src/vivi_agent/vehicle/state/presets.py
+      - src/vivi_agent/vehicle/state/README.md
+      - tests/vehicle/state/test_vehicle_state.py
   - id: VEH-02
     title: 'Xây Vehicle State Machine và event store'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: done
     area: src/vivi_agent/vehicle/state
     task_file: src/vivi_agent/vehicle/state/veh-02/TASK.md
     depends_on: [VEH-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/state/machine.py
+      - src/vivi_agent/vehicle/state/events.py
+      - tests/vehicle/state/test_state_machine.py
   - id: EXEC-01
     title: 'Xây Vehicle Tool Gateway và permit verifier'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: done
     area: src/vivi_agent/vehicle/execution
     task_file: src/vivi_agent/vehicle/execution/exec-01/TASK.md
     depends_on: [CON-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/execution/gateway.py
+      - src/vivi_agent/vehicle/execution/verifier.py
+      - src/vivi_agent/vehicle/execution/errors.py
+      - tests/vehicle/execution/test_gateway.py
   - id: EXEC-02
     title: 'Xây handler `open_door`'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: done
     area: src/vivi_agent/vehicle/execution
     task_file: src/vivi_agent/vehicle/execution/exec-02/TASK.md
     depends_on: [EXEC-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/execution/open_door.py
+      - src/vivi_agent/vehicle/execution/errors.py
+      - src/vivi_agent/vehicle/execution/__init__.py
+      - tests/vehicle/execution/test_open_door_handler.py
+
   - id: EVT-01
     title: 'Xây Agent/Vehicle typed event pipeline'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: completed
     area: src/vivi_agent/events
     task_file: src/vivi_agent/events/evt-01/TASK.md
     depends_on: [CON-02, ORC-01, VEH-02, EXEC-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/events/models.py
+      - src/vivi_agent/events/redaction.py
+      - src/vivi_agent/events/store.py
+      - src/vivi_agent/events/adapters.py
+      - src/vivi_agent/events/pipeline.py
+      - src/vivi_agent/events/replay.py
+      - src/vivi_agent/events/fixtures.py
+      - src/vivi_agent/events/__init__.py
+      - tests/events/test_event_pipeline.py
   - id: E2E-01
     title: 'Khóa vertical slice `open_door`'
     priority: P0
     sprint: sprint-1
-    status: planned
+    status: completed
     area: tests/e2e/vertical_slice
     task_file: tests/e2e/vertical_slice/e2e-01/TASK.md
     depends_on: [ORC-01, GRD-ADP-01, EXEC-02, EVT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - tests/e2e/vertical_slice/e2e-01/fixtures.py
+      - tests/e2e/vertical_slice/e2e-01/test_e2e_01.py
   - id: MAP-02
     title: 'Hoàn thiện tool-to-intent mapping 53/53'
     priority: P0

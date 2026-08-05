@@ -1,11 +1,23 @@
 ﻿# MOD-01 — Xây ModelProviderAdapter cho OpenAI và Gemini
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/model_providers  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục MOD-01)
 
 > Đây là task specification, chưa phải implementation. Khi triển khai, cập nhật tracker chung và giữ acceptance criteria trong file này làm release gate.
+
+**Implementation evidence:**
+
+- `src/vivi_agent/model_providers/contracts.py`
+- `src/vivi_agent/model_providers/adapters.py`
+- `src/vivi_agent/model_providers/selection.py`
+- `src/vivi_agent/model_providers/README.md`
+- `tests/model_providers/test_model_providers.py`
+
+**Validation:** Offline unit suite covers both provider formats, configuration,
+readiness, bounded failover, turn pinning, typed failures, and event metadata.
+Live provider credential validation remains an integration/release gate.
 
 **Ưu tiên:** P0  
 **Phụ thuộc:** TOOL-01

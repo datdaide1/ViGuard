@@ -1,6 +1,6 @@
 ﻿# MAP-01 — Xây mapping nền tảng cho vertical slice
 
-**Trạng thái:** planned  
+**Trạng thái:** review
 **Sprint:** sprint-1  
 **Code area:** src/vivi_agent/tools/mapping  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục MAP-01)

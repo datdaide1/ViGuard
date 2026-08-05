@@ -1,0 +1,87 @@
+{
+  "registry_version": "1.0.0",
+  "checksum": "sha256:3687072cf932ab5c8c41fbcb0ffab2576130f9c5848f2cf69e95acece412ede0",
+  "tools": [
+    {
+      "name": "control_access",
+      "description": "Control vehicle doors and access panels.",
+      "signatures": [
+        {"action": "open", "target": ["driver_door", "trunk", "charge_port", "bonnet"]},
+        {"action": "lock", "target": ["all_doors"]},
+        {"action": "unlock", "target": ["all_doors"]}
+      ]
+    },
+    {
+      "name": "control_light",
+      "description": "Control exterior and interior vehicle lights.",
+      "signatures": [
+        {"action": "turn_on", "target": ["high_beam", "low_beam", "left_turn_signal", "right_turn_signal", "hazard_light", "cornering_light", "interior_light"]},
+        {"action": "turn_off", "target": ["high_beam", "low_beam", "left_turn_signal", "right_turn_signal", "hazard_light"]},
+        {"action": "activate", "target": ["automatic_high_beam"]}
+      ]
+    },
+    {
+      "name": "control_cabin",
+      "description": "Control cabin comfort and movable cabin components.",
+      "signatures": [
+        {"action": "set", "target": ["wiper"], "value": ["max"]},
+        {"action": "adjust", "target": ["steering_wheel", "driver_seat_angle", "driver_seat_position"], "value": ["forward", "backward", "up", "down"]},
+        {"action": "fold", "target": ["back_seat", "mirrors"]},
+        {"action": "open", "target": ["sunroof", "driver_window", "front_passenger_window", "rear_left_window", "rear_right_window"]},
+        {"action": "restore", "target": ["driver_seat_position"]}
+      ]
+    },
+    {
+      "name": "set_drive_mode",
+      "description": "Select one supported drive mode.",
+      "signatures": [
+        {"action": "set", "target": ["drive_mode"], "value": ["eco", "normal", "sport"]}
+      ]
+    },
+    {
+      "name": "control_transmission",
+      "description": "Control supported transmission and parking brake functions.",
+      "signatures": [
+        {"action": "shift", "target": ["gear"], "value": ["park", "reverse"]},
+        {"action": "activate", "target": ["electronic_parking_brake"]}
+      ]
+    },
+    {
+      "name": "control_driver_assistance",
+      "description": "Control supported driver-assistance features.",
+      "signatures": [
+        {"action": "activate", "target": ["auto_park", "adaptive_cruise_control", "highway_drive_assist", "traction_control", "auto_vehicle_hold"]},
+        {"action": "deactivate", "target": ["lane_keeping_assist", "electronic_stability_control"]}
+      ]
+    },
+    {
+      "name": "control_special_mode",
+      "description": "Activate a supported special vehicle mode.",
+      "signatures": [
+        {"action": "activate", "target": ["creep_mode", "camp_mode", "pet_mode", "valet_mode"]}
+      ]
+    },
+    {
+      "name": "control_ui",
+      "description": "Control supported in-vehicle UI surfaces.",
+      "signatures": [
+        {"action": "open", "target": ["notification_center"]},
+        {"action": "deactivate", "target": ["head_up_display"]}
+      ]
+    },
+    {
+      "name": "query_vehicle_state",
+      "description": "Read one approved field from trusted vehicle state.",
+      "signatures": [
+        {"action": "get", "target": ["current_speed", "battery_percentage", "gear", "door_lock_status", "auto_vehicle_hold_status"]}
+      ]
+    },
+    {
+      "name": "explain_vehicle_feature",
+      "description": "Explain one supported vehicle feature.",
+      "signatures": [
+        {"action": "explain", "target": ["adaptive_cruise_control", "auto_park", "auto_vehicle_hold", "automatic_high_beam", "camp_mode", "creep_mode", "electronic_parking_brake", "electronic_stability_control", "head_up_display", "highway_drive_assist", "lane_keeping_assist", "pet_mode", "traction_control", "valet_mode"]}
+      ]
+    }
+  ]
+}

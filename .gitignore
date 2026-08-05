@@ -4,6 +4,7 @@ old/
 # Project tracker is intentionally kept out of version control for now
 ViGuard_Tracker.xlsx
 .~lock.ViGuard_Tracker.xlsx#
+# Local agent operating manuals (intentionally not versioned)
 AGENTS.md
 CLAUDE.md
 achive/
