@@ -8,6 +8,7 @@ valid registry combination resolves to exactly one intent.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -119,6 +120,18 @@ class MappingCoverageReport:
         return not (self.missing_intents or self.duplicate_keys or self.ambiguous_keys)
 
 
+def _sort_mapping_keys(keys: Iterable[MappingKey]) -> tuple[MappingKey, ...]:
+    """Sort MappingKeys for stable, deterministic report output.
+
+    The trailing `value` field is `str | None`; Python cannot compare `None`
+    to `str`, so a plain `sorted()` over raw keys raises `TypeError` the
+    moment two keys share every field except `value` where one is `None` and
+    the other is a string. Substitute `""` for `None` for ordering purposes
+    only (no real registry value is ever an empty string).
+    """
+    return tuple(sorted(keys, key=lambda key: (key[0], key[1], key[2], key[3] or "")))
+
+
 def build_coverage_report(
     rules: tuple[MappingRule, ...], manifest: IntentManifest
 ) -> MappingCoverageReport:
@@ -128,11 +141,11 @@ def build_coverage_report(
     for rule in rules:
         intents_by_key.setdefault(rule.key, []).append(rule.intent)
 
-    duplicate_keys = tuple(
-        sorted(key for key, intents in intents_by_key.items() if len(intents) > 1 and len(set(intents)) == 1)
+    duplicate_keys = _sort_mapping_keys(
+        key for key, intents in intents_by_key.items() if len(intents) > 1 and len(set(intents)) == 1
     )
-    ambiguous_keys = tuple(
-        sorted(key for key, intents in intents_by_key.items() if len(set(intents)) > 1)
+    ambiguous_keys = _sort_mapping_keys(
+        key for key, intents in intents_by_key.items() if len(set(intents)) > 1
     )
 
     covered_intents = {rule.intent for rule in rules}
@@ -271,8 +284,21 @@ class ToolMapper:
         validated: dict[MappingKey, MappingRule] = {}
         for rule in rules:
             if rule.key in validated:
+                existing = validated[rule.key]
+                if existing.intent == rule.intent:
+                    # Same key, same intent: a redundant/copy-pasted row.
+                    # Harmless in effect but still an authoring mistake, so
+                    # it still fails closed -- with a code that matches
+                    # build_coverage_report's "duplicate" (not "ambiguous")
+                    # bucket for the identical situation.
+                    raise MappingReadinessError(
+                        "DUPLICATE_MAPPING",
+                        f"redundant duplicate mapping key {rule.key!r} (intent {rule.intent!r})",
+                    )
                 raise MappingReadinessError(
-                    "AMBIGUOUS_MAPPING", f"duplicate mapping key {rule.key!r}"
+                    "AMBIGUOUS_MAPPING",
+                    f"key {rule.key!r} maps to conflicting intents "
+                    f"{existing.intent!r} and {rule.intent!r}",
                 )
             try:
                 definition = self._manifest.by_intent(rule.intent)
@@ -297,13 +323,15 @@ class ToolMapper:
                 raise MappingReadinessError("INCOMPLETE_MAPPING_CALL", repr(rule.key))
             validated[rule.key] = rule
 
-        covered_intents = {rule.intent for rule in validated.values()}
-        manifest_intents = {definition.intent for definition in self._manifest.intents}
-        missing = manifest_intents - covered_intents
+        # Reuse build_coverage_report's definition of "missing" instead of
+        # re-deriving the same set difference here, so the fail-closed gate
+        # and the non-raising report can never silently disagree about what
+        # counts as covered.
+        missing = build_coverage_report(tuple(validated.values()), self._manifest).missing_intents
         if missing:
             raise MappingReadinessError(
                 "INCOMPLETE_MAPPING_COVERAGE",
-                f"no reviewed mapping reaches intents: {sorted(missing)!r}",
+                f"no reviewed mapping reaches intents: {list(missing)!r}",
             )
         return MappingProxyType(validated)
 

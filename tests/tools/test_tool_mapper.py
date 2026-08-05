@@ -56,7 +56,14 @@ def minimal_manifest(*intents: tuple[str, str, str]) -> IntentManifest:
 class ToolMapperTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.mapper = ToolMapper(load_registry(), load_manifest())
+        # Loaded once per class instead of per test: load_registry()/
+        # load_manifest() each do a file read + JSON parse + checksum hash +
+        # full schema/coverage validation, which several tests below need a
+        # fresh copy of (to build a scoped ToolMapper) but don't need to
+        # re-derive from disk every time.
+        cls.registry = load_registry()
+        cls.manifest = load_manifest()
+        cls.mapper = ToolMapper(cls.registry, cls.manifest)
 
     def test_runtime_loads_full_53_intent_coverage(self) -> None:
         self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 78)
@@ -98,12 +105,19 @@ class ToolMapperTests(unittest.TestCase):
         self.assertRegex(first.proposal_digest, r"^sha256:[0-9a-f]{64}$")
 
     def test_supported_registry_call_without_reviewed_mapping_does_not_fallback(self) -> None:
-        # A deliberately reduced mapper (single reviewed rule) so this test's
-        # "no fallback" guarantee is independent of how complete the real
-        # catalog's mapping table is.
+        # Full coverage (MAP-02) means every registry-valid combination now
+        # has a reviewed mapping in DEFAULT_MAPPING_RULES, so there is no
+        # longer any real "valid but unmapped" call to exercise self.mapper
+        # with. This uses a deliberately reduced *manifest+rules* pair (the
+        # coverage-completeness gate in _validate_rules requires the rules to
+        # cover every manifest intent, so a real manifest can't pair with a
+        # reduced rule set) while still going through the real, production
+        # `load_registry()` -- the same registry validation `map_proposal`
+        # runs against in production -- so this still exercises the real
+        # lookup/no-fallback code path, just with a smaller intent catalog.
         scoped_manifest = minimal_manifest(("open_door", "control_access", "access_mutation"))
         scoped_mapper = ToolMapper(
-            load_registry(),
+            self.registry,
             scoped_manifest,
             (MappingRule("control_access", "open", "driver_door", "open_door"),),
         )
@@ -136,17 +150,31 @@ class ToolMapperTests(unittest.TestCase):
             self.assertEqual(raised.exception.code, "INVALID_ACTION_PROPOSAL")
             self.assertFalse(raised.exception.execution_allowed)
 
-    def test_startup_validator_rejects_ambiguous_or_inconsistent_rules(self) -> None:
+    def test_startup_validator_rejects_duplicate_rules(self) -> None:
+        # Same key, same intent -- a redundant/copy-pasted row. Harmless in
+        # effect but still an authoring mistake, so it still fails closed;
+        # distinguished from a genuine conflict (below) to match
+        # build_coverage_report's duplicate/ambiguous taxonomy.
         valid = MappingRule("control_access", "open", "driver_door", "open_door")
         with self.assertRaises(MappingReadinessError) as duplicate:
-            ToolMapper(load_registry(), load_manifest(), (valid, valid))
-        self.assertEqual(duplicate.exception.code, "AMBIGUOUS_MAPPING")
+            ToolMapper(self.registry, self.manifest, (valid, valid))
+        self.assertEqual(duplicate.exception.code, "DUPLICATE_MAPPING")
 
+    def test_startup_validator_rejects_ambiguous_rules(self) -> None:
+        # Same key, two different intents -- a genuine conflict: the same
+        # tool call would resolve to two different policy intents.
+        first = MappingRule("control_access", "open", "driver_door", "open_door")
+        conflicting = MappingRule("control_access", "open", "driver_door", "open_trunk")
+        with self.assertRaises(MappingReadinessError) as ambiguous:
+            ToolMapper(self.registry, self.manifest, (first, conflicting))
+        self.assertEqual(ambiguous.exception.code, "AMBIGUOUS_MAPPING")
+
+    def test_startup_validator_rejects_inconsistent_rules(self) -> None:
         wrong_domain = MappingRule(
             "control_access", "open", "driver_door", "turnon_highbeam"
         )
         with self.assertRaises(MappingReadinessError) as mismatch:
-            ToolMapper(load_registry(), load_manifest(), (wrong_domain,))
+            ToolMapper(self.registry, self.manifest, (wrong_domain,))
         self.assertEqual(mismatch.exception.code, "MAPPING_DOMAIN_MISMATCH")
 
     def test_startup_validator_rejects_incomplete_intent_coverage(self) -> None:
@@ -156,7 +184,7 @@ class ToolMapperTests(unittest.TestCase):
         )
         with self.assertRaises(MappingReadinessError) as incomplete:
             ToolMapper(
-                load_registry(),
+                self.registry,
                 scoped_manifest,
                 (MappingRule("control_access", "open", "driver_door", "open_door"),),
             )
@@ -165,11 +193,43 @@ class ToolMapperTests(unittest.TestCase):
 
 
 class MappingCoverageReportTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.manifest = load_manifest()
+
     def test_default_mapping_rules_are_fully_covered(self) -> None:
-        report = build_coverage_report(DEFAULT_MAPPING_RULES, load_manifest())
+        report = build_coverage_report(DEFAULT_MAPPING_RULES, self.manifest)
         self.assertTrue(report.is_complete)
         self.assertEqual(report.missing_intents, ())
         self.assertEqual(report.duplicate_keys, ())
+        self.assertEqual(report.ambiguous_keys, ())
+
+    def test_report_does_not_crash_sorting_keys_with_mixed_none_and_string_values(self) -> None:
+        # Regression test: build_coverage_report used to sort MappingKeys
+        # (str | None trailing `value`) with a plain sorted(), which raised
+        # `TypeError: '<' not supported between instances of 'NoneType' and
+        # 'str'` whenever two flagged keys shared the same (tool, action,
+        # target) prefix but differed in whether `value` was set. Two
+        # duplicate-key groups sharing a prefix, one with value="forward" and
+        # one with value=None, reproduce it: sorting duplicate_keys (which
+        # then holds both) compares them and used to crash.
+        scoped_manifest = minimal_manifest(("a", "control_cabin", "toggle"))
+        rules = (
+            MappingRule("control_cabin", "adjust", "steering_wheel", "a", value="forward"),
+            MappingRule("control_cabin", "adjust", "steering_wheel", "a", value="forward"),
+            MappingRule("control_cabin", "adjust", "steering_wheel", "a"),
+            MappingRule("control_cabin", "adjust", "steering_wheel", "a"),
+        )
+
+        report = build_coverage_report(rules, scoped_manifest)  # must not raise TypeError
+
+        self.assertEqual(
+            report.duplicate_keys,
+            (
+                ("control_cabin", "adjust", "steering_wheel", None),
+                ("control_cabin", "adjust", "steering_wheel", "forward"),
+            ),
+        )
         self.assertEqual(report.ambiguous_keys, ())
 
     def test_report_detects_missing_duplicate_and_ambiguous_entries(self) -> None:
