@@ -267,7 +267,7 @@ tasks:
     title: 'Khai báo behavior catalog đủ 47 action/UI intent'
     priority: P0
     sprint: sprint-2
-    status: in_progress
+    status: review
     area: src/vivi_agent/behaviors
     task_file: src/vivi_agent/behaviors/beh-01/TASK.md
     depends_on: [MAP-02, EXEC-03]
