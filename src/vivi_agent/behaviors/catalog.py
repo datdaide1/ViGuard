@@ -220,75 +220,20 @@ _ACCESS: tuple[BehaviorConfig, ...] = (
         target_field="bonnet_open",
         default_value=True,
     ),
-    # Bulk lock all doors — compound: one AccessActuator per required door
+    # Bulk lock all doors — ONE_SHOT event commanding vehicle to lock all doors.
+    # Note: individual DoorState.lock mutation requires per-door AccessActuatorHandler
+    # which needs an explicit door target param. Bulk lock is a vehicle-level command;
+    # actual DoorState.lock is updated via telemetry feedback (outside agent scope).
     BehaviorConfig(
         intent_id="lock_doors",
-        handler_type=_COMP,
-        sub_configs=(
-            BehaviorConfig(
-                intent_id="lock_doors__driver_door",
-                handler_type=_ONE,
-                target_substate="access",
-                target_field="trunk_open",  # sentinel; real mutation via bulk_lock below
-                event_name="bulk_lock_driver_door",
-            ),
-            BehaviorConfig(
-                intent_id="lock_doors__front_passenger_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_lock_front_passenger_door",
-            ),
-            BehaviorConfig(
-                intent_id="lock_doors__rear_left_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_lock_rear_left_door",
-            ),
-            BehaviorConfig(
-                intent_id="lock_doors__rear_right_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_lock_rear_right_door",
-            ),
-        ),
+        handler_type=_ONE,
+        event_name="bulk_lock_all_doors_commanded",
     ),
-    # Bulk unlock all doors — symmetric compound
+    # Bulk unlock all doors — symmetric ONE_SHOT event
     BehaviorConfig(
         intent_id="unlock_doors",
-        handler_type=_COMP,
-        sub_configs=(
-            BehaviorConfig(
-                intent_id="unlock_doors__driver_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_unlock_driver_door",
-            ),
-            BehaviorConfig(
-                intent_id="unlock_doors__front_passenger_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_unlock_front_passenger_door",
-            ),
-            BehaviorConfig(
-                intent_id="unlock_doors__rear_left_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_unlock_rear_left_door",
-            ),
-            BehaviorConfig(
-                intent_id="unlock_doors__rear_right_door",
-                handler_type=_ONE,
-                target_substate=None,
-                target_field=None,
-                event_name="bulk_unlock_rear_right_door",
-            ),
-        ),
+        handler_type=_ONE,
+        event_name="bulk_unlock_all_doors_commanded",
     ),
 )
 
@@ -367,7 +312,7 @@ _CABIN: tuple[BehaviorConfig, ...] = (
         target_field="windows_open",
         default_value=True,
     ),
-    # Sunroof open/close — position handler (treat 0=closed, 1=fully open)
+    # Sunroof open/close — toggle bool field on CabinState (True=open, False=closed)
     BehaviorConfig(
         intent_id="open_sunroof",
         handler_type=_T,
@@ -496,29 +441,29 @@ _TRANSMISSION: tuple[BehaviorConfig, ...] = (
 # ===========================================================================
 
 _ADAS: tuple[BehaviorConfig, ...] = (
-    # Autopark — active action monitored by Guardrail (R048)
+    # Autopark — active action monitored by Guardrail (R048).
+    # target_substate/target_field intentionally omitted: autopark_state is AutoparkState
+    # (Enum), and ActiveActionHandler only sets bool. Actual autopark_state transition is
+    # managed by the Guardrail monitor (MON-ADP-01) via vehicle telemetry feedback.
     BehaviorConfig(
         intent_id="activate_autopark",
         handler_type=_ACT,
-        target_substate="adas",
-        target_field="autopark_state",
         active_action_name="autopark",
     ),
-    # AAC (Adaptive Cruise Control) — active action (R070)
-    # Note: acc_state is AccState enum; the ActiveActionHandler sets target_field=True/False
-    # which won't work on an Enum field. We use a one-shot event for acc state change
-    # and rely on the Guardrail monitor to verify the actual transition.
+    # AAC (Adaptive Cruise Control) — active action (R070).
+    # acc_state is AccState (Enum) — omit target fields; monitor handles state transition.
     BehaviorConfig(
         intent_id="activate_aac",
         handler_type=_ACT,
         active_action_name="aac",
     ),
-    # HDA (Highway Driving Assist) — active action (R073)
+    # HDA (Highway Driving Assist) — active action (R073).
+    # target_substate/target_field intentionally omitted: setting hda_active=True directly
+    # violates the AdasState invariant (HDA_REQUIRES_ACTIVE_ACC) unless acc_state is already
+    # ACTIVE. The actual hda_active transition is managed by the vehicle and monitor.
     BehaviorConfig(
         intent_id="activate_hda",
         handler_type=_ACT,
-        target_substate="adas",
-        target_field="hda_active",
         active_action_name="hda",
     ),
     # LKA turn off
