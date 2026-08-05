@@ -267,12 +267,17 @@ tasks:
     title: 'Khai báo behavior catalog đủ 47 action/UI intent'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: in_progress
     area: src/vivi_agent/behaviors
     task_file: src/vivi_agent/behaviors/beh-01/TASK.md
     depends_on: [MAP-02, EXEC-03]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/behaviors/catalog.py
+      - src/vivi_agent/behaviors/refusal.py
+      - src/vivi_agent/behaviors/coverage.py
+      - src/vivi_agent/behaviors/__init__.py
+      - tests/behaviors/test_behavior_catalog.py
   - id: QRY-01
     title: 'Xây Query Responder đủ 6/6'
     priority: P0
