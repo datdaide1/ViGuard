@@ -1,6 +1,6 @@
 ﻿# MAP-02 — Hoàn thiện tool-to-intent mapping 53/53
 
-**Trạng thái:** planned  
+**Trạng thái:** review  
 **Sprint:** sprint-2  
 **Code area:** src/vivi_agent/tools/mapping  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục MAP-02)
