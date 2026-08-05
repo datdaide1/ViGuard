@@ -314,12 +314,17 @@ tasks:
     title: 'Tích hợp confirmation lifecycle'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/confirmation
     task_file: src/vivi_agent/confirmation/cnf-01/TASK.md
     depends_on: [CON-01, CON-02, ORC-01, EXEC-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/confirmation/models.py
+      - src/vivi_agent/confirmation/manager.py
+      - src/vivi_agent/confirmation/__init__.py
+      - tests/confirmation/test_confirmation_manager.py
   - id: ACTV-01
     title: 'Xây Active Action Registry'
     priority: P0
