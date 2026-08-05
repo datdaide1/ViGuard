@@ -495,6 +495,83 @@ def test_gateway_execution_authorized(gateway: VehicleToolGateway) -> None:
     assert result.facts["value"] is True
 
 
+def test_gateway_registered_handler_failure_propagates(gateway: VehicleToolGateway) -> None:
+    # Established baseline state version
+    valid_proposal = make_test_proposal(
+        proposal_id="prop-200",
+        tool="set_drive_mode",
+        arguments={"mode": "ECO"},
+    )
+    valid_digest = proposal_digest(valid_proposal)
+    now_iso = datetime.now(tz=timezone.utc).isoformat()
+    valid_permit = {
+        "permit_id": "pmt-200",
+        "intent": "set_drive_mode",
+        "proposal_digest": valid_digest,
+        "rule_id": "R001",
+        "state_version": 0,
+        "policy_checksum": "sha256:" + "a" * 64,
+        "single_use": True,
+        "issued_at": now_iso,
+        "expires_at": datetime.now(tz=timezone.utc).replace(year=2030).isoformat(),
+    }
+    valid_decision = {
+        "contract_version": "1.0.0",
+        "kind": "decision",
+        "request_id": "req-200",
+        "proposal_id": valid_proposal["proposal_id"],
+        "intent": "set_drive_mode",
+        "outcome": "ALLOW",
+        "rule_id": "R001",
+        "state_version": 0,
+        "policy_checksum": "sha256:" + "a" * 64,
+        "reason_code": "SAFE",
+        "permit": valid_permit,
+    }
+
+    valid_result = gateway.execute(valid_proposal, valid_decision)
+    assert valid_result.success is True
+    baseline_state_version = valid_result.state_version
+
+    # Invoke registered handler with invalid parameters -> ExecutionError
+    invalid_proposal = make_test_proposal(
+        proposal_id="prop-201",
+        tool="set_drive_mode",
+        arguments={"mode": "INVALID_MODE"},
+    )
+    invalid_digest = proposal_digest(invalid_proposal)
+    invalid_permit = {
+        "permit_id": "pmt-201",
+        "intent": "set_drive_mode",
+        "proposal_digest": invalid_digest,
+        "rule_id": "R001",
+        "state_version": baseline_state_version,
+        "policy_checksum": "sha256:" + "a" * 64,
+        "single_use": True,
+        "issued_at": now_iso,
+        "expires_at": datetime.now(tz=timezone.utc).replace(year=2030).isoformat(),
+    }
+    invalid_decision = {
+        "contract_version": "1.0.0",
+        "kind": "decision",
+        "request_id": "req-201",
+        "proposal_id": invalid_proposal["proposal_id"],
+        "intent": "set_drive_mode",
+        "outcome": "ALLOW",
+        "rule_id": "R001",
+        "state_version": baseline_state_version,
+        "policy_checksum": "sha256:" + "a" * 64,
+        "reason_code": "SAFE",
+        "permit": invalid_permit,
+    }
+
+    result = gateway.execute(invalid_proposal, invalid_decision)
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.code == "INVALID_ENUM_VALUE"
+    assert gateway.verifier.store.is_used("pmt-201") is True
+
+
 def test_gateway_unregistered_handler_fails(gateway: VehicleToolGateway) -> None:
     proposal = make_test_proposal(
         proposal_id="prop-102",

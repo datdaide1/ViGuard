@@ -547,6 +547,9 @@ class TimedTransitionHandler(BaseGenericHandler):
         except (ValueError, TypeError):
             duration = 300.0
 
+        if duration <= 0:
+            raise ExecutionError("INVALID_DURATION", f"Non-positive duration {duration} is not allowed")
+
         assert self.config.target_substate is not None
         assert self.config.target_field is not None
         substate_name = self.config.target_substate
@@ -655,7 +658,6 @@ class ActiveActionHandler(BaseGenericHandler):
 def _apply_sub_config_state_mutation(
     state: VehicleState,
     sub_cfg: BehaviorConfig,
-    proposal: Mapping[str, Any],
 ) -> VehicleState:
     """Helper applying a single sub_config patch to VehicleState inside compound transition."""
     htype = (
@@ -714,7 +716,7 @@ def _apply_sub_config_state_mutation(
     elif htype == BehaviorHandlerType.COMPOUND:
         cur = state
         for child_cfg in sub_cfg.sub_configs:
-            cur = _apply_sub_config_state_mutation(cur, child_cfg, proposal)
+            cur = _apply_sub_config_state_mutation(cur, child_cfg)
         return cur
 
     return state
@@ -728,7 +730,7 @@ class CompoundActionHandler(BaseGenericHandler):
         def compound_patch_fn(state: VehicleState) -> VehicleState:
             current = state
             for sub_cfg in self.config.sub_configs:
-                current = _apply_sub_config_state_mutation(current, sub_cfg, proposal)
+                current = _apply_sub_config_state_mutation(current, sub_cfg)
             return current
 
         event = self._apply_transition(proposal, compound_patch_fn)
