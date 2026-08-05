@@ -329,12 +329,18 @@ tasks:
     title: 'Xây Active Action Registry'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/active_actions
     task_file: src/vivi_agent/active_actions/actv-01/TASK.md
     depends_on: [BEH-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: vivi-agent
+    evidence:
+      - tests/active_actions/test_active_action_registry.py
+    files:
+      - src/vivi_agent/active_actions/models.py
+      - src/vivi_agent/active_actions/registry.py
+      - src/vivi_agent/active_actions/__init__.py
+      - tests/active_actions/test_active_action_registry.py
   - id: MON-ADP-01
     title: 'Tích hợp Guardrail Monitor'
     priority: P0

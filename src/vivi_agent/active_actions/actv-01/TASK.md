@@ -1,6 +1,6 @@
-﻿# ACTV-01 — Xây Active Action Registry
+# ACTV-01 — Xây Active Action Registry
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-2  
 **Code area:** src/vivi_agent/active_actions  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục ACTV-01)
