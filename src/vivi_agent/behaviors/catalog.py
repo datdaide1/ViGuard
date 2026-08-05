@@ -521,11 +521,12 @@ ACTION_BEHAVIOR_CONFIGS: tuple[BehaviorConfig, ...] = (
     *_UI,
 )
 
-# The intent IDs of all explicit refusals (handled by refusal.py)
-REFUSAL_INTENT_IDS: frozenset[str] = frozenset({"deactivate_esc"})
+# The intent IDs of all explicit refusals (re-exported from refusal.py for single source of truth)
+from vivi_agent.behaviors.refusal import REFUSAL_INTENT_IDS
 
-# Complete behavior catalog = actions + refusals (used by coverage validator)
-# Query intents are intentionally excluded.
+# Behavior catalog containing all executable action behavior configs.
+# Refusals (e.g. deactivate_esc) are defined separately in refusal.py,
+# and query intents are intentionally excluded.
 BEHAVIOR_CATALOG: tuple[BehaviorConfig, ...] = ACTION_BEHAVIOR_CONFIGS
 
 

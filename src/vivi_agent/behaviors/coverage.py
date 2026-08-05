@@ -35,6 +35,7 @@ class CoverageReport:
     covered_refusal: int = 0
     covered_query: int = 0
     missing_action: list[str] = field(default_factory=list)
+    missing_refusal: list[str] = field(default_factory=list)
     extra_action: list[str] = field(default_factory=list)
     query_with_behavior: list[str] = field(default_factory=list)
     passed: bool = False
@@ -45,9 +46,10 @@ class CoverageReport:
 
     def summary(self) -> str:
         status = "PASS" if self.passed else "FAIL"
+        expected_non_query = self.total_intents - self.covered_query
         return (
             f"[{status}] Behavior coverage: "
-            f"{self.covered_total}/{self.covered_action + self.covered_refusal + len(self.missing_action)} "
+            f"{self.covered_total}/{expected_non_query} "
             f"(action={self.covered_action}, refusal={self.covered_refusal}, "
             f"query={self.covered_query} — excluded from actuator catalog)"
         )
@@ -107,8 +109,8 @@ def validate_behavior_coverage(
     report.covered_action = len(action_ids - set(report.missing_action))
 
     # 2. Every refusal intent must be in refusal catalog
-    missing_refusal = sorted(refusal_ids - refusal_intent_ids)
-    report.covered_refusal = len(refusal_ids - set(missing_refusal))
+    report.missing_refusal = sorted(refusal_ids - refusal_intent_ids)
+    report.covered_refusal = len(refusal_ids - set(report.missing_refusal))
 
     # 3. No query intent should appear in the action catalog
     report.query_with_behavior = sorted(query_ids & catalog_action_ids)
@@ -118,7 +120,7 @@ def validate_behavior_coverage(
 
     report.passed = (
         len(report.missing_action) == 0
-        and len(missing_refusal) == 0
+        and len(report.missing_refusal) == 0
         and len(report.query_with_behavior) == 0
     )
     return report
@@ -148,6 +150,8 @@ def assert_full_coverage(
         problems: list[str] = []
         if report.missing_action:
             problems.append(f"missing action behaviors: {report.missing_action}")
+        if report.missing_refusal:
+            problems.append(f"missing refusal behaviors: {report.missing_refusal}")
         if report.query_with_behavior:
             problems.append(f"query intents with actuator behavior: {report.query_with_behavior}")
         raise BehaviorReadinessError(

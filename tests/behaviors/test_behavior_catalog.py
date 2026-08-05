@@ -96,11 +96,16 @@ class TestBehaviorCoverage:
         assert total == 47, f"Expected 47, got {total}"
 
     def test_coverage_fails_on_missing_intent(self):
-        """Validator raises when a required intent has no entry."""
+        """Validator raises when a required action intent has no entry."""
         # Remove one config to simulate a missing entry
         trimmed = ACTION_BEHAVIOR_CONFIGS[1:]  # drop first
         with pytest.raises(BehaviorReadinessError, match="missing action behaviors"):
             assert_full_coverage(trimmed, REFUSAL_INTENT_IDS)
+
+    def test_coverage_fails_on_missing_refusal(self):
+        """Validator raises when a required refusal intent is not provided."""
+        with pytest.raises(BehaviorReadinessError, match="missing refusal behaviors"):
+            assert_full_coverage(ACTION_BEHAVIOR_CONFIGS, frozenset())
 
 
 # ===========================================================================
