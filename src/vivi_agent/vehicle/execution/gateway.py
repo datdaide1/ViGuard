@@ -128,6 +128,13 @@ class VehicleToolGateway:
                             code="EXECUTION_DENIED",
                             message=f"Policy outcome {outcome!r} does not permit execution",
                             retryable=False,
+                            # Preserve policy diagnostics for internal callers
+                            # (logs, event pipeline) without widening the
+                            # UI-facing error contract — see TurnError.details.
+                            details={
+                                "rule_id": decision.get("rule_id"),
+                                "reason_code": decision.get("reason_code"),
+                            },
                         ),
                     )
                 permit = decision.get("permit")

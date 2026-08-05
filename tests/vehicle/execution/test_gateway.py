@@ -240,6 +240,11 @@ def test_gateway_non_allow_outcomes_zero_handler_calls(outcome: str):
     assert result.error is not None
     assert result.error.code == "EXECUTION_DENIED"
     assert spy.call_count == 0
+    # Policy diagnostics are preserved internally for logs/events...
+    assert result.error.details["rule_id"] == decision["rule_id"]
+    assert result.error.details["reason_code"] == decision["reason_code"]
+    # ...but must not widen the Agent-UI failedResponse.error wire contract.
+    assert set(result.error.to_dict()) == {"code", "message", "retryable"}
 
 
 def test_gateway_replay_attack_second_execution_fails():

@@ -59,6 +59,15 @@ class TurnError:
     code: str
     message: str
     retryable: bool = False
+    # Internal diagnostic context (e.g. policy rule_id/reason_code) for logs,
+    # events, and callers within this codebase. Deliberately excluded from
+    # to_dict(): the Agent-UI v1 `failedResponse.error` schema is
+    # `additionalProperties: false` with exactly {code, message, retryable},
+    # so widening the wire payload here would break that cross-team contract.
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
 
     def to_dict(self) -> dict[str, str | bool]:
         return {"code": self.code, "message": self.message, "retryable": self.retryable}

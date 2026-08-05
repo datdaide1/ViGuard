@@ -13,11 +13,13 @@ from vivi_agent.vehicle.execution import (
     VehicleToolGateway,
     make_open_door_handler,
 )
+from vivi_agent.vehicle.execution.open_door import DOOR_ALIAS_MAP
 from vivi_agent.vehicle.state import (
     DoorPosition,
     LockState,
     VehicleStateMachine,
 )
+from vivi_agent.vehicle.state.model import REQUIRED_DOOR_IDS
 
 
 def make_proposal(
@@ -231,3 +233,22 @@ def test_open_door_replay_permit_fails_closed() -> None:
 
     # Only 1 state version increment happened
     assert state_machine.snapshot().state_version == 1
+
+
+def test_door_alias_map_covers_exactly_the_canonical_door_ids() -> None:
+    """DOOR_ALIAS_MAP must stay derived from/validated against REQUIRED_DOOR_IDS.
+
+    Guards against the alias table silently drifting from the canonical
+    vehicle state schema (Sourcery review feedback on PR #16).
+    """
+    assert set(DOOR_ALIAS_MAP.values()) == set(REQUIRED_DOOR_IDS)
+    # Every canonical door ID is a valid alias for itself.
+    for door_id in REQUIRED_DOOR_IDS:
+        assert DOOR_ALIAS_MAP[door_id] == door_id
+
+
+def test_door_alias_map_resolves_short_aliases_to_canonical_ids() -> None:
+    handler = make_open_door_handler(VehicleStateMachine())
+
+    for alias, canonical_id in DOOR_ALIAS_MAP.items():
+        assert handler.resolve_door_target({"door": alias}) == canonical_id

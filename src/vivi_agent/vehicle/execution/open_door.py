@@ -10,17 +10,35 @@ from vivi_agent.vehicle.state.machine import VehicleStateMachine
 from vivi_agent.vehicle.state.model import DoorPosition, LockState, REQUIRED_DOOR_IDS, VehicleState
 from .errors import InvalidDoorTargetError
 
-DOOR_ALIAS_MAP: dict[str, str] = {
-    "driver_door": "driver_door",
+# Human-friendly short aliases, one per canonical door ID. Keys must map to a
+# REQUIRED_DOOR_IDS member; this is enforced at import time below so the
+# alias table can never silently drift from the canonical vehicle schema.
+_SHORT_DOOR_ALIASES: dict[str, str] = {
     "driver": "driver_door",
-    "front_passenger_door": "front_passenger_door",
     "front_passenger": "front_passenger_door",
     "passenger_door": "front_passenger_door",
-    "rear_left_door": "rear_left_door",
     "rear_left": "rear_left_door",
-    "rear_right_door": "rear_right_door",
     "rear_right": "rear_right_door",
 }
+
+# Canonical IDs are always valid aliases for themselves; derive those entries
+# from REQUIRED_DOOR_IDS instead of hand-duplicating them so adding/renaming
+# a door in the vehicle state model is reflected here automatically.
+DOOR_ALIAS_MAP: dict[str, str] = {
+    door_id: door_id for door_id in REQUIRED_DOOR_IDS
+} | _SHORT_DOOR_ALIASES
+
+_alias_targets = set(DOOR_ALIAS_MAP.values())
+if not _alias_targets.issubset(REQUIRED_DOOR_IDS):
+    raise RuntimeError(
+        "DOOR_ALIAS_MAP targets doors outside REQUIRED_DOOR_IDS: "
+        f"{sorted(_alias_targets - REQUIRED_DOOR_IDS)!r}"
+    )
+if not REQUIRED_DOOR_IDS.issubset(_alias_targets):
+    raise RuntimeError(
+        "DOOR_ALIAS_MAP is missing canonical door IDs: "
+        f"{sorted(REQUIRED_DOOR_IDS - _alias_targets)!r}"
+    )
 
 
 class OpenDoorHandler:
