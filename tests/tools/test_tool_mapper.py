@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import unittest
 
-from src.vivi_agent import RUNTIME_TOOL_MAPPER
-from src.vivi_agent.catalog import load_manifest
+from src.vivi_agent import RUNTIME_INTENT_MANIFEST, RUNTIME_TOOL_MAPPER
+from src.vivi_agent.catalog import IntentDefinition, IntentManifest, load_manifest
 from src.vivi_agent.tools.mapping import (
+    DEFAULT_MAPPING_RULES,
     MappingReadinessError,
     MappingRule,
     ToolMapper,
     UnsupportedToolMappingError,
+    build_coverage_report,
 )
 from src.vivi_agent.tools.registry import load_registry
 
@@ -28,18 +30,44 @@ def proposal(arguments: dict[str, str] | None = None, **overrides: object) -> di
     return payload
 
 
+def minimal_manifest(*intents: tuple[str, str, str]) -> IntentManifest:
+    """Build a tiny IntentManifest fixture for isolated mapper tests.
+
+    Bypasses the closed-catalog checks in ``validate_manifest`` (approved
+    53-intent allowlist, checksum, ...) since these tests only exercise
+    `ToolMapper` against a deliberately reduced catalog, independent of the
+    real 53-intent baseline.
+    """
+    definitions = tuple(
+        IntentDefinition(
+            intent=intent,
+            kind="action",
+            domain_tool=domain_tool,
+            behavior_category=behavior_category,
+            required_parameters=(),
+            monitor_rule_ids=(),
+            sample_utterances=("test utterance",),
+        )
+        for intent, domain_tool, behavior_category in intents
+    )
+    return IntentManifest("1.0.0", "test-fixture", "sha256:" + "0" * 64, definitions)
+
+
 class ToolMapperTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.mapper = ToolMapper(load_registry(), load_manifest())
 
-    def test_runtime_loads_one_reviewed_vertical_slice_mapping(self) -> None:
-        self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 1)
-        self.assertEqual(RUNTIME_TOOL_MAPPER.rules[0].intent, "open_door")
-        self.assertEqual(
-            RUNTIME_TOOL_MAPPER.rules[0].key,
-            ("control_access", "open", "driver_door", None),
-        )
+    def test_runtime_loads_full_53_intent_coverage(self) -> None:
+        self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 78)
+        mapped_intents = {rule.intent for rule in RUNTIME_TOOL_MAPPER.rules}
+        manifest_intents = {definition.intent for definition in RUNTIME_INTENT_MANIFEST.intents}
+        # Set equality also proves exact-casing preservation (e.g. OPEN_BONNET,
+        # AD_WIPER_MAX, SHIFT_GEAR_REVERSE, turnoff_LKA): a casing mistake
+        # would fail startup readiness (UNKNOWN_MAPPING_INTENT) long before
+        # this assertion runs.
+        self.assertEqual(mapped_intents, manifest_intents)
+        self.assertEqual(len(manifest_intents), 53)
 
     def test_valid_call_maps_to_one_canonical_intent_and_event(self) -> None:
         result = self.mapper.map_proposal(proposal())
@@ -70,8 +98,17 @@ class ToolMapperTests(unittest.TestCase):
         self.assertRegex(first.proposal_digest, r"^sha256:[0-9a-f]{64}$")
 
     def test_supported_registry_call_without_reviewed_mapping_does_not_fallback(self) -> None:
+        # A deliberately reduced mapper (single reviewed rule) so this test's
+        # "no fallback" guarantee is independent of how complete the real
+        # catalog's mapping table is.
+        scoped_manifest = minimal_manifest(("open_door", "control_access", "access_mutation"))
+        scoped_mapper = ToolMapper(
+            load_registry(),
+            scoped_manifest,
+            (MappingRule("control_access", "open", "driver_door", "open_door"),),
+        )
         with self.assertRaises(UnsupportedToolMappingError) as raised:
-            self.mapper.map_proposal(proposal({"action": "open", "target": "trunk"}))
+            scoped_mapper.map_proposal(proposal({"action": "open", "target": "trunk"}))
         self.assertEqual(raised.exception.code, "UNSUPPORTED_TOOL_MAPPING")
         self.assertFalse(raised.exception.execution_allowed)
 
@@ -111,6 +148,136 @@ class ToolMapperTests(unittest.TestCase):
         with self.assertRaises(MappingReadinessError) as mismatch:
             ToolMapper(load_registry(), load_manifest(), (wrong_domain,))
         self.assertEqual(mismatch.exception.code, "MAPPING_DOMAIN_MISMATCH")
+
+    def test_startup_validator_rejects_incomplete_intent_coverage(self) -> None:
+        scoped_manifest = minimal_manifest(
+            ("open_door", "control_access", "access_mutation"),
+            ("open_trunk", "control_access", "access_mutation"),
+        )
+        with self.assertRaises(MappingReadinessError) as incomplete:
+            ToolMapper(
+                load_registry(),
+                scoped_manifest,
+                (MappingRule("control_access", "open", "driver_door", "open_door"),),
+            )
+        self.assertEqual(incomplete.exception.code, "INCOMPLETE_MAPPING_COVERAGE")
+        self.assertIn("open_trunk", incomplete.exception.detail)
+
+
+class MappingCoverageReportTests(unittest.TestCase):
+    def test_default_mapping_rules_are_fully_covered(self) -> None:
+        report = build_coverage_report(DEFAULT_MAPPING_RULES, load_manifest())
+        self.assertTrue(report.is_complete)
+        self.assertEqual(report.missing_intents, ())
+        self.assertEqual(report.duplicate_keys, ())
+        self.assertEqual(report.ambiguous_keys, ())
+
+    def test_report_detects_missing_duplicate_and_ambiguous_entries(self) -> None:
+        scoped_manifest = minimal_manifest(
+            ("open_door", "control_access", "access_mutation"),
+            # Never referenced by any rule below -> "missing".
+            ("open_trunk", "control_access", "access_mutation"),
+            ("unlock_doors", "control_access", "access_mutation"),
+        )
+        duplicate_key = ("control_access", "open", "driver_door", None)
+        ambiguous_key = ("control_access", "lock", "all_doors", None)
+        rules = (
+            # Repeated identical key+intent -> "duplicate" (redundant, harmless).
+            MappingRule("control_access", "open", "driver_door", "open_door"),
+            MappingRule("control_access", "open", "driver_door", "open_door"),
+            # Same key, two different intents -> "ambiguous" (real conflict).
+            MappingRule("control_access", "lock", "all_doors", "open_door"),
+            MappingRule("control_access", "lock", "all_doors", "unlock_doors"),
+        )
+
+        report = build_coverage_report(rules, scoped_manifest)
+
+        self.assertFalse(report.is_complete)
+        self.assertEqual(report.missing_intents, ("open_trunk",))
+        self.assertEqual(report.duplicate_keys, (duplicate_key,))
+        self.assertEqual(report.ambiguous_keys, (ambiguous_key,))
+
+
+class ToolMapperFullCatalogEndToEndTests(unittest.TestCase):
+    """Spot-checks across domain tools/multi-combination intents added by MAP-02."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mapper = ToolMapper(load_registry(), load_manifest())
+
+    def test_open_trunk(self) -> None:
+        result = self.mapper.map_proposal(proposal({"action": "open", "target": "trunk"}))
+        self.assertEqual(result.canonical_action.intent, "open_trunk")
+
+    def test_open_bonnet_preserves_uppercase_intent_casing(self) -> None:
+        result = self.mapper.map_proposal(proposal({"action": "open", "target": "bonnet"}))
+        self.assertEqual(result.canonical_action.intent, "OPEN_BONNET")
+
+    def test_switch_drivemode_sport(self) -> None:
+        result = self.mapper.map_proposal(
+            proposal(
+                {"action": "set", "target": "drive_mode", "value": "sport"},
+                tool="set_drive_mode",
+            )
+        )
+        self.assertEqual(result.canonical_action.intent, "switch_drivemode_sport")
+
+    def test_shift_gear_reverse_preserves_uppercase_intent_casing(self) -> None:
+        result = self.mapper.map_proposal(
+            proposal(
+                {"action": "shift", "target": "gear", "value": "reverse"},
+                tool="control_transmission",
+            )
+        )
+        self.assertEqual(result.canonical_action.intent, "SHIFT_GEAR_REVERSE")
+
+    def test_get_current_speed_query(self) -> None:
+        result = self.mapper.map_proposal(
+            proposal({"action": "get", "target": "current_speed"}, tool="query_vehicle_state")
+        )
+        self.assertEqual(result.canonical_action.intent, "get_current_speed")
+
+    def test_ad_steeringwheel_multiple_directions_share_one_intent(self) -> None:
+        for direction in ("forward", "down"):
+            with self.subTest(direction=direction):
+                result = self.mapper.map_proposal(
+                    proposal(
+                        {"action": "adjust", "target": "steering_wheel", "value": direction},
+                        tool="control_cabin",
+                    )
+                )
+                self.assertEqual(result.canonical_action.intent, "ad_steeringwheel")
+                self.assertEqual(result.canonical_action.normalized_arguments["value"], direction)
+
+    def test_open_window_multiple_windows_share_one_intent(self) -> None:
+        for window in ("driver_window", "rear_right_window"):
+            with self.subTest(window=window):
+                result = self.mapper.map_proposal(
+                    proposal({"action": "open", "target": window}, tool="control_cabin")
+                )
+                self.assertEqual(result.canonical_action.intent, "open_window")
+                self.assertEqual(result.canonical_action.normalized_arguments["target"], window)
+
+    def test_explain_feature_multiple_features_share_one_intent(self) -> None:
+        for feature in ("auto_park", "valet_mode"):
+            with self.subTest(feature=feature):
+                result = self.mapper.map_proposal(
+                    proposal(
+                        {"action": "explain", "target": feature},
+                        tool="explain_vehicle_feature",
+                    )
+                )
+                self.assertEqual(result.canonical_action.intent, "explain_feature")
+                self.assertEqual(result.canonical_action.normalized_arguments["target"], feature)
+
+    def test_deactivate_esc_refusal_intent_still_mapped(self) -> None:
+        result = self.mapper.map_proposal(
+            proposal(
+                {"action": "deactivate", "target": "electronic_stability_control"},
+                tool="control_driver_assistance",
+            )
+        )
+        self.assertEqual(result.canonical_action.intent, "deactivate_esc")
 
 
 if __name__ == "__main__":

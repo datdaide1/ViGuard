@@ -240,12 +240,15 @@ tasks:
     title: 'Hoàn thiện tool-to-intent mapping 53/53'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: review
     area: src/vivi_agent/tools/mapping
     task_file: src/vivi_agent/tools/mapping/map-02/TASK.md
     depends_on: [MAP-01, CAT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/mapping/mapper.py
+      - src/vivi_agent/tools/mapping/README.md
+      - tests/tools/test_tool_mapper.py
   - id: EXEC-03
     title: 'Xây generic handler framework'
     priority: P0
