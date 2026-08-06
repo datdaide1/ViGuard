@@ -92,7 +92,9 @@ còn nguy hiểm hơn cả việc để nó tắt hẳn như hiện tại.
 
 Mục #1 ở trên đã được giải quyết, nhưng **chỉ cho 2 intent `activate_hda` và
 `activate_aac`** — `activate_autopark`/`activate_campmode`/`activate_petmode`
-**vẫn còn nguyên vấn đề đã mô tả**, để lại cho HERO-03.
+**vẫn còn nguyên vấn đề đã mô tả**, để lại cho HERO-03. (Cập nhật: HERO-03 đã
+đóng mục #1 cho `activate_autopark`/`activate_campmode` — xem mục cập nhật bên
+dưới. `activate_petmode` vẫn còn mở.)
 
 Hướng đi không phải "thiết kế stop proposal contract với Guardrail" như gợi ý
 ban đầu ở mục #1 — sau khi phân tích, một round-trip permit thứ hai cho một
@@ -122,3 +124,36 @@ Mục #2 (wire `GuardrailMonitorAdapter` vào orchestrator/bootstrap production)
 HTTP calls), ngoài scope của một hero behavior ticket, và đúng như ràng buộc
 thứ tự đã ghi ở trên, chỉ nên làm sau khi #1 đã đóng cho **toàn bộ 5** intent
 (tức là sau HERO-03).
+
+---
+
+## Cập nhật (HERO-03) — Mục #1 đã đóng thêm cho `activate_autopark`/`activate_campmode`
+
+**File:** `src/vivi_agent/behaviors/hero/autopark_campmode.py`
+
+Cùng hướng đi và cùng lý do như bản cập nhật HERO-02 ở trên (không thêm một
+permit round-trip thứ hai cho fail-safe stop): `register_autopark_campmode_stop_handlers(registry, state_machine)`
+đăng ký stop handler thật cho `"activate_autopark"`/`"activate_campmode"`, và
+`make_monitored_active_action_handler(...)` (trong module này) đóng phần
+`registry.start_action()` chưa từng được gọi cho hai intent này.
+
+Phần plumbing dùng chung giữa HERO-02 và HERO-03 (bridge handler, SYSTEM-actor
+patch boilerplate, lớp base đọc monitor result không suy diễn policy) đã được
+tách sang `src/vivi_agent/behaviors/hero/_active_action_common.py` để tránh
+trùng lặp — `active_driving_assist.py` (HERO-02) cũng đã được refactor để dùng
+lại phần dùng chung này, hành vi/API công khai không đổi (test HERO-02 hiện có
+vẫn pass nguyên trạng).
+
+Khác với HDA/AAC (chỉ có 1 kiểu cascade), autopark và camp mode không cần
+cascade sang state khác khi dừng — mỗi cái tắt đúng field của mình
+(`adas.autopark_state`/`modes.camp_mode_active`) và dọn `active_actions` entry
+tương ứng trong cùng một transition.
+
+`activate_petmode` **vẫn còn mở** — HERO-03 chỉ có scope autopark + camp mode
+theo đúng tracker/TASK.md. Mục #2 (wire `GuardrailMonitorAdapter` vào
+orchestrator/bootstrap) vẫn chưa làm, và giờ chỉ còn phụ thuộc `activate_petmode`
+để đóng mục #1 cho toàn bộ 5 intent.
+
+Xác nhận bằng integration test dừng được state machine thật:
+`tests/integration/hero/test_hero03_autopark_campmode.py::TestHero03AutoparkCampmodeE2E::test_e2e_monitor_stop_flips_real_vehicle_state_for_campmode`
+và `::test_e2e_monitor_stop_flips_real_vehicle_state_for_autopark`.
