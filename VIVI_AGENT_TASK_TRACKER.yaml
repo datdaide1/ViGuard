@@ -439,12 +439,13 @@ tasks:
     title: 'Hoàn thiện HDA và AAC active behaviors'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-02/TASK.md
     depends_on: [ACTV-01, MON-ADP-01, INT-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/active_driving_assist.py
   - id: HERO-03
     title: 'Hoàn thiện Autopark và Camp mode behaviors'
     priority: P0

@@ -83,3 +83,42 @@ còn nguy hiểm hơn cả việc để nó tắt hẳn như hiện tại.
 
 Đọc lại 2 mục trên theo đúng thứ tự (#1 trước #2). Không đánh dấu MON-ADP-01
 "hoàn tất" theo nghĩa an toàn thực sự cho tới khi cả 2 được giải quyết.
+
+---
+
+## Cập nhật (HERO-02) — Mục #1 đã đóng cho `activate_hda`/`activate_aac`
+
+**File:** `src/vivi_agent/behaviors/hero/active_driving_assist.py`
+
+Mục #1 ở trên đã được giải quyết, nhưng **chỉ cho 2 intent `activate_hda` và
+`activate_aac`** — `activate_autopark`/`activate_campmode`/`activate_petmode`
+**vẫn còn nguyên vấn đề đã mô tả**, để lại cho HERO-03.
+
+Hướng đi không phải "thiết kế stop proposal contract với Guardrail" như gợi ý
+ban đầu ở mục #1 — sau khi phân tích, một round-trip permit thứ hai cho một
+fail-safe stop là rủi ro tự thân (nếu Guardrail down đúng lúc cần dừng khẩn
+cấp, luồng dừng cũng kẹt theo). Thay vào đó:
+
+- `register_hda_aac_stop_handlers(registry, state_machine)` đăng ký stop
+  handler thật cho `"activate_hda"`/`"activate_aac"` — mutate `VehicleState`
+  trực tiếp qua `VehicleStateMachine.apply(..., actor_kind=ActorKind.SYSTEM)`,
+  không qua `VehicleToolGateway`/permit boundary (cùng pattern
+  `reset_open_door_state` của HERO-01).
+- `make_monitored_active_action_handler(...)` đóng luôn phần "chưa hề tồn tại
+  lệnh gọi `registry.start_action()`" — wrap `ActiveActionHandler` để mỗi lần
+  `activate_hda`/`activate_aac` chạy thành công đều tạo `ActiveActionRecord`
+  thật trong registry, để `GuardrailMonitorAdapter.tick()` có gì đó để
+  evaluate.
+- Cascade: dừng `activate_aac` khi `hda_active=True` sẽ tắt cả hai trong CÙNG
+  MỘT transition (bắt buộc bởi invariant `HDA_REQUIRES_ACTIVE_ACC` trên
+  `AdasState`), rồi mới dừng record `activate_hda` trong registry.
+
+Xác nhận bằng integration test dừng được state machine thật:
+`tests/integration/hero/test_hero02_hda_aac.py::TestHero02HdaAacE2E::test_e2e_monitor_stop_flips_real_vehicle_state`.
+
+Mục #2 (wire `GuardrailMonitorAdapter` vào orchestrator/bootstrap production)
+**vẫn chưa làm** — đây là quyết định wiring toàn hệ thống (nơi state-change
+được publish, polling `tick()` theo interval hay subscribe, batch/parallelize
+HTTP calls), ngoài scope của một hero behavior ticket, và đúng như ràng buộc
+thứ tự đã ghi ở trên, chỉ nên làm sau khi #1 đã đóng cho **toàn bộ 5** intent
+(tức là sau HERO-03).
