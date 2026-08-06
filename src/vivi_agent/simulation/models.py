@@ -93,10 +93,6 @@ class SimulationResult:
     ----------
     success:
         ``True`` if the state transition was committed.
-    snapshot:
-        The ``VehicleState`` after the transition (or unchanged on failure).
-        Stored as a dict projection to avoid coupling this model to VehicleState
-        internals — callers that need the full object use the machine directly.
     state_version:
         The ``state_version`` of the snapshot.
     event_id:

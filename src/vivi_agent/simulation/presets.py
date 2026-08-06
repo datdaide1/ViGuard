@@ -30,8 +30,6 @@ from vivi_agent.vehicle.state.model import (
     DEFAULT_VEHICLE_STATE,
     AccState,
     AdasState,
-    AmbientLight,
-    EnvironmentState,
     Gear,
     ModeState,
     MotionPhase,

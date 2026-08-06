@@ -43,19 +43,12 @@ from vivi_agent.vehicle.state.machine import (
     VersionConflictError,
 )
 from vivi_agent.vehicle.state.model import (
-    AdasState,
     AmbientLight,
-    EnvironmentState,
     Gear,
-    ModeState,
     MotionPhase,
     MotionState,
-    PowerState,
-    StateSource,
-    TransmissionState,
     VehicleState,
     VehicleStateValidationError,
-    pip_provenance,
 )
 
 from .models import (
@@ -130,9 +123,9 @@ class SimulationController:
         correlation_id: str | None = None,
     ) -> SimulationResult:
         """Set transmission gear (P, R, N, D)."""
-        gear_enum = Gear(gear) if isinstance(gear, str) else gear
 
         def _patch(state: VehicleState) -> VehicleState:
+            gear_enum = Gear(gear) if isinstance(gear, str) else gear
             return replace(
                 state,
                 transmission=replace(state.transmission, gear=gear_enum),
@@ -156,20 +149,7 @@ class SimulationController:
         """
 
         def _patch(state: VehicleState) -> VehicleState:
-            phase = MotionPhase.MOVING if speed_kph > 0 else MotionPhase.STOPPED
-            new_motion = MotionState(speed_kph=speed_kph, phase=phase)
-
-            # Auto-adjust gear and EPB for physical consistency
-            new_transmission = state.transmission
-            if speed_kph > 0:
-                if state.transmission.gear is Gear.PARK:
-                    new_transmission = replace(
-                        state.transmission, gear=Gear.DRIVE, epb_engaged=False
-                    )
-                elif state.transmission.epb_engaged:
-                    new_transmission = replace(state.transmission, epb_engaged=False)
-
-            return replace(state, motion=new_motion, transmission=new_transmission)
+            return _patch_speed(state, speed_kph)
 
         return self._apply_patch(
             _patch, operator_id=operator_id, correlation_id=correlation_id
@@ -202,9 +182,9 @@ class SimulationController:
         correlation_id: str | None = None,
     ) -> SimulationResult:
         """Set ambient light condition (day/night)."""
-        light_enum = AmbientLight(light) if isinstance(light, str) else light
 
         def _patch(state: VehicleState) -> VehicleState:
+            light_enum = AmbientLight(light) if isinstance(light, str) else light
             return replace(
                 state,
                 environment=replace(state.environment, ambient_light=light_enum),
@@ -276,16 +256,18 @@ class SimulationController:
         seed:
             Deterministic seed for reproducible state.  Currently reserved.
         """
-        if isinstance(preset_id, str):
-            preset_id = SimulationPresetId(preset_id)
-
         corr_id = correlation_id or f"sim-preset-{uuid.uuid4().hex[:8]}"
 
         def _patch(state: VehicleState) -> VehicleState:
             # Build the preset state; version and timestamp will be stamped
             # by VehicleStateMachine.apply() so we pass placeholder values.
+            resolved_id = (
+                SimulationPresetId(preset_id)
+                if isinstance(preset_id, str)
+                else preset_id
+            )
             preset_state = get_simulation_preset(
-                preset_id,
+                resolved_id,
                 state_version=state.state_version,
                 timestamp=state.timestamp,
                 seed=seed,
@@ -422,6 +404,33 @@ class SimulationController:
 
 
 # ---------------------------------------------------------------------------
+# Shared patch logic
+# ---------------------------------------------------------------------------
+
+def _patch_speed(state: VehicleState, speed_kph: float) -> VehicleState:
+    """Apply a speed change with gear/EPB auto-adjustment for physical consistency.
+
+    Shared by ``SimulationController.set_speed`` and the batch
+    ``SimulationControlField.SPEED`` handler in ``_apply_single_control`` so
+    the auto-adjust rule (PARK→DRIVE, EPB disengage when moving) lives in
+    exactly one place.
+    """
+    phase = MotionPhase.MOVING if speed_kph > 0 else MotionPhase.STOPPED
+    new_motion = MotionState(speed_kph=float(speed_kph), phase=phase)
+
+    new_transmission = state.transmission
+    if speed_kph > 0:
+        if state.transmission.gear is Gear.PARK:
+            new_transmission = replace(
+                state.transmission, gear=Gear.DRIVE, epb_engaged=False
+            )
+        elif state.transmission.epb_engaged:
+            new_transmission = replace(state.transmission, epb_engaged=False)
+
+    return replace(state, motion=new_motion, transmission=new_transmission)
+
+
+# ---------------------------------------------------------------------------
 # Batch control field application
 # ---------------------------------------------------------------------------
 
@@ -445,17 +454,7 @@ def _apply_single_control(state: VehicleState, ctrl: SimulationControl) -> Vehic
         )
 
     if f is SimulationControlField.SPEED:
-        phase = MotionPhase.MOVING if v > 0 else MotionPhase.STOPPED
-        new_motion = MotionState(speed_kph=float(v), phase=phase)
-        new_transmission = state.transmission
-        if v > 0:
-            if state.transmission.gear is Gear.PARK:
-                new_transmission = replace(
-                    state.transmission, gear=Gear.DRIVE, epb_engaged=False
-                )
-            elif state.transmission.epb_engaged:
-                new_transmission = replace(state.transmission, epb_engaged=False)
-        return replace(state, motion=new_motion, transmission=new_transmission)
+        return _patch_speed(state, v)
 
     if f is SimulationControlField.RAIN:
         return replace(
