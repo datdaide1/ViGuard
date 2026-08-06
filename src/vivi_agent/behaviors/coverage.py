@@ -14,6 +14,7 @@ import json
 import pathlib
 from dataclasses import dataclass, field
 
+from vivi_agent.catalog.manifest import IntentManifest
 from vivi_agent.vehicle.execution.errors import BehaviorReadinessError
 from vivi_agent.vehicle.execution.generic import (
     BehaviorConfig,
@@ -59,6 +60,8 @@ def validate_behavior_coverage(
     configs: tuple[BehaviorConfig, ...],
     refusal_intent_ids: frozenset[str],
     manifest_path: pathlib.Path | str | None = None,
+    *,
+    manifest: IntentManifest | None = None,
 ) -> CoverageReport:
     """Compare *configs* + *refusal_intent_ids* against the intent manifest.
 
@@ -70,7 +73,13 @@ def validate_behavior_coverage(
         Frozen set of intent IDs registered as explicit refusals.
     manifest_path:
         Path to ``intent_manifest.v1.json``.  Defaults to the canonical
-        project-relative location.
+        project-relative location.  Ignored when ``manifest`` is given.
+    manifest:
+        Optional pre-loaded ``IntentManifest``.  When provided, this is used
+        directly instead of re-reading ``manifest_path`` off disk — callers
+        that already loaded a manifest (e.g. a custom one for testing) get
+        consistent results instead of this check silently falling back to
+        the on-disk default.
 
     Returns
     -------
@@ -79,11 +88,16 @@ def validate_behavior_coverage(
         action/refusal intent has coverage and no query intent has an actuator
         behavior.
     """
-    path = pathlib.Path(manifest_path) if manifest_path else _MANIFEST_DEFAULT
-    with path.open(encoding="utf-8") as fh:
-        manifest = json.load(fh)
+    if manifest is not None:
+        intents: list[dict] = [
+            {"intent": defn.intent, "kind": defn.kind} for defn in manifest.intents
+        ]
+    else:
+        path = pathlib.Path(manifest_path) if manifest_path else _MANIFEST_DEFAULT
+        with path.open(encoding="utf-8") as fh:
+            raw = json.load(fh)
+        intents = raw["intents"]
 
-    intents: list[dict] = manifest["intents"]
     report = CoverageReport(total_intents=len(intents))
 
     action_ids: set[str] = set()

@@ -69,10 +69,21 @@ RUNTIME_INTENT_MANIFEST: IntentManifest = _runtime.intent_manifest
 RUNTIME_TOOL_REGISTRY: ToolRegistry = _runtime.tool_registry
 RUNTIME_TOOL_MAPPER: ToolMapper = _runtime.tool_mapper
 
+from .coverage import (
+    AgentCoverageReport,
+    AgentReadinessError,
+    assert_agent_readiness,
+    validate_agent_coverage,
+)
+
 __all__ = [
     "RUNTIME_INTENT_MANIFEST",
     "RUNTIME_TOOL_MAPPER",
     "RUNTIME_TOOL_REGISTRY",
+    "AgentCoverageReport",
+    "AgentReadinessError",
     "Runtime",
+    "assert_agent_readiness",
     "build_runtime",
+    "validate_agent_coverage",
 ]
