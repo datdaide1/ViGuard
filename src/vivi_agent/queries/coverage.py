@@ -13,7 +13,7 @@ from __future__ import annotations
 import pathlib
 from dataclasses import dataclass, field
 
-from vivi_agent.catalog.manifest import MANIFEST_PATH, load_manifest
+from vivi_agent.catalog.manifest import IntentManifest, MANIFEST_PATH, load_manifest
 from vivi_agent.queries.registry import QueryResponderRegistry
 from vivi_agent.vehicle.execution.errors import BehaviorReadinessError
 
@@ -39,6 +39,8 @@ class QueryCoverageReport:
 def validate_query_coverage(
     registry: QueryResponderRegistry,
     manifest_path: pathlib.Path | str | None = None,
+    *,
+    manifest: IntentManifest | None = None,
 ) -> QueryCoverageReport:
     """Compare registered query responders against the intent manifest.
 
@@ -47,15 +49,20 @@ def validate_query_coverage(
     registry:
         QueryResponderRegistry instance.
     manifest_path:
-        Path to ``intent_manifest.v1.json``.
+        Path to ``intent_manifest.v1.json``.  Ignored when ``manifest`` is
+        given.
+    manifest:
+        Optional pre-loaded ``IntentManifest``.  When provided, this is used
+        directly instead of re-reading ``manifest_path`` off disk.
 
     Returns
     -------
     QueryCoverageReport
         Detailed coverage result.
     """
-    path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
-    manifest = load_manifest(path)
+    if manifest is None:
+        path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
+        manifest = load_manifest(path)
 
     query_intents: set[str] = set()
     non_query_intents: set[str] = set()

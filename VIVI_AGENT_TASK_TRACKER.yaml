@@ -376,12 +376,17 @@ tasks:
     title: 'Xây Agent capability coverage gate'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: done
     area: tests/coverage
     task_file: tests/coverage/cov-01/TASK.md
     depends_on: [MAP-02, BEH-01, QRY-01, ACTV-01]
-    owner: unassigned
-    evidence: []
+    owner: ai-agent
+    evidence:
+      - src/vivi_agent/coverage/__init__.py
+      - src/vivi_agent/coverage/models.py
+      - src/vivi_agent/coverage/gate.py
+      - tests/coverage/test_agent_coverage_gate.py
+      - tests/coverage/cov-01/test_cov01.py
   - id: INT-01
     title: 'Chạy integration với Guardrail thật'
     priority: P0
