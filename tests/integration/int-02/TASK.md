@@ -1,6 +1,6 @@
-﻿# INT-02 — Chạy integration với UI thật
+# INT-02 — Chạy integration với UI thật
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-2  
 **Code area:** tests/integration  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục INT-02)

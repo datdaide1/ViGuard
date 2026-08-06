@@ -1,6 +1,6 @@
-﻿# CNF-01 — Tích hợp confirmation lifecycle
+# CNF-01 — Tích hợp confirmation lifecycle
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-2  
 **Code area:** src/vivi_agent/confirmation  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục CNF-01)

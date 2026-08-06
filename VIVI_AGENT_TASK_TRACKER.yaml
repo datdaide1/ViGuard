@@ -240,124 +240,187 @@ tasks:
     title: 'Hoàn thiện tool-to-intent mapping 53/53'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: review
     area: src/vivi_agent/tools/mapping
     task_file: src/vivi_agent/tools/mapping/map-02/TASK.md
     depends_on: [MAP-01, CAT-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/tools/mapping/mapper.py
+      - src/vivi_agent/tools/mapping/README.md
+      - tests/tools/test_tool_mapper.py
   - id: EXEC-03
     title: 'Xây generic handler framework'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: review
     area: src/vivi_agent/vehicle/execution
     task_file: src/vivi_agent/vehicle/execution/exec-03/TASK.md
     depends_on: [EXEC-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/vehicle/execution/generic.py
+      - src/vivi_agent/vehicle/execution/__init__.py
+      - src/vivi_agent/vehicle/execution/errors.py
+      - tests/vehicle/execution/test_generic_handlers.py
   - id: BEH-01
     title: 'Khai báo behavior catalog đủ 47 action/UI intent'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: review
     area: src/vivi_agent/behaviors
     task_file: src/vivi_agent/behaviors/beh-01/TASK.md
     depends_on: [MAP-02, EXEC-03]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/behaviors/catalog.py
+      - src/vivi_agent/behaviors/refusal.py
+      - src/vivi_agent/behaviors/coverage.py
+      - src/vivi_agent/behaviors/__init__.py
+      - tests/behaviors/test_behavior_catalog.py
   - id: QRY-01
     title: 'Xây Query Responder đủ 6/6'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: review
     area: src/vivi_agent/queries
     task_file: src/vivi_agent/queries/qry-01/TASK.md
     depends_on: [MAP-02, VEH-02, CON-01]
-    owner: unassigned
-    evidence: []
+    owner: agent-team
+    evidence:
+      - src/vivi_agent/queries/models.py
+      - src/vivi_agent/queries/state_queries.py
+      - src/vivi_agent/queries/knowledge.py
+      - src/vivi_agent/queries/registry.py
+      - src/vivi_agent/queries/coverage.py
+      - src/vivi_agent/queries/__init__.py
+      - tests/queries/test_query_responder.py
   - id: RSP-01
     title: 'Xây Grounded Response Composer'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/responses
     task_file: src/vivi_agent/responses/rsp-01/TASK.md
     depends_on: [ORC-01, QRY-01, BEH-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/responses/models.py
+      - src/vivi_agent/responses/catalog.py
+      - src/vivi_agent/responses/composer.py
+      - src/vivi_agent/responses/__init__.py
+      - tests/responses/test_response_composer.py
   - id: CNF-01
     title: 'Tích hợp confirmation lifecycle'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/confirmation
     task_file: src/vivi_agent/confirmation/cnf-01/TASK.md
     depends_on: [CON-01, CON-02, ORC-01, EXEC-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/confirmation/models.py
+      - src/vivi_agent/confirmation/manager.py
+      - src/vivi_agent/confirmation/__init__.py
+      - tests/confirmation/test_confirmation_manager.py
   - id: ACTV-01
     title: 'Xây Active Action Registry'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/active_actions
     task_file: src/vivi_agent/active_actions/actv-01/TASK.md
     depends_on: [BEH-01, VEH-02]
-    owner: unassigned
-    evidence: []
+    owner: vivi-agent
+    evidence:
+      - tests/active_actions/test_active_action_registry.py
+    files:
+      - src/vivi_agent/active_actions/models.py
+      - src/vivi_agent/active_actions/registry.py
+      - src/vivi_agent/active_actions/__init__.py
+      - tests/active_actions/test_active_action_registry.py
   - id: MON-ADP-01
     title: 'Tích hợp Guardrail Monitor'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/adapters/monitor
     task_file: src/vivi_agent/adapters/monitor/mon-adp-01/TASK.md
     depends_on: [CON-01, GRD-ADP-01, ACTV-01, EXEC-01]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/adapters/monitor/adapter.py
+      - src/vivi_agent/adapters/monitor/__init__.py
+      - tests/adapters/test_monitor_adapter.py
   - id: SIM-01
     title: 'Xây Simulation Control API và presets'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: done
     area: src/vivi_agent/simulation
     task_file: src/vivi_agent/simulation/sim-01/TASK.md
     depends_on: [VEH-02, MON-ADP-01, CON-02]
-    owner: unassigned
-    evidence: []
+    owner: ai-agent
+    evidence:
+      - src/vivi_agent/simulation/__init__.py
+      - src/vivi_agent/simulation/models.py
+      - src/vivi_agent/simulation/presets.py
+      - src/vivi_agent/simulation/controller.py
+      - tests/simulation/test_simulation_models.py
+      - tests/simulation/test_simulation_presets.py
+      - tests/simulation/test_simulation_controller.py
   - id: COV-01
     title: 'Xây Agent capability coverage gate'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: done
     area: tests/coverage
     task_file: tests/coverage/cov-01/TASK.md
     depends_on: [MAP-02, BEH-01, QRY-01, ACTV-01]
-    owner: unassigned
-    evidence: []
+    owner: ai-agent
+    evidence:
+      - src/vivi_agent/coverage/__init__.py
+      - src/vivi_agent/coverage/models.py
+      - src/vivi_agent/coverage/gate.py
+      - tests/coverage/test_agent_coverage_gate.py
+      - tests/coverage/cov-01/test_cov01.py
   - id: INT-01
     title: 'Chạy integration với Guardrail thật'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: tests/integration
     task_file: tests/integration/int-01/TASK.md
     depends_on: [GRD-ADP-01, COV-01, CNF-01, MON-ADP-01]
     external_gate_ids: [G-EXT-02, G-EXT-03, G-EXT-04]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - tests/integration/int-01/test_int01.py
+      - tests/integration/int-01/GUARDRAIL_INTEGRATION_REPORT.md
+    files:
+      - tests/integration/int-01/TASK.md
+      - tests/integration/int-01/test_int01.py
+      - tests/integration/int-01/GUARDRAIL_INTEGRATION_REPORT.md
   - id: INT-02
     title: 'Chạy integration với UI thật'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: tests/integration
     task_file: tests/integration/int-02/TASK.md
     depends_on: [EVT-01, SIM-01, CON-02]
     external_gate_ids: [G-EXT-06]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - tests/integration/int-02/test_int02.py
+      - tests/integration/int-02/UI_INTEGRATION_REPORT.md
+    files:
+      - tests/integration/int-02/TASK.md
+      - tests/integration/int-02/test_int02.py
+      - tests/integration/int-02/UI_INTEGRATION_REPORT.md
   - id: HERO-01
     title: 'Hoàn thiện `open_door` behavior'
     priority: P0

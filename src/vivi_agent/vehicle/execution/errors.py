@@ -65,3 +65,18 @@ class InvalidDoorTargetError(ExecutionError):
     def __init__(self, message: str) -> None:
         super().__init__("INVALID_DOOR_TARGET", message)
 
+
+class BehaviorConfigValidationError(ExecutionError):
+    """Behavior configuration schema or parameter validation failure."""
+
+    def __init__(self, message: str, code: str = "INVALID_BEHAVIOR_CONFIG") -> None:
+        super().__init__(code, message)
+
+
+class BehaviorReadinessError(ExecutionError):
+    """Behavior readiness check failure for handler registry."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__("BEHAVIOR_READINESS_FAILED", message)
+
+
