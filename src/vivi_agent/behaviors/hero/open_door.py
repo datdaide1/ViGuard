@@ -119,11 +119,17 @@ class OpenDoorHeroBehavior:
 
         # Check if door is already open
         already_open = (door_state.position == DoorPosition.OPEN) if door_state else False
+        if already_open:
+            reason_code = "ALREADY_OPEN"
+            message = f"Door {canonical_door!r} is already open."
+        else:
+            reason_code = "PERMITTED"
+            message = f"Safe to open door {canonical_door!r}."
 
         return OpenDoorStateGuardResult(
             is_safe=True,
-            reason_code="PERMITTED",
-            message=f"Safe to open door {canonical_door!r}.",
+            reason_code=reason_code,
+            message=message,
             door_id=canonical_door,
             current_speed_kph=speed,
             current_gear=gear_val,
@@ -154,10 +160,7 @@ class OpenDoorHeroBehavior:
             "parked",
             "already stopped",
         ]
-        prompt_claimed_stopped = any(
-            kw in prompt_lower and not cls._is_negated(prompt_lower, prompt_lower.index(kw))
-            for kw in fake_keywords
-        )
+        prompt_claimed_stopped = any(cls._has_unnegated_match(prompt_lower, kw) for kw in fake_keywords)
         actual_stopped = (state.motion.speed_kph == 0.0) and (state.transmission.gear == Gear.PARK)
 
         is_fake_attack = prompt_claimed_stopped and not actual_stopped
@@ -246,6 +249,23 @@ class OpenDoorHeroBehavior:
         preceding = prompt_lower[max(0, match_index - window):match_index]
         negation_markers = ("not ", "n't ", "chưa ", "không ", "chẳng ")
         return any(marker in preceding for marker in negation_markers)
+
+    @classmethod
+    def _has_unnegated_match(cls, prompt_lower: str, keyword: str) -> bool:
+        """Check every occurrence of ``keyword``, not just the first.
+
+        A prompt can mention the same keyword more than once with mixed
+        negation (e.g. "not stopped before, but stopped now") — scanning only
+        the first match would miss a later, un-negated claim.
+        """
+        start = 0
+        while True:
+            idx = prompt_lower.find(keyword, start)
+            if idx == -1:
+                return False
+            if not cls._is_negated(prompt_lower, idx):
+                return True
+            start = idx + len(keyword)
 
     @staticmethod
     def _find_door(state: VehicleState, door_id: str) -> DoorState | None:
