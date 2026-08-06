@@ -128,6 +128,16 @@ class GuardrailClientAdapter:
         self._validate_result(result)
         return result
 
+    def evaluate_monitor(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Submit a monitor evaluation request to Guardrail for an active action."""
+
+        req_payload = dict(payload)
+        if "contract_version" not in req_payload:
+            req_payload["contract_version"] = CONTRACT_VERSION
+        result = self._post("/v1/monitor/evaluate", req_payload, read_only=False)
+        self._validate_result(result)
+        return result
+
     def _validate_result(self, result: Mapping[str, Any]) -> None:
         try:
             validate_guardrail_result(result)

@@ -345,12 +345,16 @@ tasks:
     title: 'Tích hợp Guardrail Monitor'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: src/vivi_agent/adapters/monitor
     task_file: src/vivi_agent/adapters/monitor/mon-adp-01/TASK.md
     depends_on: [CON-01, GRD-ADP-01, ACTV-01, EXEC-01]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - src/vivi_agent/adapters/guardrail/client.py
+      - src/vivi_agent/adapters/monitor/adapter.py
+      - src/vivi_agent/adapters/monitor/__init__.py
+      - tests/adapters/test_monitor_adapter.py
   - id: SIM-01
     title: 'Xây Simulation Control API và presets'
     priority: P0
