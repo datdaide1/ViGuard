@@ -40,14 +40,29 @@ class MockGuardrail:
                 validate_action_proposal(payload)
             except ContractValidationError as exc:
                 return 400, self._error(payload.get("proposal_id", "unknown"), exc.code, str(exc))
-            fixture = payload.get("arguments", {}).get("mock_outcome", "ALLOW")
+            fixture = payload.get("arguments", {}).get("mock_outcome")
+            if not fixture:
+                pid = str(payload.get("proposal_id", "")).lower()
+                if "block" in pid:
+                    fixture = "BLOCK_UNSAFE"
+                elif "confirm" in pid:
+                    fixture = "CONFIRM"
+                elif "answer" in pid:
+                    fixture = "ANSWER"
+                else:
+                    fixture = "ALLOW"
             result = self.examples["decisions"].get(fixture)
             if result is None:
                 return 422, self._error(payload["proposal_id"], "UNKNOWN_MOCK_FIXTURE", fixture)
             response = json.loads(json.dumps(result))
             response["proposal_id"] = payload["proposal_id"]
+            if payload.get("tool") in ("open_door", "control_access"):
+                response["intent"] = "open_door"
+            if "confirmation" in response and isinstance(response["confirmation"], dict):
+                response["confirmation"]["proposal_id"] = payload["proposal_id"]
             if fixture == "ALLOW":
                 response["permit"]["proposal_digest"] = proposal_digest(payload)
+                response["permit"]["intent"] = response["intent"]
             return 200, response
         if path == "/v1/confirmations/confirm":
             if not {"request_id", "confirmation_id", "session_id"} <= set(payload):
@@ -83,6 +98,8 @@ class MockGuardrail:
             if not {"request_id", "active_action_id", "intent"} <= set(payload):
                 return 400, self._error(payload.get("request_id", "unknown"), "INVALID_MONITOR_REQUEST", "Missing fields")
             return 200, self.examples["decisions"]["BLOCK_UNSAFE"]
+        if path == "/v1/evaluate/query":
+            return 200, self.examples["decisions"]["ANSWER"]
         return 404, self._error(payload.get("request_id", "unknown"), "ROUTE_NOT_FOUND", path)
 
     @staticmethod

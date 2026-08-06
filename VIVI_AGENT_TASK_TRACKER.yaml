@@ -391,13 +391,19 @@ tasks:
     title: 'Chạy integration với Guardrail thật'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: tests/integration
     task_file: tests/integration/int-01/TASK.md
     depends_on: [GRD-ADP-01, COV-01, CNF-01, MON-ADP-01]
     external_gate_ids: [G-EXT-02, G-EXT-03, G-EXT-04]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - tests/integration/int-01/test_int01.py
+      - tests/integration/int-01/GUARDRAIL_INTEGRATION_REPORT.md
+    files:
+      - tests/integration/int-01/TASK.md
+      - tests/integration/int-01/test_int01.py
+      - tests/integration/int-01/GUARDRAIL_INTEGRATION_REPORT.md
   - id: INT-02
     title: 'Chạy integration với UI thật'
     priority: P0
