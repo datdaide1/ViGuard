@@ -359,12 +359,19 @@ tasks:
     title: 'Xây Simulation Control API và presets'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: done
     area: src/vivi_agent/simulation
     task_file: src/vivi_agent/simulation/sim-01/TASK.md
     depends_on: [VEH-02, MON-ADP-01, CON-02]
-    owner: unassigned
-    evidence: []
+    owner: ai-agent
+    evidence:
+      - src/vivi_agent/simulation/__init__.py
+      - src/vivi_agent/simulation/models.py
+      - src/vivi_agent/simulation/presets.py
+      - src/vivi_agent/simulation/controller.py
+      - tests/simulation/test_simulation_models.py
+      - tests/simulation/test_simulation_presets.py
+      - tests/simulation/test_simulation_controller.py
   - id: COV-01
     title: 'Xây Agent capability coverage gate'
     priority: P0
