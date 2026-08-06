@@ -408,13 +408,19 @@ tasks:
     title: 'Chạy integration với UI thật'
     priority: P0
     sprint: sprint-2
-    status: planned
+    status: completed
     area: tests/integration
     task_file: tests/integration/int-02/TASK.md
     depends_on: [EVT-01, SIM-01, CON-02]
     external_gate_ids: [G-EXT-06]
-    owner: unassigned
-    evidence: []
+    owner: vivi_agent
+    evidence:
+      - tests/integration/int-02/test_int02.py
+      - tests/integration/int-02/UI_INTEGRATION_REPORT.md
+    files:
+      - tests/integration/int-02/TASK.md
+      - tests/integration/int-02/test_int02.py
+      - tests/integration/int-02/UI_INTEGRATION_REPORT.md
   - id: HERO-01
     title: 'Hoàn thiện `open_door` behavior'
     priority: P0
