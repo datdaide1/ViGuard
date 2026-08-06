@@ -105,7 +105,9 @@ class GuardrailClientAdapter:
     def evaluate_query(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
         """Evaluate a non-executable query with bounded retries."""
 
-        result = self._post("/v1/evaluate/query", payload, read_only=True)
+        result = self._post(
+            "/v1/evaluate/query", self._with_contract_version(payload), read_only=True
+        )
         self._validate_result(result)
         return result
 
@@ -131,12 +133,19 @@ class GuardrailClientAdapter:
     def evaluate_monitor(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
         """Submit a monitor evaluation request to Guardrail for an active action."""
 
+        result = self._post(
+            "/v1/monitor/evaluate", self._with_contract_version(payload), read_only=False
+        )
+        self._validate_result(result)
+        return result
+
+    @staticmethod
+    def _with_contract_version(payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Return a copy of *payload* with ``contract_version`` defaulted if absent."""
         req_payload = dict(payload)
         if "contract_version" not in req_payload:
             req_payload["contract_version"] = CONTRACT_VERSION
-        result = self._post("/v1/monitor/evaluate", req_payload, read_only=False)
-        self._validate_result(result)
-        return result
+        return req_payload
 
     def _validate_result(self, result: Mapping[str, Any]) -> None:
         try:

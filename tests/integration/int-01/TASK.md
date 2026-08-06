@@ -1,6 +1,6 @@
-﻿# INT-01 — Chạy integration với Guardrail thật
+# INT-01 — Chạy integration với Guardrail thật
 
-**Trạng thái:** planned  
+**Trạng thái:** completed  
 **Sprint:** sprint-2  
 **Code area:** tests/integration  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục INT-01)
