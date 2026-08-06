@@ -281,6 +281,22 @@ class TestBatchControls(TestSimulationControllerSetup):
         self.assertEqual(event.actor_kind, ActorKind.OPERATOR)
         self.assertEqual(event.actor_id, "batch-op")
 
+    def test_batch_apply_speed_uses_shared_patch_speed_semantics(self) -> None:
+        """SPEED in a batch must use the same _patch_speed auto-adjust rule as
+        set_speed: P->D gear auto-shift and EPB release (Sourcery PR #29 feedback)."""
+        controls = [
+            SimulationControl(field=SimulationControlField.POWER, value=True),
+            SimulationControl(field=SimulationControlField.SPEED, value=30.0),
+        ]
+        result = self.controller.apply_controls(controls)
+        self.assertTrue(result.success)
+
+        snap = self.machine.snapshot()
+        self.assertEqual(snap.motion.speed_kph, 30.0)
+        self.assertEqual(snap.motion.phase, MotionPhase.MOVING)
+        self.assertEqual(snap.transmission.gear, Gear.DRIVE)
+        self.assertFalse(snap.transmission.epb_engaged)
+
 
 class TestOperatorEventIsolation(TestSimulationControllerSetup):
     """Verify operator events are never recorded as Agent events (acceptance criteria #2)."""
