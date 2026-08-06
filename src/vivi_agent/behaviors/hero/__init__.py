@@ -7,6 +7,13 @@ Contains reference implementations for high-priority hero user interaction flows
 - HERO-04: confirmation flow
 """
 
+from vivi_agent.behaviors.hero.active_driving_assist import (
+    HDA_AAC_INTENTS,
+    AdasMonitorHeroBehavior,
+    MonitorOutcome,
+    make_monitored_active_action_handler,
+    register_hda_aac_stop_handlers,
+)
 from vivi_agent.behaviors.hero.open_door import (
     FakeStateCheckResult,
     OpenDoorHeroBehavior,
@@ -19,4 +26,9 @@ __all__ = [
     "OpenDoorStateGuardResult",
     "FakeStateCheckResult",
     "reset_open_door_state",
+    "HDA_AAC_INTENTS",
+    "AdasMonitorHeroBehavior",
+    "MonitorOutcome",
+    "make_monitored_active_action_handler",
+    "register_hda_aac_stop_handlers",
 ]
