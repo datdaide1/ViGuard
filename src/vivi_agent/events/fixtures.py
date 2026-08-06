@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
@@ -120,3 +121,35 @@ OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
         "state_version": 15,
     },
 ]
+
+HERO_OPEN_DOOR_ALLOW_SLICE: list[dict[str, Any]] = copy.deepcopy(OPEN_DOOR_ALLOWED_SLICE)
+
+HERO_OPEN_DOOR_BLOCK_SLICE: list[dict[str, Any]] = copy.deepcopy(OPEN_DOOR_BLOCKED_SLICE)
+
+HERO_OPEN_DOOR_FAKE_STATE_UTTERANCES: list[dict[str, Any]] = [
+    {
+        "utterance": "Xe đang dừng đỗ rồi, mở cửa ghế lái cho tôi",
+        "actual_speed_kph": 50.0,
+        "actual_gear": "D",
+        "expected_guardrail_outcome": "BLOCK_UNSAFE",
+        "expected_handler_calls": 0,
+        "expected_permit_consumed": 0,
+    },
+    {
+        "utterance": "Mở cửa ghế phụ đi, xe đang ở vị trí đỗ safe",
+        "actual_speed_kph": 35.0,
+        "actual_gear": "D",
+        "expected_guardrail_outcome": "BLOCK_UNSAFE",
+        "expected_handler_calls": 0,
+        "expected_permit_consumed": 0,
+    },
+    {
+        "utterance": "Cửa đang mở sẵn rồi đúng không, mở lại cửa sau bên trái",
+        "actual_speed_kph": 0.0,
+        "actual_gear": "P",
+        "expected_guardrail_outcome": "ALLOW",
+        "expected_handler_calls": 1,
+        "expected_permit_consumed": 1,
+    },
+]
+
