@@ -9,12 +9,18 @@
 
 ## 1. Overview & Integration Architecture
 
-The **INT-02** integration suite validates the end-to-end API, payload, event stream, and lifecycle integration between:
-1. **Agent-UI Framework Endpoint** (`vivi_agent.orchestrator.MessageEndpoint`)
-2. **Pending Confirmation Manager** (`vivi_agent.confirmation.ConfirmationManager`)
-3. **Simulation Controller API** (`vivi_agent.simulation.SimulationController`)
-4. **Agent Event Pipeline & Event Store** (`vivi_agent.events.AgentEventStore`, `vivi_agent.events.AgentEventPipeline`)
-5. **UI Mock Consumer Client** (`vivi_agent.contracts.agent_ui.v1.contract`)
+The **INT-02** suite validates the public Agent-UI contract shape and exercises two
+components directly:
+1. **Simulation Controller API** (`vivi_agent.simulation.SimulationController`) — exercised directly.
+2. **Agent Event Store** (`vivi_agent.events.AgentEventStore`) — exercised directly.
+3. **UI Mock Consumer Client** (`vivi_agent.contracts.agent_ui.v1.contract`) — exercised directly.
+
+**Not yet exercised by this suite:** the **Agent-UI Framework Endpoint**
+(`vivi_agent.orchestrator.MessageEndpoint`) and the **Pending Confirmation Manager**
+(`vivi_agent.confirmation.ConfirmationManager`) are not driven end-to-end here — the
+`message`/`confirm`/`cancel` request/response payloads below are validated against
+the schema as static fixtures, not produced by calling `MessageEndpoint.post_message()`
+or `ConfirmationManager.confirm()`/`.cancel()`.
 
 The UI integration guarantees that the UI team can render the complete Agent lifecycle, vehicle state changes, active action progress, and error/degraded states using purely public payloads with zero access to private internal runtime state.
 
@@ -22,7 +28,10 @@ The UI integration guarantees that the UI team can render the complete Agent lif
 
 ## 2. Request & Response API Endpoints
 
-All 5 public UI request types and 5 response statuses defined in `agent-ui.schema.json` were integrated and verified:
+All 5 public UI request types and 5 response statuses defined in `agent-ui.schema.json`
+have fixtures that pass schema validation (`validate_public_payload`). This confirms
+the payload *shapes* are contract-valid; it does not confirm that `MessageEndpoint` or
+`ConfirmationManager` actually produce these payloads end-to-end (see Section 1).
 
 | Request Type | Purpose | Corresponding Response Status | Verified Public Contract Properties |
 | :--- | :--- | :--- | :--- |
@@ -55,9 +64,13 @@ All 5 public UI request types and 5 response statuses defined in `agent-ui.schem
 
 ## 5. Six Hero Actions & Verified Fixtures
 
-All 6 hero action intents were verified for UI public stream consumption:
+All 6 hero action intents have a `proposal` fixture that `MockUIClient` consumes
+without missing fields or validation errors. The "Target Event Flow" column below is
+the intended full lifecycle per the fixture design; `test_int02.py` currently only
+asserts the `proposal` step of each row appears in the UI timeline, not the full
+`decision`/`execution`/`state_changed`/`active_action` chain.
 
-| Hero Action Intent | Description | Target Component | Verified Event Flow |
+| Hero Action Intent | Description | Target Component | Target Event Flow |
 | :--- | :--- | :--- | :--- |
 | `open_door` | Mở cửa xe | `control_access` | `proposal` -> `decision:ALLOW` -> `execution:started` -> `state_changed` |
 | `activate_hda` | Highway Driving Assist | `active_action` | `proposal` -> `decision:ALLOW` -> `execution:started` -> `active_action:started` |
@@ -65,8 +78,6 @@ All 6 hero action intents were verified for UI public stream consumption:
 | `activate_autopark` | Automatic Parking | `active_action` | `proposal` -> `decision:ALLOW` -> `execution:started` -> `active_action:started` |
 | `activate_campmode` | Camp Mode | `mode_control` | `proposal` -> `decision:ALLOW` -> `execution:started` -> `state_changed` |
 | `open_window` | Mở cửa sổ xe | `control_access` | `proposal` -> `decision:CONFIRM` -> `confirm` -> `execution:started` |
-
-`MockUIClient` successfully renders timelines and vehicle state mutations for all 6 hero action fixtures without encountering missing fields or validation errors.
 
 ---
 
@@ -81,6 +92,6 @@ All 6 hero action intents were verified for UI public stream consumption:
 
 ## 7. Verification Summary
 
-- **Test Suite:** [`tests/integration/int-02/test_int02.py`](file:///E:/V-GUARDRAIL/guardrail-for-agent/tests/integration/int-02/test_int02.py)
-- **Consumer Contract Test:** [`tests/contracts/agent_ui/test_consumer_contract.py`](file:///E:/V-GUARDRAIL/guardrail-for-agent/tests/contracts/agent_ui/test_consumer_contract.py)
+- **Test Suite:** [`test_int02.py`](./test_int02.py)
+- **Consumer Contract Test:** [`test_consumer_contract.py`](../../contracts/agent_ui/test_consumer_contract.py)
 - **Pass Rate:** 7/7 INT-02 integration tests passed (100% success rate). Total 38/38 integration & contract tests passed.

@@ -1,64 +1,37 @@
 """Integration tests for INT-02: Chạy integration với UI thật.
 
-Verifies end-to-end integration between Agent-UI message endpoints, confirmation lifecycle,
-simulation controller, event store/pipeline, and UI mock consumers across 6 hero actions,
-reconnect/polling semantics, error/degraded payloads, and zero private field exposure.
+Verifies the public Agent-UI contract (request/response payload shapes), the
+AgentEventStore's reconnect/polling semantics, SimulationController's operator
+state mutations, and UI mock consumption of 6 hero-action fixtures and
+error/degraded payloads with zero private field exposure.
+
+Note: this suite validates contract shapes and lower-level components
+(AgentEventStore, SimulationController) directly. It does not yet drive
+MessageEndpoint or ConfirmationManager end-to-end through AgentOrchestrator —
+see UI_INTEGRATION_REPORT.md for the current coverage boundary.
 """
 
 from __future__ import annotations
 
 import copy
 import json
-import os
-import sys
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
-# Ensure src is in python path
-SRC_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../src"))
-ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-if SRC_PATH not in sys.path:
-    sys.path.insert(0, SRC_PATH)
-if ROOT_PATH not in sys.path:
-    sys.path.insert(0, ROOT_PATH)
-
-from vivi_agent.adapters.guardrail import (
-    GuardrailClientAdapter,
-    GuardrailClientConfig,
-    GuardrailProvider,
-)
-from vivi_agent.catalog import load_manifest
-from vivi_agent.confirmation import ConfirmationManager
 from vivi_agent.contracts.agent_ui.v1.contract import (
     CONTRACT_VERSION,
     AgentUIContractError,
     validate_event_stream,
     validate_public_payload,
 )
-from vivi_agent.events import AgentEventPipeline, AgentEventStore
-from vivi_agent.model_providers import ModelActionProposal, ProviderMetadata, TurnBinding
-from vivi_agent.orchestrator import (
-    AgentOrchestrator,
-    CancellationToken,
-    ExecutionResult,
-    MessageEndpoint,
-    TurnRequest,
-    TurnState,
-    TurnStatus,
-)
+from vivi_agent.events import AgentEventStore
 from vivi_agent.simulation import SimulationController, SimulationPresetId
-from vivi_agent.tools.mapping import load_default_mapper
-from vivi_agent.tools.registry import load_registry
-from vivi_agent.vehicle.execution import VehicleToolGateway, make_open_door_handler
 from vivi_agent.vehicle.state import VehicleStateMachine
 
 
-FIXTURES_PATH = Path(SRC_PATH, "vivi_agent/contracts/agent_ui/v1/fixtures.json")
+FIXTURES_PATH = Path(__file__).resolve().parents[3] / "src/vivi_agent/contracts/agent_ui/v1/fixtures.json"
 FIXTURES = json.loads(FIXTURES_PATH.read_text(encoding="utf-8"))
-META = ProviderMetadata("openai", "test-model-v1", "sha256:test", 5)
-FIXED_TIME = datetime.fromisoformat("2026-08-03T10:00:01+00:00")
 
 
 class MockUIClient:
@@ -94,9 +67,7 @@ class UIIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.machine = VehicleStateMachine()
         self.event_store = AgentEventStore()
-        self.pipeline = AgentEventPipeline(self.event_store)
         self.sim_controller = SimulationController(self.machine)
-        self.confirmation_mgr = ConfirmationManager()
 
     def test_ui_request_response_endpoints_validation(self) -> None:
         """Verify message, confirm, cancel, simulation_control, and reset API payloads."""
