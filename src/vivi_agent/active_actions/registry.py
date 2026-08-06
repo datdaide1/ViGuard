@@ -389,6 +389,20 @@ class ActiveActionRegistry:
         with self._lock:
             return self._records.get(action_id)
 
+    def get_running_action(self, session_id: str, intent: str) -> ActiveActionRecord | None:
+        """O(1) lookup of the currently running record for (session_id, intent).
+
+        Backed directly by ``_running_index`` instead of the O(total records
+        ever created) scan ``get_active_actions``/``query_actions`` perform —
+        use this when the caller only needs "is there a running record for
+        this exact session+intent", not a filtered list.
+        """
+        with self._lock:
+            action_id = self._running_index.get((session_id, intent))
+            if action_id is None:
+                return None
+            return self._records.get(action_id)
+
     def get_active_actions(self, session_id: str | None = None) -> list[ActiveActionRecord]:
         """Get currently active (running) actions.
 

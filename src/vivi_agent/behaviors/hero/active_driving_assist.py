@@ -38,6 +38,7 @@ from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
 from vivi_agent.active_actions.registry import ActiveActionRegistry
+from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
 from vivi_agent.vehicle.execution.generic import ActiveActionHandler, BehaviorConfig
 from vivi_agent.vehicle.state.events import ActorKind
 from vivi_agent.vehicle.state.machine import VehicleStateMachine
@@ -48,6 +49,14 @@ from vivi_agent.vehicle.state.model import AccState, ActiveActionPhase, VehicleS
 # so this module fails loudly if ever asked to handle an intent outside its
 # HERO-02 scope, instead of silently behaving as if HERO-03 were already done.
 HDA_AAC_INTENTS: frozenset[str] = frozenset({"activate_hda", "activate_aac"})
+if not HDA_AAC_INTENTS <= _CATALOG_MONITORED_INTENTS:
+    # Fail loudly, matching catalog/manifest.py's own MONITOR_COVERAGE_MISMATCH
+    # check, instead of letting this module's narrower scope silently drift
+    # out of sync with the catalog's declared monitored-intent set.
+    raise RuntimeError(
+        f"HDA_AAC_INTENTS {sorted(HDA_AAC_INTENTS)} is not a subset of "
+        f"catalog.manifest.MONITORED_INTENTS {sorted(_CATALOG_MONITORED_INTENTS)}"
+    )
 
 _DISPLAY_NAMES: dict[str, str] = {
     "activate_hda": "Hỗ trợ lái trên cao tốc (HDA)",
@@ -93,42 +102,56 @@ def make_monitored_active_action_handler(
     def _handler(proposal: Mapping[str, Any]) -> dict[str, Any]:
         result = base_handler(proposal)
         facts = result.get("facts", {})
-        phase_value = facts.get("phase")
-        session_id = str(proposal.get("session_id") or "")
-        turn_id = str(proposal.get("source_turn_id") or proposal.get("turn_id") or "")
-        proposal_id = str(proposal.get("proposal_id") or "")
-        state_version = result.get("state_version")
-        state_version = state_version if isinstance(state_version, int) else 0
+        # No catalog intent currently sends action="stop"/"cancel" for
+        # activate_hda/activate_aac (see DEFERRED_FOLLOWUPS.md) — ActiveActionHandler
+        # can only ever compute phase=STARTED for these two intents today, so a
+        # STOPPED branch here would be untestable dead code. Removed rather than
+        # kept "for completeness"; re-add once a real stop/cancel intent exists.
+        if facts.get("phase") != ActiveActionPhase.STARTED.value:
+            return result
 
-        if phase_value == ActiveActionPhase.STARTED.value:
+        action_id = facts.get("action_id")
+        try:
             registry.start_action(
                 intent=config.intent_id,
-                proposal_id=proposal_id,
-                state_version=state_version,
-                session_id=session_id,
-                turn_id=turn_id,
+                proposal_id=str(proposal.get("proposal_id") or ""),
+                state_version=result.get("state_version")
+                if isinstance(result.get("state_version"), int)
+                else 0,
+                session_id=str(proposal.get("session_id") or ""),
+                turn_id=str(proposal.get("source_turn_id") or proposal.get("turn_id") or ""),
                 active_action_name=facts.get("action_name"),
-                action_id=facts.get("action_id"),
+                action_id=action_id,
             )
-        elif phase_value == ActiveActionPhase.STOPPED.value:
-            # Defensive: no catalog intent currently sends action="stop" for
-            # activate_hda/activate_aac (see DEFERRED_FOLLOWUPS.md), but keep
-            # the lifecycle complete rather than silently drop it if one ever
-            # does.
-            running = [
-                rec
-                for rec in registry.get_active_actions(session_id=session_id)
-                if rec.intent == config.intent_id
-            ]
-            for rec in running:
-                try:
-                    registry.stop_action(rec.action_id, reason="user_requested_stop", turn_id=turn_id)
-                except (ValueError, KeyError):
-                    pass  # already terminal/missing — idempotent, not an error
+        except Exception:
+            # Compensate: the base handler already committed a STARTED
+            # active_action entry to VehicleState above. If the registry never
+            # learns about it, that entry would be permanently invisible to
+            # GuardrailMonitorAdapter.tick() while the caller is told this
+            # execution failed — remove the orphaned entry before re-raising.
+            _remove_orphaned_active_action(state_machine, action_id)
+            raise
 
         return result
 
     return _handler
+
+
+def _remove_orphaned_active_action(state_machine: VehicleStateMachine, action_id: Any) -> None:
+    """Best-effort cleanup of an ``active_actions`` entry the registry never learned about."""
+    if not action_id:
+        return
+
+    def patch_fn(state: VehicleState) -> VehicleState:
+        remaining = tuple(a for a in state.active_actions if a.action_id != action_id)
+        return state if remaining == state.active_actions else replace(state, active_actions=remaining)
+
+    state_machine.apply(
+        patch_fn,
+        actor_kind=ActorKind.SYSTEM,
+        actor_id="registry_start_rollback",
+        correlation_id=f"rollback_{action_id}",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -137,22 +160,32 @@ def make_monitored_active_action_handler(
 # ---------------------------------------------------------------------------
 
 
-def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
-    """Turn ``adas.hda_active`` off and drop the matching active_action entry."""
-
-    def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
-        if not state.adas.hda_active and remaining == state.active_actions:
-            return state  # already off, nothing to clean up
-        new_adas = replace(state.adas, hda_active=False) if state.adas.hda_active else state.adas
-        return replace(state, adas=new_adas, active_actions=remaining)
-
+def _apply_system_patch(
+    state_machine: VehicleStateMachine,
+    record: ActiveActionRecord,
+    patch_fn: Callable[[VehicleState], VehicleState],
+) -> None:
+    """Shared SYSTEM-actor transition boilerplate for the fail-safe stop handlers below."""
     state_machine.apply(
         patch_fn,
         actor_kind=ActorKind.SYSTEM,
         actor_id="guardrail_monitor_stop",
         correlation_id=f"monitor_stop_{record.action_id}",
     )
+
+
+def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
+    """Turn ``adas.hda_active`` off and drop the matching active_action entry."""
+    current = state_machine.snapshot()
+    if not current.adas.hda_active and all(a.action_id != record.action_id for a in current.active_actions):
+        return  # already off, nothing to clean up — skip a wasted apply()/event
+
+    def patch_fn(state: VehicleState) -> VehicleState:
+        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        new_adas = replace(state.adas, hda_active=False) if state.adas.hda_active else state.adas
+        return replace(state, adas=new_adas, active_actions=remaining)
+
+    _apply_system_patch(state_machine, record, patch_fn)
 
 
 def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> bool:
@@ -180,12 +213,7 @@ def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActio
             remaining = tuple(a for a in remaining if a.intent != "activate_hda")
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    state_machine.apply(
-        patch_fn,
-        actor_kind=ActorKind.SYSTEM,
-        actor_id="guardrail_monitor_stop",
-        correlation_id=f"monitor_stop_{record.action_id}",
-    )
+    _apply_system_patch(state_machine, record, patch_fn)
     return cascaded
 
 
@@ -201,29 +229,39 @@ def register_hda_aac_stop_handlers(
     stopped. This wires the real state mutation for HDA/AAC.
     """
 
-    def _stop_hda(record: ActiveActionRecord, _reason: str) -> None:
+    def _stop_hda(record: ActiveActionRecord, reason: str) -> None:
+        if reason == "superseded_by_new_start":
+            # A same-session restart, not a real stop: a fresh activate_hda
+            # record already exists and now owns adas.hda_active. Telemetry is
+            # unaffected by the agent restarting its own bookkeeping, so leave
+            # the real vehicle state alone instead of force-disengaging it out
+            # from under the new run.
+            return
         _apply_hda_off(state_machine, record)
 
     def _stop_aac(record: ActiveActionRecord, reason: str) -> None:
+        if reason == "superseded_by_new_start":
+            return  # same rationale as _stop_hda above
         hda_cascaded = _apply_aac_cancelled(state_machine, record)
         if not hda_cascaded:
             return
         # HDA_REQUIRES_ACTIVE_ACC forced HDA off at the state level above;
         # also transition the registry-level HDA record so UI/audit readers
-        # of the registry don't see a "started" HDA action that is actually
-        # off. This re-invokes _stop_hda (idempotent — hda_active is already
-        # False) purely for its ActiveActionEvent bookkeeping side effect.
-        for hda_record in registry.get_active_actions(session_id=record.session_id):
-            if hda_record.intent != "activate_hda":
-                continue
-            try:
-                registry.stop_action(
-                    hda_record.action_id,
-                    reason=f"cascaded_from_aac_stop:{reason}",
-                    turn_id=record.turn_id,
-                )
-            except (ValueError, KeyError):
-                pass  # already terminal/missing — idempotent, not an error
+        # don't see a "started" HDA action that is actually off.
+        # _apply_hda_off's own no-op guard makes this safe (no extra
+        # state_version bump/event) even though the state mutation already
+        # happened above.
+        hda_record = registry.get_running_action(record.session_id, "activate_hda")
+        if hda_record is None:
+            return
+        try:
+            registry.stop_action(
+                hda_record.action_id,
+                reason=f"cascaded_from_aac_stop:{reason}",
+                turn_id=record.turn_id,
+            )
+        except (ValueError, KeyError):
+            pass  # already terminal/missing — idempotent, not an error
 
     registry.register_stop_handler("activate_hda", _stop_hda)
     registry.register_stop_handler("activate_aac", _stop_aac)
@@ -256,7 +294,11 @@ class AdasMonitorHeroBehavior:
     Guardrail's *outcome*. See module docstring.
     """
 
-    MONITORED_INTENTS: frozenset[str] = HDA_AAC_INTENTS
+    # Named distinctly from catalog.manifest.MONITORED_INTENTS (5 entries) —
+    # this is the narrower set *this class* handles, not every intent
+    # Guardrail monitors. HDA_AAC_INTENTS's own module-level assertion above
+    # keeps it a subset of the catalog's set, so the two can't silently drift.
+    HANDLED_INTENTS: frozenset[str] = HDA_AAC_INTENTS
 
     @classmethod
     def evaluate_monitor_result(cls, monitor_result: Mapping[str, Any]) -> MonitorOutcome:
@@ -264,9 +306,9 @@ class AdasMonitorHeroBehavior:
         ``evaluate_active_actions()`` — pure dict-in, dict-out, no state.
         """
         intent = str(monitor_result.get("intent", ""))
-        if intent not in cls.MONITORED_INTENTS:
+        if intent not in cls.HANDLED_INTENTS:
             raise ValueError(
-                f"AdasMonitorHeroBehavior only handles {sorted(cls.MONITORED_INTENTS)}, got {intent!r}"
+                f"AdasMonitorHeroBehavior only handles {sorted(cls.HANDLED_INTENTS)}, got {intent!r}"
             )
         return MonitorOutcome(
             stopped=bool(monitor_result.get("stopped", False)),
@@ -279,7 +321,16 @@ class AdasMonitorHeroBehavior:
 
     @classmethod
     def build_stop_message(cls, record: ActiveActionRecord, monitor_result: Mapping[str, Any]) -> str:
-        """Grounded Vietnamese stop notice — cites only real reason_code/rule_id."""
+        """Grounded Vietnamese stop notice — cites only real reason_code/rule_id.
+
+        A ``GuardrailMonitorAdapter`` fail-safe (``outcome="ERROR"``) carries no
+        reason_code/rule_id — only an ``error`` string — so it is routed to
+        :meth:`build_fail_message` instead of being formatted as a normal
+        policy-triggered stop here.
+        """
+        if str(monitor_result.get("outcome", "")) == "ERROR":
+            return cls.build_fail_message(record, str(monitor_result.get("error") or "lỗi không xác định"))
+
         outcome = cls.evaluate_monitor_result(monitor_result)
         display_name = _DISPLAY_NAMES.get(record.intent, record.active_action_name)
         reason = outcome.reason_code or "yêu cầu an toàn từ Guardrail"
