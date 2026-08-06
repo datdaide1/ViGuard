@@ -239,7 +239,7 @@ class GuardrailMonitorAdapter:
         try:
             if failure:
                 return self.registry.fail_action(
-                    record.action_id, error=reason, turn_id=record.turn_id
+                    record.action_id, error=error or reason, turn_id=record.turn_id
                 )
             return self.registry.stop_action(
                 record.action_id, reason=reason, turn_id=record.turn_id
@@ -303,7 +303,7 @@ class GuardrailMonitorAdapter:
             elif hasattr(self.event_pipeline, "emit"):
                 self.event_pipeline.emit(event)
         except Exception as exc:
-            logger.warning("Failed to publish DecisionEvent: %s", exc)
+            logger.warning("Failed to publish DecisionEvent: %s", exc, exc_info=True)
 
     def _emit_execution_event(
         self, record: ActiveActionRecord, phase: str, reason: str
@@ -344,4 +344,4 @@ class GuardrailMonitorAdapter:
             elif hasattr(self.event_pipeline, "emit"):
                 self.event_pipeline.emit(event)
         except Exception as exc:
-            logger.warning("Failed to publish ExecutionEvent: %s", exc)
+            logger.warning("Failed to publish ExecutionEvent: %s", exc, exc_info=True)

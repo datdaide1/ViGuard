@@ -2,7 +2,7 @@
 
 **Trạng thái:** deferred — tạm ignore, quay lại sau khi hoàn tất build agent
 **Liên quan:** src/vivi_agent/adapters/monitor/adapter.py
-**Nguồn:** code review branch `vivi-agent/mon-adp-01` (2 finding bị skip khi apply review fixes)
+**Nguồn:** code review branch `vivi-agent/mon-adp-01` (2 findings bị skip khi apply review fixes)
 
 > File này ghi lại 2 vấn đề đã xác nhận là thật (real bug/gap) nhưng **chưa sửa** vì
 > cần quyết định thiết kế / phụ thuộc module khác chưa sẵn sàng. Đọc file này trước

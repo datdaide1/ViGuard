@@ -29,7 +29,7 @@
 - Stop đi qua registered gateway/handler, không mutate state trực tiếp.
 - Monitor error không để action tiếp tục im lặng.
 
-> ⚠️ **Xem [DEFERRED_FOLLOWUPS.md](./DEFERRED_FOLLOWUPS.md)** — 2 gap chưa xử lý:
+> ⚠️ **Xem [DEFERRED_FOLLOWUPS.md](./DEFERRED_FOLLOWUPS.md)** — 2 khoảng trống chưa xử lý:
 > stop hiện chưa thật sự đi qua VehicleToolGateway (chỉ update registry nội bộ), và
 > adapter chưa được wire vào orchestrator/bootstrap nên chưa chạy trong production.
 > Tạm ignore, quay lại sau khi hoàn tất build agent.
