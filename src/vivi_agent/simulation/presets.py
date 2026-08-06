@@ -115,7 +115,7 @@ if len(SIMULATION_PRESETS) != len(_PRESET_DEFINITIONS):
 
 
 def get_simulation_preset(
-    preset_id: SimulationPresetId,
+    preset_id: SimulationPresetId | str,
     *,
     state_version: int,
     timestamp: datetime,
@@ -126,7 +126,7 @@ def get_simulation_preset(
     Parameters
     ----------
     preset_id:
-        Which preset to materialise.
+        Which preset to materialise (SimulationPresetId enum or string).
     state_version:
         The version number to stamp on the snapshot.
     timestamp:
@@ -146,8 +146,13 @@ def get_simulation_preset(
         Unknown ``preset_id``.
     """
     try:
-        preset = SIMULATION_PRESETS[preset_id]
-    except KeyError as exc:
+        resolved_id = (
+            SimulationPresetId(preset_id)
+            if isinstance(preset_id, str)
+            else preset_id
+        )
+        preset = SIMULATION_PRESETS[resolved_id]
+    except (KeyError, ValueError) as exc:
         raise KeyError(f"Unknown simulation preset: {preset_id!r}") from exc
 
     return replace(

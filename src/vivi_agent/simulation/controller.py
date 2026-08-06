@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
@@ -261,18 +262,12 @@ class SimulationController:
         def _patch(state: VehicleState) -> VehicleState:
             # Build the preset state; version and timestamp will be stamped
             # by VehicleStateMachine.apply() so we pass placeholder values.
-            resolved_id = (
-                SimulationPresetId(preset_id)
-                if isinstance(preset_id, str)
-                else preset_id
-            )
-            preset_state = get_simulation_preset(
-                resolved_id,
+            return get_simulation_preset(
+                preset_id,
                 state_version=state.state_version,
                 timestamp=state.timestamp,
                 seed=seed,
             )
-            return preset_state
 
         return self._apply_patch(
             _patch, operator_id=operator_id, correlation_id=corr_id
@@ -356,7 +351,7 @@ class SimulationController:
 
     def _apply_patch(
         self,
-        patch_fn: Any,
+        patch_fn: Callable[[VehicleState], VehicleState],
         *,
         operator_id: str,
         correlation_id: str | None,
