@@ -41,7 +41,7 @@ class MockGuardrail:
             except ContractValidationError as exc:
                 return 400, self._error(payload.get("proposal_id", "unknown"), exc.code, str(exc))
             fixture = payload.get("arguments", {}).get("mock_outcome")
-            if not fixture:
+            if fixture is None:
                 pid = str(payload.get("proposal_id", "")).lower()
                 if "block" in pid:
                     fixture = "BLOCK_UNSAFE"
@@ -62,7 +62,8 @@ class MockGuardrail:
                 response["confirmation"]["proposal_id"] = payload["proposal_id"]
             if fixture == "ALLOW":
                 response["permit"]["proposal_digest"] = proposal_digest(payload)
-                response["permit"]["intent"] = response["intent"]
+                if "intent" in response:
+                    response["permit"]["intent"] = response["intent"]
             return 200, response
         if path == "/v1/confirmations/confirm":
             if not {"request_id", "confirmation_id", "session_id"} <= set(payload):
