@@ -37,7 +37,10 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
-from vivi_agent.active_actions.registry import ActiveActionRegistry
+from vivi_agent.active_actions.registry import (
+    SUPERSEDED_BY_NEW_START_REASON,
+    ActiveActionRegistry,
+)
 from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
 from vivi_agent.vehicle.execution.generic import ActiveActionHandler, BehaviorConfig
 from vivi_agent.vehicle.state.events import ActorKind
@@ -111,6 +114,7 @@ def make_monitored_active_action_handler(
             return result
 
         action_id = facts.get("action_id")
+        session_id = str(proposal.get("session_id") or "")
         try:
             registry.start_action(
                 intent=config.intent_id,
@@ -118,7 +122,7 @@ def make_monitored_active_action_handler(
                 state_version=result.get("state_version")
                 if isinstance(result.get("state_version"), int)
                 else 0,
-                session_id=str(proposal.get("session_id") or ""),
+                session_id=session_id,
                 turn_id=str(proposal.get("source_turn_id") or proposal.get("turn_id") or ""),
                 active_action_name=facts.get("action_name"),
                 action_id=action_id,
@@ -129,7 +133,9 @@ def make_monitored_active_action_handler(
             # learns about it, that entry would be permanently invisible to
             # GuardrailMonitorAdapter.tick() while the caller is told this
             # execution failed — remove the orphaned entry before re-raising.
-            _remove_orphaned_active_action(state_machine, action_id)
+            _remove_orphaned_active_action(
+                state_machine, action_id, intent=config.intent_id, session_id=session_id
+            )
             raise
 
         return result
@@ -137,7 +143,9 @@ def make_monitored_active_action_handler(
     return _handler
 
 
-def _remove_orphaned_active_action(state_machine: VehicleStateMachine, action_id: Any) -> None:
+def _remove_orphaned_active_action(
+    state_machine: VehicleStateMachine, action_id: Any, *, intent: str, session_id: str
+) -> None:
     """Best-effort cleanup of an ``active_actions`` entry the registry never learned about."""
     if not action_id:
         return
@@ -150,7 +158,9 @@ def _remove_orphaned_active_action(state_machine: VehicleStateMachine, action_id
         patch_fn,
         actor_kind=ActorKind.SYSTEM,
         actor_id="registry_start_rollback",
-        correlation_id=f"rollback_{action_id}",
+        # Includes intent/session (not just action_id) so a rollback transition
+        # is traceable in logs/audit without cross-referencing the registry.
+        correlation_id=f"rollback_{intent}_{session_id or 'unknown_session'}_{action_id}",
     )
 
 
@@ -170,7 +180,12 @@ def _apply_system_patch(
         patch_fn,
         actor_kind=ActorKind.SYSTEM,
         actor_id="guardrail_monitor_stop",
-        correlation_id=f"monitor_stop_{record.action_id}",
+        # Includes intent/session (not just action_id) so a monitor-driven
+        # transition is traceable in logs/audit without cross-referencing the
+        # registry for context.
+        correlation_id=(
+            f"monitor_stop_{record.intent}_{record.session_id or 'unknown_session'}_{record.action_id}"
+        ),
     )
 
 
@@ -230,7 +245,7 @@ def register_hda_aac_stop_handlers(
     """
 
     def _stop_hda(record: ActiveActionRecord, reason: str) -> None:
-        if reason == "superseded_by_new_start":
+        if reason == SUPERSEDED_BY_NEW_START_REASON:
             # A same-session restart, not a real stop: a fresh activate_hda
             # record already exists and now owns adas.hda_active. Telemetry is
             # unaffected by the agent restarting its own bookkeeping, so leave
@@ -240,7 +255,7 @@ def register_hda_aac_stop_handlers(
         _apply_hda_off(state_machine, record)
 
     def _stop_aac(record: ActiveActionRecord, reason: str) -> None:
-        if reason == "superseded_by_new_start":
+        if reason == SUPERSEDED_BY_NEW_START_REASON:
             return  # same rationale as _stop_hda above
         hda_cascaded = _apply_aac_cancelled(state_machine, record)
         if not hda_cascaded:
