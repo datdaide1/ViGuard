@@ -20,15 +20,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vivi_agent.behaviors.coverage import CoverageReport as BehaviorCoverageReport
+from vivi_agent.catalog.manifest import MONITORED_INTENTS
 from vivi_agent.queries.coverage import QueryCoverageReport
 from vivi_agent.tools.mapping.mapper import MappingCoverageReport
 
 
 @dataclass(frozen=True)
 class MonitorCoverageReport:
-    """Coverage analysis for the 5 monitored intents."""
+    """Coverage analysis for monitored intents."""
 
-    total_monitored_intents: int = 5
+    total_monitored_intents: int = len(MONITORED_INTENTS)
     covered_monitored: int = 0
     missing_monitored: tuple[str, ...] = ()
     extra_monitored: tuple[str, ...] = ()
@@ -75,29 +76,31 @@ class AgentCoverageReport:
     def summary(self) -> str:
         """Return human and machine-readable text report detailing exact missing IDs."""
         status = "PASS" if self.passed else "FAIL"
+        tool_covered = self.total_manifest_intents - len(self.tool_mapping_coverage.missing_intents)
+        non_query_expected = self.behavior_coverage.total_intents - self.behavior_coverage.covered_query
         lines = [
             f"============================================================",
             f"AGENT CAPABILITY COVERAGE REPORT [{status}] (v{self.manifest_version})",
             f"============================================================",
             f"Total Manifest Intents: {self.total_manifest_intents}",
             f"",
-            f"1. Tool Mapping (53/53):",
+            f"1. Tool Mapping ({tool_covered}/{self.total_manifest_intents}):",
             f"   - Missing intents ({len(self.tool_mapping_coverage.missing_intents)}): {list(self.tool_mapping_coverage.missing_intents)}",
-            f"   - Duplicate keys ({len(self.tool_mapping_coverage.duplicate_keys)}): {len(self.tool_mapping_coverage.duplicate_keys)}",
-            f"   - Ambiguous keys ({len(self.tool_mapping_coverage.ambiguous_keys)}): {len(self.tool_mapping_coverage.ambiguous_keys)}",
+            f"   - Duplicate keys ({len(self.tool_mapping_coverage.duplicate_keys)}): {list(self.tool_mapping_coverage.duplicate_keys)}",
+            f"   - Ambiguous keys ({len(self.tool_mapping_coverage.ambiguous_keys)}): {list(self.tool_mapping_coverage.ambiguous_keys)}",
             f"",
-            f"2. Behavior Catalog (47/47):",
+            f"2. Behavior Catalog ({self.behavior_coverage.covered_total}/{non_query_expected}):",
             f"   - Summary: {self.behavior_coverage.summary()}",
             f"   - Missing action behaviors: {self.behavior_coverage.missing_action}",
             f"   - Missing refusal behaviors: {self.behavior_coverage.missing_refusal}",
             f"   - Query with actuator behavior: {self.behavior_coverage.query_with_behavior}",
             f"",
-            f"3. Query Responders (6/6):",
+            f"3. Query Responders ({self.query_coverage.covered_query}/{self.query_coverage.total_query_intents}):",
             f"   - Summary: {self.query_coverage.summary()}",
             f"   - Missing query responders: {self.query_coverage.missing_query}",
             f"   - Non-query in query registry: {self.query_coverage.action_in_query_registry}",
             f"",
-            f"4. Monitor Integration (5/5):",
+            f"4. Monitor Integration ({self.monitor_coverage.covered_monitored}/{self.monitor_coverage.total_monitored_intents}):",
             f"   - Summary: {self.monitor_coverage.summary()}",
             f"   - Missing monitored intents: {list(self.monitor_coverage.missing_monitored)}",
             f"",

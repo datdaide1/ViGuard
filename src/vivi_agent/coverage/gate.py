@@ -94,8 +94,12 @@ def validate_agent_coverage(
     AgentCoverageReport
         Comprehensive coverage report containing exact missing IDs and overall status.
     """
-    path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
-    manifest_obj = manifest or load_manifest(path)
+    if manifest is None:
+        path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
+        manifest_obj = load_manifest(path)
+    else:
+        manifest_obj = manifest
+        path = pathlib.Path(manifest_path) if manifest_path else MANIFEST_PATH
     rules = tuple(tool_rules) if tool_rules is not None else DEFAULT_MAPPING_RULES
     b_configs = tuple(behavior_configs) if behavior_configs is not None else ACTION_BEHAVIOR_CONFIGS
     r_ids = refusal_intent_ids if refusal_intent_ids is not None else REFUSAL_INTENT_IDS
