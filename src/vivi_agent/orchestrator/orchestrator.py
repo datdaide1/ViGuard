@@ -17,7 +17,6 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, Protocol
 
-from ..confirmation.manager import ConfirmationManager
 from ..contracts.guardrail.v1.contract import (
     CONTRACT_VERSION,
     ContractValidationError,
@@ -99,6 +98,27 @@ class ExecutionResult:
             raise ValueError("failed execution requires a typed error")
         object.__setattr__(self, "facts", MappingProxyType(dict(self.facts)))
 
+    def to_dict(self) -> dict[str, Any]:
+        """Stable, JSON-serializable shape — mirrors TurnError.to_dict().
+
+        Without this, any caller reaching for a plain-dict view of an
+        ExecutionResult (logging, an HTTP response, a downstream consumer
+        like ConfirmationManager.confirm()) has to duck-type around a frozen,
+        non-iterable dataclass carrying a MappingProxyType field and a nested
+        TurnError — both of which break naive conversions
+        (``dict(instance)`` raises ``TypeError: not iterable``;
+        ``dataclasses.asdict(instance)`` raises ``TypeError: cannot pickle
+        'mappingproxy' object``).
+        """
+        return {
+            "success": self.success,
+            "execution_id": self.execution_id,
+            "message": self.message,
+            "state_version": self.state_version,
+            "facts": dict(self.facts),
+            "error": self.error.to_dict() if self.error is not None else None,
+        }
+
 
 @dataclass(frozen=True)
 class TurnResult:
@@ -135,6 +155,23 @@ class ActionExecutor(Protocol):
     ) -> ExecutionResult: ...
 
 
+class ConfirmationRegistrar(Protocol):
+    """Confirmation-tracking port implemented by CNF-01's ConfirmationManager.
+
+    A structural Protocol (not a concrete import of
+    ``confirmation.manager.ConfirmationManager``) — matches
+    ``GuardrailClient``/``ActionExecutor`` above: this module owns only the
+    ports it calls through, not the concrete adapters that satisfy them.
+    """
+
+    def register_pending(
+        self,
+        decision: Mapping[str, Any],
+        proposal: Mapping[str, Any],
+        turn_id: str,
+    ) -> Any: ...
+
+
 class CancellationToken:
     def __init__(self) -> None:
         self._event = threading.Event()
@@ -166,7 +203,7 @@ class AgentOrchestrator:
         guardrail: GuardrailClient,
         executor: ActionExecutor,
         id_factory: Callable[[str], str] | None = None,
-        confirmation_manager: ConfirmationManager | None = None,
+        confirmation_manager: ConfirmationRegistrar | None = None,
     ) -> None:
         self._model_router = model_router
         self._mapper = mapper

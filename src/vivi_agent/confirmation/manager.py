@@ -94,26 +94,30 @@ class ConfirmationManager:
 
     @staticmethod
     def _execution_result_to_dict(exec_result: Any) -> dict[str, Any]:
-        """Normalize an executor's return value to a plain dict.
+        """Normalize an executor's return value to a plain, JSON-serializable dict.
 
         ``executor`` is intentionally typed ``Any`` (no import of a concrete
         result type — importing ``orchestrator.orchestrator.ExecutionResult``
         here would cycle back through ``orchestrator``'s own import of this
         module). Handles, in order:
 
-        1. An object with its own ``to_dict()``.
-        2. A plain dataclass instance — the real shape returned by
+        1. An object with its own ``to_dict()`` — the real
+           ``orchestrator.orchestrator.ExecutionResult`` returned by
            ``VehicleToolGateway.execute``/``orchestrator.ActionExecutor``
-           implementations, which is a frozen dataclass with **no**
-           ``to_dict()`` and is not iterable, so a bare ``dict(exec_result)``
-           raises ``TypeError: '...' object is not iterable``. Uses a
-           *shallow* field extraction, not ``dataclasses.asdict()``:
-           ``asdict()`` recursively deep-copies every field and explodes on
-           ``ExecutionResult.facts`` (a ``MappingProxyType``) with
-           ``TypeError: cannot pickle 'mappingproxy' object``. The only
-           fields ever read below are ``success``/``message``, so a shallow,
-           non-recursive view of the top-level fields is exactly what's
-           needed and nothing more.
+           implementations takes this path (``ExecutionResult.to_dict()``
+           recursively converts its nested ``TurnError`` and
+           ``MappingProxyType`` fields into plain dict/JSON-safe values).
+        2. A plain dataclass instance with no ``to_dict()`` — a fallback for
+           any *other* dataclass-shaped executor result. Uses a *shallow*
+           field extraction, not ``dataclasses.asdict()``: ``asdict()``
+           recursively deep-copies every field and would explode on a
+           ``MappingProxyType`` field with ``TypeError: cannot pickle
+           'mappingproxy' object`` (the exact crash ``ExecutionResult`` hit
+           before it gained its own ``to_dict()``). This path's output may
+           contain non-dict nested dataclass values (e.g. an ``error`` field)
+           — callers needing a fully JSON-serializable result should give
+           their result type a ``to_dict()`` instead of relying on this
+           fallback.
         3. A dict/Mapping already in the expected shape (what CNF-01's own
            unit tests pass via a plain-dict-returning mock).
         """
@@ -164,9 +168,14 @@ class ConfirmationManager:
                     message="Yêu cầu xác nhận không tồn tại.",
                 )
 
+            # A leading `session_id and` here would short-circuit the whole
+            # check to False whenever the caller passes a falsy session_id —
+            # skipping session ownership entirely instead of failing closed.
+            # pending.session_id (once registered from a real turn) is the
+            # authoritative side of this comparison; a missing/empty caller
+            # session_id must never bypass it.
             if (
-                session_id
-                and pending.session_id
+                pending.session_id
                 and pending.session_id != "unknown"
                 and session_id != pending.session_id
             ):
@@ -204,6 +213,28 @@ class ConfirmationManager:
                         "message": "Confirmation period has expired",
                     },
                     message="Yêu cầu xác nhận đã hết hạn.",
+                )
+
+            if getattr(cancellation, "cancelled", False):
+                # Short-circuit BEFORE calling Guardrail or consuming the
+                # single-use token: without this, an already-cancelled
+                # cancellation token was only ever checked once it reached
+                # executor.execute(), by which point confirm() had already
+                # burned a fresh Guardrail re-evaluation and irreversibly
+                # marked the confirmation CONSUMED — a caller that already
+                # knows the request should not proceed gets neither the
+                # Guardrail call nor the single-use token back. Leaving
+                # pending.state untouched (still PENDING) lets a genuine
+                # retry (without a stale/cancelled token) still succeed.
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.PENDING,
+                    error={
+                        "code": "EXECUTION_CANCELLED",
+                        "message": "Confirmation resolution was cancelled before Guardrail re-evaluation",
+                    },
+                    message="Yêu cầu xác nhận đã bị hủy trước khi xử lý.",
                 )
 
             # Mark in-flight / confirmed state under lock to prevent concurrent re-evaluation
@@ -248,7 +279,11 @@ class ConfirmationManager:
                     # itself rather than accepting it as a separate parameter.
                     exec_result = executor.execute(pending.action_proposal, fresh_decision, cancellation)
                     exec_dict = self._execution_result_to_dict(exec_result)
-                    exec_success = exec_dict.get("success", True)
+                    # Fail-closed default: an executor result missing a
+                    # "success" key entirely must never be read as a silent
+                    # success — matches this module's own "guarantees zero
+                    # pre-authorization executions" design principle.
+                    exec_success = exec_dict.get("success", False)
                     return ConfirmationResult(
                         status="completed" if exec_success else "failed",
                         confirmation_id=confirmation_id,
@@ -310,9 +345,14 @@ class ConfirmationManager:
                     message="Yêu cầu xác nhận không tồn tại.",
                 )
 
+            # A leading `session_id and` here would short-circuit the whole
+            # check to False whenever the caller passes a falsy session_id —
+            # skipping session ownership entirely instead of failing closed.
+            # pending.session_id (once registered from a real turn) is the
+            # authoritative side of this comparison; a missing/empty caller
+            # session_id must never bypass it.
             if (
-                session_id
-                and pending.session_id
+                pending.session_id
                 and pending.session_id != "unknown"
                 and session_id != pending.session_id
             ):

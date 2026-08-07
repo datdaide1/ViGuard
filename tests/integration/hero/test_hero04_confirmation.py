@@ -242,13 +242,18 @@ class TestHero04ConfirmationE2E:
         assert state_machine.snapshot().cabin.windows_open is True  # real state actually flipped
         assert executor.execution_count == 1
 
-    def test_e2e_cancellation_token_is_forwarded_and_honored_by_real_gateway(
+    def test_e2e_pre_cancelled_token_short_circuits_before_guardrail_and_preserves_token(
         self, state_machine, mapper, confirmation_manager, gateway
     ):
-        """A cancellation token passed to confirm() must actually reach the
-        gateway (the missing capability behind the original bug: confirm()
-        had no cancellation parameter at all, and the 3rd positional slot was
-        hardcoded to the permit dict instead)."""
+        """A cancellation token that's already cancelled when confirm() is
+        called must short-circuit immediately — before the fresh Guardrail
+        re-evaluation and before the single-use token is consumed — not just
+        get forwarded to the executor after both have already happened. The
+        earlier bug (no cancellation parameter at all, permit hardcoded into
+        the 3rd positional slot) meant cancellation could never be honored at
+        any point; the naive fix (forward it to the executor only) would
+        still burn a live Guardrail call and consume the confirmation for a
+        request the caller already knew shouldn't proceed."""
         turn_result, _guardrail, executor = self._propose_confirm_turn(
             mapper, confirmation_manager, gateway, confirmation_id="confirm-e2e-04"
         )
@@ -270,12 +275,24 @@ class TestHero04ConfirmationE2E:
         )
 
         assert result.status == "failed"
-        # result.execution is a shallow field-dict of the real ExecutionResult
-        # (see ConfirmationManager._execution_result_to_dict) — "error" stays
-        # a TurnError instance, not a nested dict, since nothing here needs to
-        # recurse into it.
-        assert result.execution["error"].code == "EXECUTION_CANCELLED"
+        assert result.error["code"] == "EXECUTION_CANCELLED"
+        assert result.state == ConfirmationState.PENDING
+        guardrail_client.confirm.assert_not_called()  # no wasted re-evaluation
+        assert executor.execution_count == 0  # handler never touched
         assert state_machine.snapshot().cabin.windows_open is False  # never actually opened
+
+        # The single-use token was preserved (not burned) — a genuine retry
+        # without a stale cancellation must still be able to succeed.
+        pending_after = confirmation_manager.get_pending("confirm-e2e-04")
+        assert pending_after.state == ConfirmationState.PENDING
+        retry = confirmation_manager.confirm(
+            confirmation_id="confirm-e2e-04",
+            session_id="hero-confirm-01",
+            guardrail_client=guardrail_client,
+            executor=executor,
+        )
+        assert retry.status == "completed"
+        assert state_machine.snapshot().cabin.windows_open is True
 
     def test_e2e_state_change_before_confirm_uses_fresh_decision_not_stale(
         self, mapper, confirmation_manager, gateway

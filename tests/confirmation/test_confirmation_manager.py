@@ -212,3 +212,122 @@ def test_cancel_confirmation_zero_executor_calls():
     assert result.state == ConfirmationState.CANCELLED
     retrieved = manager.get_pending("confirm-006")
     assert retrieved.state == ConfirmationState.CANCELLED
+
+
+def test_confirm_rejects_empty_session_id_against_a_real_pending_session():
+    """A falsy session_id must never bypass session ownership — the original
+    `if session_id and pending.session_id and ...` check short-circuited to
+    False (skipping the mismatch check entirely) whenever the caller passed
+    an empty session_id, letting a cross-session confirm through."""
+    manager = ConfirmationManager()
+    decision = {
+        "outcome": "CONFIRM",
+        "session_id": "session-owner",
+        "confirmation": {
+            "confirmation_id": "confirm-007",
+            "proposal_id": "prop-007",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    proposal = _make_action_proposal("prop-007", "open_window")
+    manager.register_pending(decision, proposal, turn_id="turn-1")
+
+    guardrail_client = MagicMock()
+    executor = MagicMock()
+
+    result = manager.confirm(
+        confirmation_id="confirm-007",
+        session_id="",
+        guardrail_client=guardrail_client,
+        executor=executor,
+    )
+
+    assert result.status == "failed"
+    assert result.error["code"] == "SESSION_MISMATCH"
+    guardrail_client.confirm.assert_not_called()
+    executor.execute.assert_not_called()
+    # The confirmation itself stays PENDING — an empty session_id is a bad
+    # request, not a resolution of this confirmation.
+    assert manager.get_pending("confirm-007").state == ConfirmationState.PENDING
+
+
+def test_cancel_rejects_empty_session_id_against_a_real_pending_session():
+    manager = ConfirmationManager()
+    decision = {
+        "outcome": "CONFIRM",
+        "session_id": "session-owner",
+        "confirmation": {
+            "confirmation_id": "confirm-008",
+            "proposal_id": "prop-008",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    proposal = {"proposal_id": "prop-008", "tool": "open_window"}
+    manager.register_pending(decision, proposal, turn_id="turn-1")
+
+    result = manager.cancel("confirm-008", "")
+
+    assert result.status == "failed"
+    assert result.error["code"] == "SESSION_MISMATCH"
+    assert manager.get_pending("confirm-008").state == ConfirmationState.PENDING
+
+
+def test_confirm_fails_closed_when_executor_result_omits_success_key():
+    """An executor result missing "success" entirely must never be read as a
+    silent success — matches CNF-01's own "guarantees zero pre-authorization
+    executions" fail-closed design principle."""
+    manager = ConfirmationManager()
+    decision = {
+        "outcome": "CONFIRM",
+        "confirmation": {
+            "confirmation_id": "confirm-009",
+            "proposal_id": "prop-009",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    proposal = _make_action_proposal("prop-009", "open_window")
+    manager.register_pending(decision, proposal, turn_id="turn-1")
+
+    guardrail_client = MagicMock()
+    guardrail_client.confirm.return_value = {
+        "outcome": "ALLOW",
+        "permit": {"proposal_digest": proposal_digest(proposal)},
+    }
+    executor = MagicMock()
+    executor.execute.return_value = {"message": "no success key at all"}
+
+    result = manager.confirm("confirm-009", "session-1", guardrail_client, executor)
+
+    assert result.status == "failed"
+
+
+def test_confirm_pre_cancelled_token_skips_guardrail_and_preserves_pending():
+    """cancellation must short-circuit BEFORE the fresh Guardrail re-evaluation
+    and before the single-use token is consumed — not merely get forwarded to
+    the executor after both already happened."""
+    manager = ConfirmationManager()
+    decision = {
+        "outcome": "CONFIRM",
+        "confirmation": {
+            "confirmation_id": "confirm-010",
+            "proposal_id": "prop-010",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    proposal = _make_action_proposal("prop-010", "open_window")
+    manager.register_pending(decision, proposal, turn_id="turn-1")
+
+    guardrail_client = MagicMock()
+    executor = MagicMock()
+    cancellation = MagicMock(cancelled=True)
+
+    result = manager.confirm(
+        "confirm-010", "session-1", guardrail_client, executor, cancellation=cancellation
+    )
+
+    assert result.status == "failed"
+    assert result.error["code"] == "EXECUTION_CANCELLED"
+    assert result.state == ConfirmationState.PENDING
+    guardrail_client.confirm.assert_not_called()
+    executor.execute.assert_not_called()
+    assert manager.get_pending("confirm-010").state == ConfirmationState.PENDING
