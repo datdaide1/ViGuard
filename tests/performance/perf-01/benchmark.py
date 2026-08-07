@@ -370,7 +370,8 @@ class LocalPerfHarness:
         first_kb = checkpoints[0]["traced_current_kb"] if checkpoints else 0.0
         last_kb = checkpoints[-1]["traced_current_kb"] if checkpoints else 0.0
         growth_kb = last_kb - first_kb
-        growth_per_1000_turns_kb = (growth_kb / iterations) * 1000 if iterations else 0.0
+        measured_turns = (checkpoints[-1]["iteration"] - checkpoints[0]["iteration"]) if len(checkpoints) >= 2 else 0
+        growth_per_1000_turns_kb = (growth_kb / measured_turns) * 1000 if measured_turns > 0 else 0.0
         return {
             "iterations": iterations,
             "checkpoint_every": checkpoint_every,
