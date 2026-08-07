@@ -10,8 +10,9 @@ must trigger Guardrail's monitor evaluation and stop HDA, flipping the real
 vehicle state, not just an in-memory bookkeeping record.
 
 Scope note, matching SCN-01/SCN-02's own scope notes: ``GroundTruthMonitorGuardrailClient``
-below derives ``evaluate_monitor()``'s outcome *genuinely* from
-``vehicle_state.adas.hand_on_steeringwheel`` in the payload SIM-01/MON-ADP-01
+below derives ``evaluate_monitor()``'s outcome *genuinely* from the
+``hand_on_steeringwheel`` field of the flat PIP snapshot
+(``VehicleState.to_guardrail_snapshot()``) in the payload SIM-01/MON-ADP-01
 actually send — not a hardcoded outcome — so
 ``test_operator_state_change_triggers_guardrail_monitor_call`` is a real test
 of "the operator's own action is what triggers monitor evaluation," not a
@@ -121,8 +122,8 @@ class GroundTruthMonitorGuardrailClient:
     """Guardrail mock genuinely deriving its ``evaluate()``/``evaluate_monitor()``
     outcomes from real state — ``evaluate()`` always ALLOWs the initial
     ``activate_hda`` proposal (the scenario's precondition, not what's under
-    test), while ``evaluate_monitor()`` reads
-    ``vehicle_state.adas.hand_on_steeringwheel`` from the payload
+    test), while ``evaluate_monitor()`` reads the flat ``hand_on_steeringwheel``
+    key of ``VehicleState.to_guardrail_snapshot()`` from the payload
     ``GuardrailMonitorAdapter`` actually sends: ALLOW while hands-on, stop
     (BLOCK_UNSAFE) the instant hands come off. Unlike a mock hardcoded to one
     outcome, this one only stops HDA because the operator's own state change

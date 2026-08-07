@@ -128,11 +128,16 @@ class GroundTruthConfirmationGuardrailClient:
         self.evaluate_calls = 0
         self.confirm_calls = 0
         self._last_proposal: Mapping[str, Any] | None = None
+        # The CONFIRM decision handed back by the most recent evaluate() call
+        # — kept so tests can assert directly on it (e.g. "did the original
+        # decision itself carry a permit"), since PendingConfirmation only
+        # stores the proposal, never the decision that created it.
+        self.last_confirm_decision: dict[str, Any] | None = None
 
     def evaluate(self, proposal: Mapping[str, Any]) -> dict[str, Any]:
         self.evaluate_calls += 1
         self._last_proposal = proposal
-        return {
+        decision = {
             "contract_version": CONTRACT_VERSION,
             "kind": "decision",
             "request_id": f"req-scn02-eval-{self.evaluate_calls}",
@@ -152,6 +157,8 @@ class GroundTruthConfirmationGuardrailClient:
                 "single_use": True,
             },
         }
+        self.last_confirm_decision = decision
+        return decision
 
     def confirm(
         self, confirmation_id: str, session_id: str, request_id: str | None = None
@@ -277,7 +284,13 @@ class Scn02ConfirmationNotAPermanentPermitTests(unittest.TestCase):
         self.assertIsNotNone(pending)
         self.assertEqual(pending.state, ConfirmationState.PENDING)
         self.assertEqual(self.state_machine.snapshot().motion.speed_kph, 0.0)
-        self.assertNotIn("permit", pending.action_proposal)
+        # Checked against the actual CONFIRM decision Guardrail returned
+        # (not pending.action_proposal — the proposal envelope structurally
+        # never carries a "permit" key regardless of guardrail behavior, so
+        # asserting against it wouldn't catch a decision that wrongly
+        # embedded one).
+        self.assertIsNotNone(self.guardrail.last_confirm_decision)
+        self.assertNotIn("permit", self.guardrail.last_confirm_decision)
 
         facts = ConfirmationHeroBehavior.build_pending_facts(pending, intent=CONFIRMATION_HERO_INTENT)
         self.assertEqual(facts["confirmation_id"], _CONFIRMATION_ID)
