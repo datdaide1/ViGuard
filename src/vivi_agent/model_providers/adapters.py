@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
-from ..tools.registry import ToolRegistry
+from ..tools.registry import ToolDefinition, ToolRegistry
 from .contracts import (
     ModelActionProposal,
     ModelErrorCode,
@@ -212,21 +212,56 @@ class GeminiAdapter(ModelProviderAdapter):
         payload: dict[str, Any] = {
             "model": self.model_id,
             "contents": contents,
-            # Gemini's generateContent function-calling parser rejects the
-            # oneOf/const/additionalProperties shape used for OpenAI's strict mode
-            # outright (HTTP 400) and, once those two keywords are stripped, still
-            # does not read properties/required nested inside oneOf branches
-            # (returns the right tool name with empty args) — see
-            # evals/eval-01/results/gemini_schema_bug_evidence.json. Serialize a
-            # flat declaration instead; ToolRegistry.validate_call performs the
-            # same per-(action, target, value) enforcement regardless of shape.
-            "tools": [{"functionDeclarations": list(self.registry.flat_model_tools())}],
+            # ToolRegistry.model_tools() (used by OpenAIAdapter) emits a
+            # oneOf/const/additionalProperties shape per tool. Gemini's
+            # generateContent function-calling parser rejects that outright
+            # (HTTP 400: Unknown name "const"/"additionalProperties") and, once
+            # those two keywords are stripped, still does not read
+            # properties/required nested inside oneOf branches — it returns the
+            # right tool name with empty args. See
+            # evals/eval-01/results/gemini_schema_bug_evidence.json. This is a
+            # Gemini-specific parser quirk, not a general schema concern, so the
+            # flattening lives here rather than on the registry; the real
+            # per-(action, target, value) enforcement still happens post-hoc in
+            # ToolRegistry.validate_call regardless of which schema shape a
+            # provider was sent.
+            "tools": [{"functionDeclarations": [self._flat_declaration(tool) for tool in self.registry.tools]}],
             "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
             "generationConfig": {"maxOutputTokens": self.MAX_OUTPUT_TOKENS},
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
         return payload
+
+    @staticmethod
+    def _flat_declaration(tool: ToolDefinition) -> dict[str, Any]:
+        """Flatten one tool's (action, target, value) signatures into the single
+        flat {type: object, properties, required} shape Gemini's function-calling
+        parser expects, instead of ToolDefinition.model_schema()'s oneOf-per-signature
+        shape. action/target/value are exposed as the union of every signature's
+        allowed values; "value" is left out of "required" because not every
+        signature of a tool carries one (e.g. control_cabin mixes value-bearing
+        and value-free actions) — ToolRegistry.validate_call still enforces it
+        per-action and returns a clarification when it's missing.
+        """
+        actions = sorted({signature.action for signature in tool.signatures})
+        targets = sorted({target for signature in tool.signatures for target in signature.targets})
+        values = sorted({value for signature in tool.signatures for value in signature.values})
+        properties: dict[str, Any] = {
+            "action": {"type": "string", "enum": actions},
+            "target": {"type": "string", "enum": targets},
+        }
+        if values:
+            properties["value"] = {"type": "string", "enum": values}
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": ["action", "target"],
+            },
+        }
 
     def _response_payload(self, grounded_facts: str) -> Mapping[str, Any]:
         return {

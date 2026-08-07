@@ -64,44 +64,6 @@ class DomainToolRegistryTests(unittest.TestCase):
             for forbidden in ("state", "outcome", "rule_id", "permit"):
                 self.assertNotIn(f'"{forbidden}"', serialized)
 
-    def test_flat_model_tools_are_gemini_parseable_and_closed(self) -> None:
-        # Confirmed against the real Gemini generateContent API (see
-        # evals/eval-01/results/gemini_schema_bug_evidence.json): it rejects
-        # "const"/"additionalProperties" outright, and even with those stripped
-        # does not read properties/required nested inside "oneOf" branches. The
-        # flat schema must therefore avoid all three at the top level.
-        schemas = self.registry.flat_model_tools()
-        self.assertEqual({item["name"] for item in schemas}, set(self.registry.names))
-        for schema in schemas:
-            parameters = schema["parameters"]
-            self.assertEqual(parameters["type"], "object")
-            self.assertNotIn("oneOf", parameters)
-            self.assertNotIn("additionalProperties", parameters)
-            self.assertEqual(set(parameters["required"]), {"action", "target"})
-            self.assertEqual(set(parameters["properties"]) - {"action", "target", "value"}, set())
-            for prop in parameters["properties"].values():
-                self.assertNotIn("const", prop)
-                self.assertTrue(prop["enum"])
-            serialized = json.dumps(schema).lower()
-            for forbidden in ("state", "outcome", "rule_id", "permit"):
-                self.assertNotIn(f'"{forbidden}"', serialized)
-
-    def test_flat_model_tools_union_every_signature_value(self) -> None:
-        schemas = {item["name"]: item for item in self.registry.flat_model_tools()}
-        access = schemas["control_access"]["parameters"]["properties"]
-        self.assertEqual(set(access["action"]["enum"]), {"open", "lock", "unlock"})
-        self.assertIn("driver_door", access["target"]["enum"])
-        self.assertIn("all_doors", access["target"]["enum"])
-        self.assertNotIn("value", access)
-
-        drive = schemas["set_drive_mode"]["parameters"]
-        self.assertIn("value", drive["properties"])
-        self.assertEqual(set(drive["properties"]["value"]["enum"]), {"eco", "normal", "sport"})
-        # "value" is only required for some control_cabin signatures, so it stays
-        # optional at the schema level; ToolRegistry.validate_call still enforces
-        # it per-action via a clarification request.
-        self.assertNotIn("value", drive["required"])
-
     def test_schema_preserves_signature_combinations_without_cross_product(self) -> None:
         schemas = {item["name"]: item for item in self.registry.model_tools()}
         access_variants = schemas["control_access"]["parameters"]["oneOf"]

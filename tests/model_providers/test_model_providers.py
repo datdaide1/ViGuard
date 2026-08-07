@@ -123,6 +123,20 @@ class AdapterTests(unittest.TestCase):
             for prop in parameters["properties"].values():
                 self.assertNotIn("const", prop)
 
+        access = next(item for item in declarations if item["name"] == "control_access")["parameters"]
+        self.assertEqual(set(access["properties"]["action"]["enum"]), {"open", "lock", "unlock"})
+        self.assertIn("driver_door", access["properties"]["target"]["enum"])
+        self.assertIn("all_doors", access["properties"]["target"]["enum"])
+        self.assertNotIn("value", access["properties"])
+        self.assertEqual(set(access["required"]), {"action", "target"})
+
+        # "value" is only required for some control_cabin/control_transmission
+        # signatures, so it must stay out of "required" at the schema level;
+        # ToolRegistry.validate_call still enforces it per-action.
+        drive = next(item for item in declarations if item["name"] == "set_drive_mode")["parameters"]
+        self.assertEqual(set(drive["properties"]["value"]["enum"]), {"eco", "normal", "sport"})
+        self.assertNotIn("value", drive["required"])
+
     def test_gemini_flat_schema_lets_model_fill_arguments_in_one_pass(self) -> None:
         # Reproduces finding_2 from evals/eval-01/results/gemini_schema_bug_evidence.json:
         # with the old oneOf-nested schema Gemini returned the right tool name but
