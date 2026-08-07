@@ -268,17 +268,22 @@ class MonitoredActionHeroBehaviorBase:
             return cls.build_fail_message(record, str(monitor_result.get("error") or "lỗi không xác định"))
 
         outcome = cls.evaluate_monitor_result(monitor_result)
-        if outcome.intent != record.intent:
-            # Defends against a caller pairing the wrong record with the wrong
-            # monitor_result (e.g. iterating multiple running records and
-            # zipping them incorrectly) — evaluate_monitor_result above only
-            # checked that monitor_result's intent is *in scope*, not that it
-            # actually belongs to this record, so a mismatch would otherwise
-            # silently produce a message with the right display name but the
-            # wrong rule_id/reason_code.
+        # Defends against a caller pairing the wrong record with the wrong
+        # monitor_result — e.g. iterating multiple running records (possibly
+        # two sessions running the *same* intent) and zipping them
+        # incorrectly. evaluate_monitor_result above only checked that
+        # monitor_result's intent is *in scope*, not that it actually belongs
+        # to this record; without this check a mismatch would silently
+        # produce a message with the right display name but the wrong
+        # rule_id/reason_code. action_id is only checked when monitor_result
+        # actually carries one (every real GuardrailMonitorAdapter result
+        # does) so callers that never populate it are unaffected.
+        mismatched_intent = outcome.intent != record.intent
+        mismatched_action = bool(outcome.action_id) and outcome.action_id != record.action_id
+        if mismatched_intent or mismatched_action:
             raise ValueError(
-                f"monitor_result intent {outcome.intent!r} does not match "
-                f"record intent {record.intent!r} (action_id={record.action_id!r})"
+                f"monitor_result (intent={outcome.intent!r}, action_id={outcome.action_id!r}) does not "
+                f"match record (intent={record.intent!r}, action_id={record.action_id!r})"
             )
         display_name = cls.DISPLAY_NAMES.get(record.intent, record.active_action_name)
         reason = outcome.reason_code or "yêu cầu an toàn từ Guardrail"
