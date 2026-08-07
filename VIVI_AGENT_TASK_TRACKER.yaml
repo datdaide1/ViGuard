@@ -490,22 +490,24 @@ tasks:
     title: 'Scenario “Confirmation không phải giấy phép vĩnh viễn”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-02/TASK.md
     depends_on: [HERO-04]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn02_confirmation_not_a_permanent_permit.py
   - id: SCN-03
     title: 'Scenario “Guardrail bảo vệ khi action đang chạy”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-03/TASK.md
     depends_on: [HERO-02, SIM-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn03_guardrail_stops_active_action.py
   - id: EVAL-01
     title: 'Xây Vietnamese tool-selection evaluation set'
     priority: P0
