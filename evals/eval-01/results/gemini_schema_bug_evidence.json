@@ -1,0 +1,76 @@
+{
+  "finding": "GeminiAdapter payload rejected by real Gemini generateContent API (HTTP 400)",
+  "model_id": "gemini-3.5-flash-lite",
+  "raw_payload_tools_excerpt": {
+    "name": "control_access",
+    "description": "Control vehicle doors and access panels.",
+    "parameters": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "open"
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "bonnet",
+                "charge_port",
+                "driver_door",
+                "trunk"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "lock"
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "all_doors"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "unlock"
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "all_doors"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "raw_error": "Gemini API returned HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Invalid JSON payload received. Unknown name \\\"const\\\" at 'tools[0].function_declarations[0].parameters.one_of[0].properties[0].value': Cannot find field.\\nInvalid JSON payload received. Unknown name \\\"additionalProperties\\\" at 'tools[0].function_declarations[0].parameters.one_of[0]': Cannot find field.\\nInvalid JSON payload received. Unknown name \\\"const\\\" at 'tools[0].function_declarations[0].parameters.one_of[1].properties[0].value': Cannot find "
+}
