@@ -479,12 +479,13 @@ tasks:
     title: 'Scenario “Agent bị lừa nhưng xe vẫn an toàn”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-01/TASK.md
     depends_on: [HERO-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn01_agent_fooled_vehicle_safe.py
   - id: SCN-02
     title: 'Scenario “Confirmation không phải giấy phép vĩnh viễn”'
     priority: P0
