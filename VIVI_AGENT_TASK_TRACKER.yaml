@@ -520,14 +520,21 @@ tasks:
     title: 'Xây Vietnamese tool-selection evaluation set'
     priority: P0
     sprint: sprint-3
-    status: blocked
+    status: in_progress
     blocked_reason: >
-      Harness (dataset/scoring/runner) built and offline-verified (39 tests).
-      Live measurement blocked: GeminiAdapter's tool schema is rejected/
-      misread by the real Gemini API (confirmed live, see
-      evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1) — a MOD-01 bug
-      flagged as a separate follow-up, out of this ticket's scope to fix.
-      OpenAI side additionally blocked on a missing OPENAI_API_KEY.
+      RESOLVED (was: GeminiAdapter's tool schema rejected/misread by the real
+      Gemini API — see evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1).
+      Fixed by flattening the tool schema (PR #37, commits c7a660a/38cdcf2)
+      and confirmed live: same 5-item smoke shape that was 5/5 API_ERROR
+      before the fix now returns 5/5 correct tool+arguments against real
+      gemini-3.5-flash-lite (commit 629b25f, see
+      evals/eval-01/results/gemini_smoke_after_fix.json). Remaining work is
+      not blocked, just not yet done: (1) re-run the full 146-item dataset
+      live via run_live_eval.py for real tool accuracy/argument exact
+      match/clarification/invalid-call numbers, (2) OpenAI side is still
+      blocked on a missing OPENAI_API_KEY, (3) the model-freeze
+      recommendation in AGENT_MODEL_EVALUATION_REPORT.md §3 still needs
+      updating from its pre-fix "blocked" state once (1)/(2) land.
     area: evals
     task_file: evals/eval-01/TASK.md
     depends_on: [MAP-02, MOD-01]
@@ -541,6 +548,7 @@ tasks:
       - evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md
       - evals/eval-01/results/gemini_gemini-3.5-flash-lite_smoke.json
       - evals/eval-01/results/gemini_schema_bug_evidence.json
+      - evals/eval-01/results/gemini_smoke_after_fix.json
       - tests/evals/eval-01/test_eval01_dataset.py
       - tests/evals/eval-01/test_eval01_scoring.py
       - tests/evals/eval-01/test_eval01_runner_fake_transport.py
@@ -560,12 +568,27 @@ tasks:
     title: 'Benchmark Agent/Vehicle latency và stability'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: in_progress
+    blocked_reason: >
+      Not blocked — local pipeline measured and reported (all 3 acceptance
+      criteria met for what was measured, see
+      tests/performance/perf-01/AGENT_PERFORMANCE_REPORT.md §7). Outstanding:
+      one TASK.md work item ("Model warm-up và tool selection latency") was
+      deliberately deferred this round (PM decision) to avoid spending live
+      GEMINI_API_KEY quota — no OPENAI_API_KEY is available at all. Follow-up:
+      run a live Gemini pass (evals/eval-01/runner.py already tracks
+      latency_ms per outcome, reusable directly) once approved, and an
+      OpenAI pass once a key is available.
     area: tests/performance
     task_file: tests/performance/perf-01/TASK.md
     depends_on: [INT-01, INT-02, EVAL-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/performance/perf-01/benchmark.py
+      - tests/performance/perf-01/run_benchmark.py
+      - tests/performance/perf-01/test_perf01_benchmark.py
+      - tests/performance/perf-01/AGENT_PERFORMANCE_REPORT.md
+      - tests/performance/perf-01/results/local_run.json
   - id: OPS-01
     title: 'Xây Agent/Vehicle reset và degraded mode'
     priority: P0

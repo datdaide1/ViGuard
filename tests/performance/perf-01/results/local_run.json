@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "python_version": "3.11.7",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 141 Stepping 1, GenuineIntel",
+    "network_environment": "loopback (127.0.0.1) to in-process mock guardrail HTTP server — no third-party network calls",
+    "model_provider": "none — deterministic in-process MockModelRouter (see benchmark.py docstring); model warm-up / tool-selection latency NOT measured in this run",
+    "total_wall_clock_seconds": 18.1
+  },
+  "guardrail_round_trip_ms": {
+    "sample_size": 300,
+    "min_ms": 1.784,
+    "p50_ms": 13.347,
+    "p95_ms": 18.583,
+    "p99_ms": 21.265,
+    "max_ms": 29.246,
+    "mean_ms": 11.676
+  },
+  "permit_verification_and_handler_ms": {
+    "sample_size": 300,
+    "min_ms": 0.164,
+    "p50_ms": 0.559,
+    "p95_ms": 1.384,
+    "p99_ms": 1.476,
+    "max_ms": 1.604,
+    "mean_ms": 0.628
+  },
+  "e2e_turn_latency_allow_ms": {
+    "sample_size": 300,
+    "min_ms": 1.954,
+    "p50_ms": 6.838,
+    "p95_ms": 20.365,
+    "p99_ms": 29.17,
+    "max_ms": 33.246,
+    "mean_ms": 10.226
+  },
+  "e2e_turn_latency_block_ms": {
+    "sample_size": 100,
+    "min_ms": 2.159,
+    "p50_ms": 5.551,
+    "p95_ms": 18.85,
+    "p99_ms": 25.702,
+    "max_ms": 28.191,
+    "mean_ms": 8.772
+  },
+  "memory_growth": {
+    "iterations": 500,
+    "checkpoint_every": 50,
+    "checkpoints": [
+      {
+        "iteration": 50,
+        "traced_current_kb": 325.9,
+        "traced_peak_kb": 405.8
+      },
+      {
+        "iteration": 100,
+        "traced_current_kb": 492.9,
+        "traced_peak_kb": 572.6
+      },
+      {
+        "iteration": 150,
+        "traced_current_kb": 657.0,
+        "traced_peak_kb": 734.1
+      },
+      {
+        "iteration": 200,
+        "traced_current_kb": 816.1,
+        "traced_peak_kb": 893.2
+      },
+      {
+        "iteration": 250,
+        "traced_current_kb": 970.9,
+        "traced_peak_kb": 1051.0
+      },
+      {
+        "iteration": 300,
+        "traced_current_kb": 1131.0,
+        "traced_peak_kb": 1211.0
+      },
+      {
+        "iteration": 350,
+        "traced_current_kb": 1291.1,
+        "traced_peak_kb": 1371.8
+      },
+      {
+        "iteration": 400,
+        "traced_current_kb": 1450.5,
+        "traced_peak_kb": 1526.8
+      },
+      {
+        "iteration": 450,
+        "traced_current_kb": 1609.7,
+        "traced_peak_kb": 1690.6
+      },
+      {
+        "iteration": 500,
+        "traced_current_kb": 1788.7,
+        "traced_peak_kb": 1849.3
+      }
+    ],
+    "growth_kb_first_to_last_checkpoint": 1462.8,
+    "growth_kb_per_1000_turns": 2925.6,
+    "handler_call_count": 500
+  },
+  "timeout_behavior": {
+    "guardrail_client_direct": {
+      "error_code": "GUARDRAIL_UNAVAILABLE",
+      "execution_allowed": false,
+      "retryable": false,
+      "elapsed_ms": 204.4,
+      "configured_timeout_seconds": 0.2,
+      "handler_call_count": 0
+    },
+    "full_turn_via_orchestrator": {
+      "error_code": "ORCHESTRATION_DEPENDENCY_ERROR",
+      "turn_status": "failed",
+      "elapsed_ms": 216.4,
+      "configured_timeout_seconds": 0.2,
+      "handler_call_count": 0
+    }
+  }
+}
