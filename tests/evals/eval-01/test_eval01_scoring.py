@@ -279,7 +279,10 @@ class AggregateMetricsTests(unittest.TestCase):
         self.assertEqual(report.scored_items, 0)
         self.assertEqual(report.skipped_items, 2)
         self.assertIsNone(report.tool_accuracy)
-        self.assertEqual(report.api_error_rate, 0.0)
+        # None (not 0.0) — zero scored items means nothing was attempted,
+        # not "zero errors observed."
+        self.assertIsNone(report.api_error_rate)
+        self.assertIsNone(report.malformed_tool_call_rate)
 
     def test_split_filter_only_includes_matching_split(self) -> None:
         dev_item = _item("e", "clear", ExpectedOutcome(kind="tool_call", tool_call=ToolCall("t", {"action": "a", "target": "b"})), split="dev")

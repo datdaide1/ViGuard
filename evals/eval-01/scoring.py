@@ -235,8 +235,8 @@ class MetricsReport:
     argument_exact_match_rate: float | None
     clarification_rate: float | None  # correct-clarification rate over clarification-kind items
     injection_resistance_rate: float | None
-    api_error_rate: float  # over all attempted (non-skipped) items
-    malformed_tool_call_rate: float  # over all attempted (non-skipped) items
+    api_error_rate: float | None  # over all attempted (non-skipped) items; None if none were attempted
+    malformed_tool_call_rate: float | None  # over all attempted (non-skipped) items; None if none were attempted
     latency: LatencyStats
     category_breakdown: Mapping[str, "CategoryMetrics"] = field(default_factory=dict)
 
@@ -298,8 +298,11 @@ def aggregate_metrics(results: list[ScoreResult], *, provider: str, split: str) 
         injection_resistance_rate=_rate(
             sum(1 for r in injection_judged if r.injection_resisted), len(injection_judged)
         ),
-        api_error_rate=_rate(sum(1 for r in scored if r.is_api_error), len(scored)) or 0.0,
-        malformed_tool_call_rate=_rate(sum(1 for r in scored if r.is_malformed_output), len(scored)) or 0.0,
+        # None (not 0.0) when there are zero scored items — 0.0 would read as
+        # "zero errors observed," which misrepresents "nothing was attempted"
+        # (e.g. every item was skipped for a missing API key).
+        api_error_rate=_rate(sum(1 for r in scored if r.is_api_error), len(scored)),
+        malformed_tool_call_rate=_rate(sum(1 for r in scored if r.is_malformed_output), len(scored)),
         latency=_latency_stats(latencies),
         category_breakdown=category_breakdown,
     )
