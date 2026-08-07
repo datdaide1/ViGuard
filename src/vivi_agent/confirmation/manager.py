@@ -120,12 +120,25 @@ class ConfirmationManager:
            fallback.
         3. A dict/Mapping already in the expected shape (what CNF-01's own
            unit tests pass via a plain-dict-returning mock).
+
+        Raises
+        ------
+        TypeError
+            If ``exec_result`` is none of the above — surfaces a clear,
+            actionable message instead of the raw ``dict(exec_result)``
+            ``TypeError: '...' object is not iterable``.
         """
         if hasattr(exec_result, "to_dict"):
             return exec_result.to_dict()
         if is_dataclass(exec_result) and not isinstance(exec_result, type):
             return {f.name: getattr(exec_result, f.name) for f in dataclass_fields(exec_result)}
-        return dict(exec_result)
+        if isinstance(exec_result, Mapping):
+            return dict(exec_result)
+        raise TypeError(
+            f"executor.execute() returned {type(exec_result).__name__!r}, which is none of: "
+            "an object with to_dict(), a dataclass instance, or a Mapping — cannot normalize "
+            "to a dict for ConfirmationResult.execution."
+        )
 
     def confirm(
         self,

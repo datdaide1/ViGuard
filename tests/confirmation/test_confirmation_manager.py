@@ -331,3 +331,34 @@ def test_confirm_pre_cancelled_token_skips_guardrail_and_preserves_pending():
     guardrail_client.confirm.assert_not_called()
     executor.execute.assert_not_called()
     assert manager.get_pending("confirm-010").state == ConfirmationState.PENDING
+
+
+def test_confirm_reports_a_clear_error_for_an_unconvertible_executor_result():
+    """A raw dict(exec_result) TypeError ("'X' object is not iterable") is
+    unhelpful for debugging — _execution_result_to_dict must raise a message
+    naming the actual type and what shapes it does accept."""
+    manager = ConfirmationManager()
+    decision = {
+        "outcome": "CONFIRM",
+        "confirmation": {
+            "confirmation_id": "confirm-011",
+            "proposal_id": "prop-011",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    proposal = _make_action_proposal("prop-011", "open_window")
+    manager.register_pending(decision, proposal, turn_id="turn-1")
+
+    guardrail_client = MagicMock()
+    guardrail_client.confirm.return_value = {
+        "outcome": "ALLOW",
+        "permit": {"proposal_digest": proposal_digest(proposal)},
+    }
+    executor = MagicMock()
+    executor.execute.return_value = object()  # neither to_dict(), dataclass, nor Mapping
+
+    result = manager.confirm("confirm-011", "session-1", guardrail_client, executor)
+
+    assert result.status == "failed"
+    assert result.error["code"] == "EXECUTION_ERROR"
+    assert "object" in result.error["message"]
