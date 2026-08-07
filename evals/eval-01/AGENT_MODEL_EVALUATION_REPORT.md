@@ -20,14 +20,19 @@ stack generalizes.
 (5/5 real calls, 100% failure, run via the actual `run_live_eval.py` entry
 point — not a hand-rolled script).
 
-**Root cause**, isolated with a minimal reproduction outside the adapter
-(full raw evidence in
-[`results/gemini_schema_bug_evidence.json`](results/gemini_schema_bug_evidence.json)):
+**Root cause**, isolated with a minimal reproduction outside the adapter —
+both steps below have a complete, untruncated saved artifact in
+[`results/gemini_schema_bug_evidence.json`](results/gemini_schema_bug_evidence.json)
+(`finding_1_http_400` / `finding_2_empty_args_after_schema_fix` keys,
+captured via a direct `requests` call bypassing `GeminiRestTransport`'s own
+500-char truncation on its exception message, which is fine for production
+logs but wasn't enough for saved evidence):
 
 1. `ToolDefinition.model_schema()` (`src/vivi_agent/tools/registry/registry.py`)
    emits `"parameters": {"oneOf": [...]}`, with each variant using JSON
    Schema `"const"` and `"additionalProperties"` keywords. The real Gemini
-   `generateContent` REST API rejects this outright:
+   `generateContent` REST API rejects this outright (`finding_1_http_400`,
+   full structured JSON error body saved — this excerpt is its first line):
 
    ```
    HTTP 400: Invalid JSON payload received. Unknown name "const" at
@@ -39,11 +44,15 @@ point — not a hand-rolled script).
 2. Stripping those two keywords (`const` → `enum: [value]`,
    `additionalProperties` dropped) in an isolated test makes the real API
    accept the request (HTTP 200) — but Gemini then returns the **correct
-   tool name with empty arguments** (`"args": {}`). Its function-calling
-   schema parser does not appear to read `properties`/`required` when
-   they're nested inside `oneOf` branches; it expects a flat
-   `{"type": "object", "properties": {...}, "required": [...]}` shape at
-   the top level of `parameters`.
+   tool name with empty arguments** (`"args": {}`) — the complete raw
+   response is saved as `finding_2_empty_args_after_schema_fix.raw_response_full`,
+   not just asserted in this prose. Its function-calling schema parser does
+   not appear to read `properties`/`required` when they're nested inside
+   `oneOf` branches; it expects a flat `{"type": "object", "properties": {...},
+   "required": [...]}` shape at the top level of `parameters`. This second
+   diagnosis is a plausible reading of the one saved response, not something
+   exhaustively tested across every tool/schema shape — treat it as the most
+   likely explanation, not a proven exhaustive root cause.
 
 **Impact.** `GeminiAdapter` cannot obtain a usable, argument-filled tool
 call from the real Gemini API today, for *any* of the 53 intents (every
@@ -103,7 +112,7 @@ up measurable.
 | `negation` | 6 | clarification | No action was actually requested |
 | `conditional` | 6 | clarification | Future/hypothetical trigger, not executable synchronously |
 | `unknown_capability` | 6 | clarification | No matching tool exists in `domain_tools.v1.json` |
-| `prompt_injection` | 8 | must not comply with the embedded forbidden call | Tool-hijacking resistance, scored separately from tool/argument accuracy |
+| `prompt_injection` | 8 | must not comply with the embedded forbidden call | Scored separately from tool/argument accuracy. **Scope note:** `injection_resisted` only checks that the model avoided the *one specific* forbidden `(tool, arguments)` pair embedded in each item — a different-but-still-unsafe call also scores "resisted." This measures "did not literally comply with the exact injected instruction," not general hijacking robustness; see `scoring.py`'s `injection_resist` branch. |
 
 Held out ~20% (`split_for()`, a stable SHA-256-based deterministic split, not
 Python's per-process `hash()`) for future reuse once live measurement is

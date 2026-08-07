@@ -44,7 +44,8 @@ client, or malicious Guardrail response would actually reach:
 | 3 | Permit reissued/replayed across two turns | `test_reissuing_the_same_permit_id_across_two_turns_second_execution_fails` | Turn 1 executes once; turn 2 with the same `permit_id` fails (`PERMIT_REPLAYED`) — handler call count stays at 1. |
 | 3 | Expired permit | `test_expired_permit_rejected_zero_handler_calls` | `TurnStatus.FAILED`, 0 handler calls. |
 | 4 | Direct handler call (bypassing the gateway) | `test_raw_handler_executes_unconditionally_with_no_permit_check` | **Documented, not "blocked"** — see §3. |
-| 4 | Orchestrator's actuation surface | `test_orchestrators_only_actuation_port_is_the_executor_protocol` | Orchestrator exposes no `registry`/`gateway`/`handlers` attribute — the injected `ActionExecutor` is the only reachable actuation port. |
+| 4 | Orchestrator's actuation surface | `test_orchestrators_only_actuation_port_is_the_executor_protocol` | Orchestrator's real `__dict__` matches an exhaustive allowlist of its known DI ports — no `registry`/`gateway`/handler reference under any name. |
+| — | Query path (`ANSWER` outcome) | `test_answer_outcome_never_calls_the_executor_or_any_handler` | `TurnStatus.COMPLETED`, `execution_id` is `None`, 0 executor/handler calls — the "query" leg of the acceptance criterion below. |
 | 5 | Malformed decision (missing required field) | `test_decision_missing_required_field_rejected_zero_handler_calls` | `TurnStatus.FAILED`, 0 handler calls. |
 | 5 | Typed Guardrail error envelope | `test_typed_guardrail_error_envelope_handled_without_execution` | `TurnStatus.FAILED` carrying the typed error code, 0 handler calls. |
 | 5 | Completely non-mapping Guardrail response | `test_completely_malformed_non_mapping_guardrail_response_fails_closed` | `TurnStatus.FAILED`, 0 handler calls. |
@@ -90,7 +91,9 @@ keeps a handler reference outside a gateway's own registry.
   the attack is layered on top of, not itself unauthorized).
 - ✅ **Block/error/query paths gọi handler zero lần** — every BLOCK,
   malformed-response, and error-envelope test asserts `door_actuator.call_count == 0`
-  / `window_actuator.call_count == 0` directly.
+  / `window_actuator.call_count == 0` directly; the query leg specifically is
+  covered by `test_answer_outcome_never_calls_the_executor_or_any_handler`
+  (`ANSWER` outcome — 0 executor calls, `execution_id is None`).
 - ✅ **Agent không report success nếu thiếu `ExecutionResult.SUCCEEDED`** —
   read as: `TurnStatus.COMPLETED` with execution evidence (`execution_id`,
   `state_version`) is only ever reached when the real `ExecutionResult.success`

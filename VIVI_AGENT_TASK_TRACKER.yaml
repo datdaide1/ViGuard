@@ -3,7 +3,7 @@ project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
 branch: vivi-agent/scafford
-status_values: [planned, ready, in_progress, blocked, review, done]
+status_values: [planned, ready, in_progress, blocked, review, done, completed]
 task_count: 48
 p0_count: 39
 completed_count: 0
@@ -112,6 +112,14 @@ tasks:
     priority: P0
     sprint: sprint-1
     status: review
+    known_issues:
+      - >
+        GeminiAdapter's tool schema (via ToolDefinition.model_schema()'s
+        oneOf/const/additionalProperties shape) is rejected/misread by the
+        real Gemini generateContent API — confirmed live during EVAL-01
+        (see evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1 and
+        evals/eval-01/results/gemini_schema_bug_evidence.json). Blocks any
+        live Gemini tool call today. Flagged as a follow-up fix task.
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]

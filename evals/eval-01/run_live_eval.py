@@ -108,20 +108,26 @@ def main() -> int:
             timeout_seconds=args.timeout_seconds,
         )
 
+    if args.rpm <= 0:
+        print(f"--rpm must be positive, got {args.rpm}", file=sys.stderr)
+        return 1
+
     items = DATASET if args.limit is None else DATASET[: args.limit]
-    pace_seconds = max(0.0, 60.0 / args.rpm)
+    pace_seconds = 60.0 / args.rpm
 
     total = len(items)
     started_at = time.time()
+    progress_count = [0]
 
     def _progress(item, outcome) -> None:
-        index = _progress.count + 1
-        _progress.count = index
-        status = "ERROR" if outcome.error_code else "OK"
-        detail = outcome.error_code or outcome.proposal_kind or ""
-        print(f"[{index}/{total}] {item.item_id} -> {status} {detail}", file=sys.stderr, flush=True)
-
-    _progress.count = 0
+        progress_count[0] += 1
+        if outcome.skipped_reason is not None:
+            status, detail = "SKIPPED", outcome.skipped_reason
+        elif outcome.error_code:
+            status, detail = "ERROR", outcome.error_code
+        else:
+            status, detail = "OK", outcome.proposal_kind or ""
+        print(f"[{progress_count[0]}/{total}] {item.item_id} -> {status} {detail}", file=sys.stderr, flush=True)
 
     runner = EvalRunner(adapter, pace_seconds=pace_seconds, on_item=_progress)
     outcomes = runner.run(items)

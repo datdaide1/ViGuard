@@ -465,7 +465,15 @@ class Eval02DirectHandlerAccessTests(unittest.TestCase):
     def test_orchestrators_only_actuation_port_is_the_executor_protocol(self) -> None:
         """The orchestrator never stores or exposes a handler registry/gateway
         reference of its own — the injected ``executor`` port is the only
-        route from a turn to an actuator."""
+        route from a turn to an actuator.
+
+        Checks the *complete* real ``__dict__`` against an allowlist of the
+        DI ports/bookkeeping ``AgentOrchestrator.__init__`` actually assigns
+        (``orchestrator/orchestrator.py``), rather than probing a handful of
+        guessed forbidden names via ``hasattr`` — an allowlist can't be
+        sailed past by a differently-named leak (``_gateway``, `_registry``,
+        etc.) the way an exclude-list of specific names could.
+        """
         router = ScriptedModelRouter(
             ModelActionProposal.action("control_access", {"action": "open", "target": "driver_door"}, META)
         )
@@ -473,11 +481,68 @@ class Eval02DirectHandlerAccessTests(unittest.TestCase):
         env = _build_environment(router, guardrail)
 
         self.assertIs(env.orchestrator._executor, env.executor)
-        for attr_name in ("registry", "gateway", "handler_registry", "handlers"):
-            self.assertFalse(
-                hasattr(env.orchestrator, attr_name),
-                f"AgentOrchestrator must not expose a {attr_name!r} attribute",
+        allowed_attrs = {
+            "_model_router",
+            "_mapper",
+            "_guardrail",
+            "_executor",
+            "_id_factory",
+            "_confirmation_manager",
+            "_session_locks_guard",
+            "_session_locks",
+        }
+        actual_attrs = set(vars(env.orchestrator))
+        unexpected = actual_attrs - allowed_attrs
+        self.assertEqual(
+            unexpected,
+            set(),
+            f"AgentOrchestrator has unexpected instance attribute(s) {sorted(unexpected)} — "
+            "not on the known DI-port allowlist; verify none of these are a handler/gateway leak",
+        )
+
+
+class Eval02QueryPathZeroHandlerCallsTests(unittest.TestCase):
+    """Acceptance criterion: 'Block/error/query paths gọi handler zero lần'
+    — the query (Guardrail ``ANSWER`` outcome) leg specifically. ``ANSWER``
+    is structurally incapable of reaching the executor
+    (``AgentOrchestrator.handle_message``'s ``ANSWER`` branch never calls
+    ``self._executor.execute(...)`` — it only calls
+    ``model_router.compose_response(...)``), but that guarantee had no test
+    of its own before this one; the BLOCK/error/malformed-response tests
+    above don't exercise this branch at all.
+    """
+
+    def test_answer_outcome_never_calls_the_executor_or_any_handler(self) -> None:
+        router = ScriptedModelRouter(
+            ModelActionProposal.action(
+                "query_vehicle_state", {"action": "get", "target": "current_speed"}, META
             )
+        )
+        guardrail = ScriptedGuardrailClient(
+            decision=lambda proposal, _call: {
+                "contract_version": CONTRACT_VERSION,
+                "kind": "decision",
+                "request_id": "req-grd-answer",
+                "proposal_id": proposal["proposal_id"],
+                "intent": "get_current_speed",
+                "outcome": "ANSWER",
+                "rule_id": "R_EVAL02_QUERY",
+                "state_version": 1,
+                "policy_checksum": _ZERO_CHECKSUM,
+                "reason_code": "GROUNDED_ANSWER",
+                "relevant_state": {},
+                "answer": {"grounded": True, "facts": {"speed_kph": 0}},
+            }
+        )
+        env = _build_environment(router, guardrail)
+
+        result = env.orchestrator.handle_message(_turn_request())
+
+        self.assertEqual(result.status, TurnStatus.COMPLETED)
+        self.assertIsNone(result.execution_id)
+        self.assertEqual(env.executor.call_count, 0)
+        self.assertEqual(env.door_actuator.call_count, 0)
+        self.assertEqual(env.window_actuator.call_count, 0)
 
 
 class Eval02InvalidGuardrailResponseTests(unittest.TestCase):

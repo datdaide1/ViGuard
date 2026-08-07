@@ -469,11 +469,25 @@ def _rule_arguments(action: str, target: str, value: str | None) -> dict[str, st
 def _resolve_tool_name(intent: str) -> str:
     """Look up the domain tool for ``intent`` from the reviewed mapping
     table — fails loudly (KeyError) if the dataset references an intent with
-    no real mapping rule, catching authoring typos immediately."""
-    for rule in DEFAULT_MAPPING_RULES:
-        if rule.intent == intent:
-            return rule.tool_name
-    raise KeyError(f"No DEFAULT_MAPPING_RULES entry for intent {intent!r}")
+    no real mapping rule, catching authoring typos immediately.
+
+    Several intents have more than one ``DEFAULT_MAPPING_RULES`` row (same
+    intent, different ``target``/``value`` — e.g. ``open_window``'s four
+    window-side variants); every such row is required to agree on
+    ``tool_name`` (``ToolMapper._validate_rules`` already enforces this for
+    the real rule table via ``MAPPING_DOMAIN_MISMATCH``, but this dataset
+    doesn't construct a ``ToolMapper``, so it re-checks independently here
+    rather than silently trusting the first match).
+    """
+    matching_tool_names = {rule.tool_name for rule in DEFAULT_MAPPING_RULES if rule.intent == intent}
+    if not matching_tool_names:
+        raise KeyError(f"No DEFAULT_MAPPING_RULES entry for intent {intent!r}")
+    if len(matching_tool_names) > 1:
+        raise RuntimeError(
+            f"DEFAULT_MAPPING_RULES has conflicting tool_name values for intent {intent!r}: "
+            f"{sorted(matching_tool_names)!r}"
+        )
+    return next(iter(matching_tool_names))
 
 
 def _clear_and_paraphrase_items() -> list[DatasetItem]:
