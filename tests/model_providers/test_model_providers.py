@@ -103,9 +103,36 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(result.kind, ProposalKind.ACTION)
         self.assertEqual(result.tool_name, "control_access")
         payload = transport.calls[0][0]
-        self.assertEqual(len(payload["tools"][0]["functionDeclarations"]), 10)
+        declarations = payload["tools"][0]["functionDeclarations"]
+        self.assertEqual(len(declarations), 10)
         self.assertEqual(payload["toolConfig"]["functionCallingConfig"]["mode"], "AUTO")
         self.assertIn("systemInstruction", payload)
+
+        # Regression guard for the confirmed real-API bug (see
+        # evals/eval-01/results/gemini_schema_bug_evidence.json): Gemini's
+        # generateContent parser 400s on oneOf/const/additionalProperties and,
+        # even with those stripped, ignores properties/required nested inside
+        # oneOf branches. Every declaration sent to Gemini must be flat.
+        for declaration in declarations:
+            parameters = declaration["parameters"]
+            self.assertEqual(parameters["type"], "object")
+            self.assertNotIn("oneOf", parameters)
+            self.assertNotIn("additionalProperties", parameters)
+            self.assertIn("properties", parameters)
+            self.assertIn("required", parameters)
+            for prop in parameters["properties"].values():
+                self.assertNotIn("const", prop)
+
+    def test_gemini_flat_schema_lets_model_fill_arguments_in_one_pass(self) -> None:
+        # Reproduces finding_2 from evals/eval-01/results/gemini_schema_bug_evidence.json:
+        # with the old oneOf-nested schema Gemini returned the right tool name but
+        # empty args. The flat schema's args come straight through unmodified, so a
+        # non-empty args dict here would have masked the original bug.
+        transport = SequenceTransport(GEMINI_ACTION)
+        result = self.adapter(GeminiAdapter, transport).propose_tool(
+            [{"role": "user", "content": "Mở cửa lái"}]
+        )
+        self.assertEqual(dict(result.arguments or {}), {"action": "open", "target": "driver_door"})
 
     def test_text_is_clarification_for_proposal_and_response_for_composition(self) -> None:
         proposal_transport = SequenceTransport(

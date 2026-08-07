@@ -110,6 +110,42 @@ class ToolDefinition:
             "parameters": {"oneOf": variants},
         }
 
+    def flat_model_schema(self) -> dict[str, Any]:
+        """Single flat ``properties``/``required`` declaration for providers whose
+        function-calling schema parser does not read ``properties``/``required``
+        nested inside ``oneOf`` branches (confirmed against the real Gemini
+        ``generateContent`` API, which also rejects ``const``/``additionalProperties``
+        outright — see ``evals/eval-01/results/gemini_schema_bug_evidence.json``).
+
+        ``action``/``target``/``value`` are exposed as the union of every signature's
+        allowed values rather than encoded per-variant; the actual
+        ``(action, target, value)`` combination is validated post-hoc by
+        ``ToolRegistry.validate_call`` regardless of which schema shape produced it,
+        so flattening does not weaken enforcement.
+        """
+        actions = sorted({signature.action for signature in self.signatures})
+        targets = sorted({target for signature in self.signatures for target in signature.targets})
+        values = sorted({value for signature in self.signatures for value in signature.values})
+        properties: dict[str, Any] = {
+            "action": {"type": "string", "enum": actions},
+            "target": {"type": "string", "enum": targets},
+        }
+        if values:
+            # Not every signature of this tool requires "value" (e.g. control_cabin
+            # mixes value-bearing and value-free actions), so it cannot be marked
+            # required at the schema level; ToolRegistry.validate_call still
+            # requires it per-action and returns a clarification when it's missing.
+            properties["value"] = {"type": "string", "enum": values}
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": ["action", "target"],
+            },
+        }
+
 
 @dataclass(frozen=True)
 class ToolRegistry:
@@ -122,8 +158,12 @@ class ToolRegistry:
         return tuple(tool.name for tool in self.tools)
 
     def model_tools(self) -> tuple[dict[str, Any], ...]:
-        """Return neutral declarations for provider adapters to serialize."""
+        """Return neutral ``oneOf``-shaped declarations for provider adapters to serialize."""
         return tuple(tool.model_schema() for tool in self.tools)
+
+    def flat_model_tools(self) -> tuple[dict[str, Any], ...]:
+        """Return flattened declarations for providers that cannot parse ``oneOf``-nested schemas."""
+        return tuple(tool.flat_model_schema() for tool in self.tools)
 
     def by_name(self, name: str) -> ToolDefinition:
         for tool in self.tools:

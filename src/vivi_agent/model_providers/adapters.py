@@ -212,7 +212,15 @@ class GeminiAdapter(ModelProviderAdapter):
         payload: dict[str, Any] = {
             "model": self.model_id,
             "contents": contents,
-            "tools": [{"functionDeclarations": list(self.registry.model_tools())}],
+            # Gemini's generateContent function-calling parser rejects the
+            # oneOf/const/additionalProperties shape used for OpenAI's strict mode
+            # outright (HTTP 400) and, once those two keywords are stripped, still
+            # does not read properties/required nested inside oneOf branches
+            # (returns the right tool name with empty args) — see
+            # evals/eval-01/results/gemini_schema_bug_evidence.json. Serialize a
+            # flat declaration instead; ToolRegistry.validate_call performs the
+            # same per-(action, target, value) enforcement regardless of shape.
+            "tools": [{"functionDeclarations": list(self.registry.flat_model_tools())}],
             "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
             "generationConfig": {"maxOutputTokens": self.MAX_OUTPUT_TOKENS},
         }
