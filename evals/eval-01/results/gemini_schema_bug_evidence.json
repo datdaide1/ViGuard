@@ -1,0 +1,369 @@
+{
+  "finding_1_http_400": {
+    "description": "GeminiAdapter._proposal_payload()'s raw output sent as-is to the real Gemini generateContent API",
+    "model_id": "gemini-3.5-flash-lite",
+    "raw_payload_tools_excerpt": {
+      "name": "control_access",
+      "description": "Control vehicle doors and access panels.",
+      "parameters": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "open"
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "bonnet",
+                  "charge_port",
+                  "driver_door",
+                  "trunk"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "lock"
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "all_doors"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "unlock"
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "all_doors"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "target"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "http_status_code": 400,
+    "raw_response_body_full": {
+      "error": {
+        "code": 400,
+        "message": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[2].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[2]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[2].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[2]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[2].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[2]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[3].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[3]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[4].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[4]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[3].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[3].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[4].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[4].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[4].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[4].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[5].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[5].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[5].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[5].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[6].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[6].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[7].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[7].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[7].parameters.one_of[1].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[7].parameters.one_of[1]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[8].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[8].parameters.one_of[0]': Cannot find field.\nInvalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[9].parameters.one_of[0].properties[0].value': Cannot find field.\nInvalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[9].parameters.one_of[0]': Cannot find field.",
+        "status": "INVALID_ARGUMENT",
+        "details": [
+          {
+            "@type": "type.googleapis.com/google.rpc.BadRequest",
+            "fieldViolations": [
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[2].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[0].parameters.one_of[2].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[0].parameters.one_of[2]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[0].parameters.one_of[2]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[2].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[1].parameters.one_of[2].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[1].parameters.one_of[2]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[1].parameters.one_of[2]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[2].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[2].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[2]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[2]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[3].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[3].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[3]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[3]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[4].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[2].parameters.one_of[4].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[2].parameters.one_of[4]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[2].parameters.one_of[4]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[3].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[3].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[3].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[3].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[4].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[4].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[4].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[4].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[4].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[4].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[4].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[4].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[5].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[5].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[5].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[5].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[5].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[5].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[5].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[5].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[6].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[6].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[6].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[6].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[7].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[7].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[7].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[7].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[7].parameters.one_of[1].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[7].parameters.one_of[1].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[7].parameters.one_of[1]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[7].parameters.one_of[1]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[8].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[8].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[8].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[8].parameters.one_of[0]': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[9].parameters.one_of[0].properties[0].value",
+                "description": "Invalid JSON payload received. Unknown name \"const\" at 'tools[0].function_declarations[9].parameters.one_of[0].properties[0].value': Cannot find field."
+              },
+              {
+                "field": "tools[0].function_declarations[9].parameters.one_of[0]",
+                "description": "Invalid JSON payload received. Unknown name \"additionalProperties\" at 'tools[0].function_declarations[9].parameters.one_of[0]': Cannot find field."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finding_2_empty_args_after_schema_fix": {
+    "description": "Same request with const/additionalProperties stripped (const -> enum:[value]) - Gemini accepts the request (HTTP 200) and picks the correct tool, but returns empty arguments, consistent with not reading properties/required nested inside oneOf branches.",
+    "patched_parameters_schema_excerpt": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "open"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "bonnet",
+                "charge_port",
+                "driver_door",
+                "trunk"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "lock"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "all_doors"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "unlock"
+              ]
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "all_doors"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "target"
+          ]
+        }
+      ]
+    },
+    "raw_response_full": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "control_access",
+                  "args": {},
+                  "id": "QaJRdFZK"
+                },
+                "thoughtSignature": "EjQKMgERTTIPjpHq6Vn+XUHSA/459bEfp0rKzcqsV780sCF/tZQ+cMkGmf3HV7VsUr7DqxzL"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0,
+          "finishMessage": "Model generated function call(s)."
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 249,
+        "candidatesTokenCount": 10,
+        "totalTokenCount": 259,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 249
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "modelVersion": "gemini-3.5-flash-lite",
+      "responseId": "yZB1arfOOqPm1e8PueC72QQ"
+    }
+  }
+}

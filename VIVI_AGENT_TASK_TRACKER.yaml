@@ -3,7 +3,7 @@ project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
 branch: vivi-agent/scafford
-status_values: [planned, ready, in_progress, blocked, review, done]
+status_values: [planned, ready, in_progress, blocked, review, done, completed]
 task_count: 48
 p0_count: 39
 completed_count: 0
@@ -112,6 +112,14 @@ tasks:
     priority: P0
     sprint: sprint-1
     status: review
+    known_issues:
+      - >
+        GeminiAdapter's tool schema (via ToolDefinition.model_schema()'s
+        oneOf/const/additionalProperties shape) is rejected/misread by the
+        real Gemini generateContent API — confirmed live during EVAL-01
+        (see evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1 and
+        evals/eval-01/results/gemini_schema_bug_evidence.json). Blocks any
+        live Gemini tool call today. Flagged as a follow-up fix task.
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]
@@ -512,22 +520,42 @@ tasks:
     title: 'Xây Vietnamese tool-selection evaluation set'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: blocked
+    blocked_reason: >
+      Harness (dataset/scoring/runner) built and offline-verified (39 tests).
+      Live measurement blocked: GeminiAdapter's tool schema is rejected/
+      misread by the real Gemini API (confirmed live, see
+      evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1) — a MOD-01 bug
+      flagged as a separate follow-up, out of this ticket's scope to fix.
+      OpenAI side additionally blocked on a missing OPENAI_API_KEY.
     area: evals
     task_file: evals/eval-01/TASK.md
     depends_on: [MAP-02, MOD-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - evals/eval-01/dataset.py
+      - evals/eval-01/scoring.py
+      - evals/eval-01/runner.py
+      - evals/eval-01/transports.py
+      - evals/eval-01/run_live_eval.py
+      - evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md
+      - evals/eval-01/results/gemini_gemini-3.5-flash-lite_smoke.json
+      - evals/eval-01/results/gemini_schema_bug_evidence.json
+      - tests/evals/eval-01/test_eval01_dataset.py
+      - tests/evals/eval-01/test_eval01_scoring.py
+      - tests/evals/eval-01/test_eval01_runner_fake_transport.py
   - id: EVAL-02
     title: 'Xây adversarial execution-boundary suite'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: evals
     task_file: evals/eval-02/TASK.md
     depends_on: [EXEC-01, ORC-01, INT-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/evals/eval-02/test_eval02_adversarial_execution_boundary.py
+      - evals/eval-02/AGENT_SAFETY_TEST_REPORT.md
   - id: PERF-01
     title: 'Benchmark Agent/Vehicle latency và stability'
     priority: P0
