@@ -76,8 +76,16 @@ def bridge_active_action_handler(
     scope_name: str,
     actor_id: str | None = None,
 ) -> Callable[[Mapping[str, Any]], dict[str, Any]]:
-    """Wrap :class:`ActiveActionHandler` so successful execution registers/
-    unregisters an :class:`ActiveActionRecord`.
+    """Wrap :class:`ActiveActionHandler` so successful execution registers a
+    real :class:`ActiveActionRecord` in ``registry``.
+
+    Only handles the *registration* side of the lifecycle — this wrapper
+    calls ``registry.start_action(...)`` and nothing else. Unregistration
+    (stop/fail) happens later, out-of-band, via a stop handler installed with
+    ``registry.register_stop_handler(...)`` (see
+    ``register_hda_aac_stop_handlers``/``register_autopark_campmode_stop_handlers``)
+    reacting to a Guardrail monitor decision — this function has no part in
+    that path.
 
     Intended to be registered in ``HandlerRegistry`` in place of the raw
     ``ActiveActionHandler`` for a monitored active-action intent — the wrapped
