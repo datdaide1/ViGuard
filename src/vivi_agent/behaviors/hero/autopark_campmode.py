@@ -39,16 +39,15 @@ from dataclasses import replace
 from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
-from vivi_agent.active_actions.registry import (
-    SUPERSEDED_BY_NEW_START_REASON,
-    ActiveActionRegistry,
-)
+from vivi_agent.active_actions.registry import ActiveActionRegistry
 from vivi_agent.behaviors.hero._active_action_common import (
     MonitoredActionHeroBehaviorBase,
-    apply_system_patch,
+    apply_monitor_stop_patch,
+    assert_subset_of_monitored_intents,
     bridge_active_action_handler,
+    drop_active_action,
+    is_restart_supersede,
 )
-from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
 from vivi_agent.vehicle.execution.generic import BehaviorConfig
 from vivi_agent.vehicle.state.machine import VehicleStateMachine
 from vivi_agent.vehicle.state.model import AutoparkState, VehicleState
@@ -59,14 +58,7 @@ from vivi_agent.vehicle.state.model import AutoparkState, VehicleState
 # HERO-03 scope (e.g. activate_petmode), instead of silently behaving as if
 # that intent's wiring were already done.
 AUTOPARK_CAMPMODE_INTENTS: frozenset[str] = frozenset({"activate_autopark", "activate_campmode"})
-if not AUTOPARK_CAMPMODE_INTENTS <= _CATALOG_MONITORED_INTENTS:
-    # Fail loudly, matching catalog/manifest.py's own MONITOR_COVERAGE_MISMATCH
-    # check, instead of letting this module's narrower scope silently drift
-    # out of sync with the catalog's declared monitored-intent set.
-    raise RuntimeError(
-        f"AUTOPARK_CAMPMODE_INTENTS {sorted(AUTOPARK_CAMPMODE_INTENTS)} is not a subset of "
-        f"catalog.manifest.MONITORED_INTENTS {sorted(_CATALOG_MONITORED_INTENTS)}"
-    )
+assert_subset_of_monitored_intents(AUTOPARK_CAMPMODE_INTENTS, label="AUTOPARK_CAMPMODE_INTENTS")
 
 # Display names match src/vivi_agent/queries/knowledge.py's FeatureKnowledge
 # entries for "auto_park"/"camp_mode" so a stop/fail notice and a knowledge
@@ -120,23 +112,6 @@ def make_monitored_active_action_handler(
 # ---------------------------------------------------------------------------
 
 
-def _apply_system_patch(
-    state_machine: VehicleStateMachine,
-    record: ActiveActionRecord,
-    patch_fn: Callable[[VehicleState], VehicleState],
-) -> None:
-    """Shared SYSTEM-actor transition boilerplate for the fail-safe stop handlers below."""
-    apply_system_patch(
-        state_machine,
-        intent=record.intent,
-        session_id=record.session_id,
-        action_id=record.action_id,
-        actor_id="guardrail_monitor_stop",
-        correlation_prefix="monitor_stop",
-        patch_fn=patch_fn,
-    )
-
-
 def _apply_autopark_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
     """Turn ``adas.autopark_state`` off and drop the matching active_action entry."""
     current = state_machine.snapshot()
@@ -145,7 +120,7 @@ def _apply_autopark_off(state_machine: VehicleStateMachine, record: ActiveAction
         return  # already off, nothing to clean up — skip a wasted apply()/event
 
     def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         new_adas = (
             replace(state.adas, autopark_state=AutoparkState.OFF)
             if state.adas.autopark_state is not AutoparkState.OFF
@@ -153,7 +128,7 @@ def _apply_autopark_off(state_machine: VehicleStateMachine, record: ActiveAction
         )
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
 
 
 def _apply_campmode_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
@@ -163,13 +138,13 @@ def _apply_campmode_off(state_machine: VehicleStateMachine, record: ActiveAction
         return  # already off, nothing to clean up — skip a wasted apply()/event
 
     def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         new_modes = (
             replace(state.modes, camp_mode_active=False) if state.modes.camp_mode_active else state.modes
         )
         return replace(state, modes=new_modes, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
 
 
 def register_autopark_campmode_stop_handlers(
@@ -186,17 +161,15 @@ def register_autopark_campmode_stop_handlers(
     """
 
     def _stop_autopark(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             # A same-session restart, not a real stop: a fresh
             # activate_autopark record already exists and now owns
-            # adas.autopark_state. Telemetry is unaffected by the agent
-            # restarting its own bookkeeping, so leave the real vehicle state
-            # alone instead of force-disengaging it out from under the new run.
+            # adas.autopark_state.
             return
         _apply_autopark_off(state_machine, record)
 
     def _stop_campmode(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             return  # same rationale as _stop_autopark above
         _apply_campmode_off(state_machine, record)
 
@@ -224,4 +197,7 @@ class AutoparkCampmodeMonitorHeroBehavior(MonitoredActionHeroBehaviorBase):
     # assertion above keeps it a subset of the catalog's set, so the two
     # can't silently drift.
     HANDLED_INTENTS: frozenset[str] = AUTOPARK_CAMPMODE_INTENTS
-    DISPLAY_NAMES: dict[str, str] = _DISPLAY_NAMES
+    # Defensive copy: a class attribute bound directly to the module-level
+    # dict would let an in-place mutation of DISPLAY_NAMES on this class leak
+    # back into _DISPLAY_NAMES (and therefore every other user of it).
+    DISPLAY_NAMES: dict[str, str] = dict(_DISPLAY_NAMES)

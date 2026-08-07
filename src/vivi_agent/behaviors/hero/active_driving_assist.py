@@ -38,16 +38,15 @@ from dataclasses import replace
 from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
-from vivi_agent.active_actions.registry import (
-    SUPERSEDED_BY_NEW_START_REASON,
-    ActiveActionRegistry,
-)
+from vivi_agent.active_actions.registry import ActiveActionRegistry
 from vivi_agent.behaviors.hero._active_action_common import (
     MonitoredActionHeroBehaviorBase,
-    apply_system_patch,
+    apply_monitor_stop_patch,
+    assert_subset_of_monitored_intents,
     bridge_active_action_handler,
+    drop_active_action,
+    is_restart_supersede,
 )
-from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
 from vivi_agent.vehicle.execution.generic import BehaviorConfig
 from vivi_agent.vehicle.state.machine import VehicleStateMachine
 from vivi_agent.vehicle.state.model import AccState, VehicleState
@@ -57,14 +56,7 @@ from vivi_agent.vehicle.state.model import AccState, VehicleState
 # so this module fails loudly if ever asked to handle an intent outside its
 # HERO-02 scope, instead of silently behaving as if HERO-03 were already done.
 HDA_AAC_INTENTS: frozenset[str] = frozenset({"activate_hda", "activate_aac"})
-if not HDA_AAC_INTENTS <= _CATALOG_MONITORED_INTENTS:
-    # Fail loudly, matching catalog/manifest.py's own MONITOR_COVERAGE_MISMATCH
-    # check, instead of letting this module's narrower scope silently drift
-    # out of sync with the catalog's declared monitored-intent set.
-    raise RuntimeError(
-        f"HDA_AAC_INTENTS {sorted(HDA_AAC_INTENTS)} is not a subset of "
-        f"catalog.manifest.MONITORED_INTENTS {sorted(_CATALOG_MONITORED_INTENTS)}"
-    )
+assert_subset_of_monitored_intents(HDA_AAC_INTENTS, label="HDA_AAC_INTENTS")
 
 _DISPLAY_NAMES: dict[str, str] = {
     "activate_hda": "Hỗ trợ lái trên cao tốc (HDA)",
@@ -115,23 +107,6 @@ def make_monitored_active_action_handler(
 # ---------------------------------------------------------------------------
 
 
-def _apply_system_patch(
-    state_machine: VehicleStateMachine,
-    record: ActiveActionRecord,
-    patch_fn: Callable[[VehicleState], VehicleState],
-) -> None:
-    """Shared SYSTEM-actor transition boilerplate for the fail-safe stop handlers below."""
-    apply_system_patch(
-        state_machine,
-        intent=record.intent,
-        session_id=record.session_id,
-        action_id=record.action_id,
-        actor_id="guardrail_monitor_stop",
-        correlation_prefix="monitor_stop",
-        patch_fn=patch_fn,
-    )
-
-
 def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
     """Turn ``adas.hda_active`` off and drop the matching active_action entry."""
     current = state_machine.snapshot()
@@ -139,11 +114,11 @@ def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecor
         return  # already off, nothing to clean up — skip a wasted apply()/event
 
     def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         new_adas = replace(state.adas, hda_active=False) if state.adas.hda_active else state.adas
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
 
 
 def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> bool:
@@ -166,12 +141,12 @@ def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActio
         nonlocal cascaded
         cascaded = state.adas.hda_active
         new_adas = replace(state.adas, acc_state=AccState.CANCELLED, hda_active=False)
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         if cascaded:
             remaining = tuple(a for a in remaining if a.intent != "activate_hda")
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
     return cascaded
 
 
@@ -188,17 +163,14 @@ def register_hda_aac_stop_handlers(
     """
 
     def _stop_hda(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             # A same-session restart, not a real stop: a fresh activate_hda
-            # record already exists and now owns adas.hda_active. Telemetry is
-            # unaffected by the agent restarting its own bookkeeping, so leave
-            # the real vehicle state alone instead of force-disengaging it out
-            # from under the new run.
+            # record already exists and now owns adas.hda_active.
             return
         _apply_hda_off(state_machine, record)
 
     def _stop_aac(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             return  # same rationale as _stop_hda above
         hda_cascaded = _apply_aac_cancelled(state_machine, record)
         if not hda_cascaded:
@@ -244,4 +216,7 @@ class AdasMonitorHeroBehavior(MonitoredActionHeroBehaviorBase):
     # Guardrail monitors. HDA_AAC_INTENTS's own module-level assertion above
     # keeps it a subset of the catalog's set, so the two can't silently drift.
     HANDLED_INTENTS: frozenset[str] = HDA_AAC_INTENTS
-    DISPLAY_NAMES: dict[str, str] = _DISPLAY_NAMES
+    # Defensive copy: a class attribute bound directly to the module-level
+    # dict would let an in-place mutation of DISPLAY_NAMES on this class leak
+    # back into _DISPLAY_NAMES (and therefore every other user of it).
+    DISPLAY_NAMES: dict[str, str] = dict(_DISPLAY_NAMES)

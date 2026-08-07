@@ -239,3 +239,37 @@ class TestGroundedMessages:
         message = AutoparkCampmodeMonitorHeroBehavior.build_fail_message(record, "guardrail_timeout")
         assert "guardrail_timeout" in message
         assert "Chế độ cắm trại" in message
+
+    def test_stop_message_rejects_monitor_result_for_a_different_record(self):
+        """A caller pairing the wrong record with the wrong monitor_result (e.g.
+        mis-zipping while iterating multiple running records) must fail loudly
+        instead of silently citing the wrong rule_id/reason_code."""
+        registry = ActiveActionRegistry()
+        record = registry.start_action(intent="activate_campmode", session_id="sess-1")
+        monitor_result_for_a_different_record = {
+            "action_id": "act-other",
+            "intent": "activate_autopark",
+            "outcome": "BLOCK_UNSAFE",
+            "stopped": True,
+            "reason_code": "PARKING_SPACE_LOST",
+            "rule_id": "R048",
+        }
+        with pytest.raises(ValueError, match="does not match"):
+            AutoparkCampmodeMonitorHeroBehavior.build_stop_message(record, monitor_result_for_a_different_record)
+
+    def test_fail_message_rejects_record_outside_scope(self):
+        registry = ActiveActionRegistry()
+        record = registry.start_action(intent="activate_hda", session_id="sess-1")
+        with pytest.raises(ValueError, match="only handles"):
+            AutoparkCampmodeMonitorHeroBehavior.build_fail_message(record, "guardrail_timeout")
+
+    def test_display_names_mutation_does_not_leak_into_module_dict(self):
+        """DISPLAY_NAMES must be a defensive copy, not an alias of the module-level dict."""
+        from vivi_agent.behaviors.hero.autopark_campmode import _DISPLAY_NAMES
+
+        original = _DISPLAY_NAMES["activate_campmode"]
+        AutoparkCampmodeMonitorHeroBehavior.DISPLAY_NAMES["activate_campmode"] = "mutated"
+        try:
+            assert _DISPLAY_NAMES["activate_campmode"] == original
+        finally:
+            AutoparkCampmodeMonitorHeroBehavior.DISPLAY_NAMES["activate_campmode"] = original

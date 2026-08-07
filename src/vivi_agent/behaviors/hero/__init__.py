@@ -6,10 +6,14 @@ Contains reference implementations for high-priority hero user interaction flows
 - HERO-03: activate_autopark, activate_campmode
 - HERO-04: confirmation flow
 
-Note: HERO-02 and HERO-03 both expose a ``make_monitored_active_action_handler``
-— import each from its own submodule (``active_driving_assist`` /
-``autopark_campmode``) when wiring more than one, since this package's
-top-level re-export can only bind one name to it.
+Note: HERO-02 and HERO-03 both define a module-local
+``make_monitored_active_action_handler`` (in ``active_driving_assist`` /
+``autopark_campmode`` respectively) — each is scoped to its own module's
+intents and raises ``ValueError`` for anything outside it. This package
+re-exports both under disambiguated names
+(``make_monitored_hda_aac_handler`` / ``make_monitored_autopark_campmode_handler``)
+rather than picking one to own the unqualified name, since that would let a
+caller silently wire the wrong factory for an intent outside its scope.
 """
 
 from vivi_agent.behaviors.hero._active_action_common import MonitorOutcome
@@ -36,11 +40,6 @@ from vivi_agent.behaviors.hero.open_door import (
     reset_open_door_state,
 )
 
-# Backward-compatible alias: pre-HERO-03 call sites imported the HDA/AAC
-# handler factory under this unqualified name. New call sites that need both
-# factories should use the disambiguated names above instead.
-make_monitored_active_action_handler = make_monitored_hda_aac_handler
-
 __all__ = [
     "OpenDoorHeroBehavior",
     "OpenDoorStateGuardResult",
@@ -49,7 +48,6 @@ __all__ = [
     "HDA_AAC_INTENTS",
     "AdasMonitorHeroBehavior",
     "MonitorOutcome",
-    "make_monitored_active_action_handler",
     "make_monitored_hda_aac_handler",
     "register_hda_aac_stop_handlers",
     "AUTOPARK_CAMPMODE_INTENTS",

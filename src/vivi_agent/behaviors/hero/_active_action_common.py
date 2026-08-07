@@ -16,11 +16,55 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
-from vivi_agent.active_actions.registry import ActiveActionRegistry
+from vivi_agent.active_actions.registry import (
+    SUPERSEDED_BY_NEW_START_REASON,
+    ActiveActionRegistry,
+)
+from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
 from vivi_agent.vehicle.execution.generic import ActiveActionHandler, BehaviorConfig
 from vivi_agent.vehicle.state.events import ActorKind
 from vivi_agent.vehicle.state.machine import VehicleStateMachine
-from vivi_agent.vehicle.state.model import ActiveActionPhase, VehicleState
+from vivi_agent.vehicle.state.model import ActiveAction, ActiveActionPhase, VehicleState
+
+
+def assert_subset_of_monitored_intents(intents: frozenset[str], *, label: str) -> None:
+    """Fail loudly at import time if ``intents`` isn't a subset of
+    ``catalog.manifest.MONITORED_INTENTS``.
+
+    Each hero module calls this for its own narrow allowed-intents set right
+    after defining it, matching ``catalog/manifest.py``'s own
+    ``MONITOR_COVERAGE_MISMATCH`` check — a hero module's declared scope must
+    never silently drift out of sync with the catalog's declared
+    monitored-intent set.
+    """
+    if not intents <= _CATALOG_MONITORED_INTENTS:
+        raise RuntimeError(
+            f"{label} {sorted(intents)} is not a subset of "
+            f"catalog.manifest.MONITORED_INTENTS {sorted(_CATALOG_MONITORED_INTENTS)}"
+        )
+
+
+def is_restart_supersede(reason: str) -> bool:
+    """True when ``reason`` is :data:`SUPERSEDED_BY_NEW_START_REASON` — a
+    same-session restart, not a real stop.
+
+    A stop handler must treat this as a no-op on real vehicle state: a fresh
+    record for the same intent already exists and now owns the field, and
+    telemetry is unaffected by the agent restarting its own bookkeeping, so
+    forcing the field off would disengage the *new* run instead of doing
+    nothing.
+    """
+    return reason == SUPERSEDED_BY_NEW_START_REASON
+
+
+def drop_active_action(state: VehicleState, action_id: Any) -> tuple[ActiveAction, ...]:
+    """Return ``state.active_actions`` with the entry matching ``action_id`` removed.
+
+    A no-op (returns the same tuple) if no entry matches — callers that want
+    to skip a wasted ``apply()`` when nothing changed can compare the result
+    against ``state.active_actions`` themselves.
+    """
+    return tuple(a for a in state.active_actions if a.action_id != action_id)
 
 
 def bridge_active_action_handler(
@@ -101,7 +145,7 @@ def remove_orphaned_active_action(
         return
 
     def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != action_id)
+        remaining = drop_active_action(state, action_id)
         return state if remaining == state.active_actions else replace(state, active_actions=remaining)
 
     state_machine.apply(
@@ -133,6 +177,26 @@ def apply_system_patch(
         # transition is traceable in logs/audit without cross-referencing the
         # registry for context.
         correlation_id=f"{correlation_prefix}_{intent}_{session_id or 'unknown_session'}_{action_id}",
+    )
+
+
+def apply_monitor_stop_patch(
+    state_machine: VehicleStateMachine,
+    record: ActiveActionRecord,
+    patch_fn: Callable[[VehicleState], VehicleState],
+) -> None:
+    """:func:`apply_system_patch` specialised for a Guardrail monitor-triggered
+    fail-safe stop — actor_id/correlation_prefix are fixed, since every hero
+    module's monitor-stop handler uses the same two literals.
+    """
+    apply_system_patch(
+        state_machine,
+        intent=record.intent,
+        session_id=record.session_id,
+        action_id=record.action_id,
+        actor_id="guardrail_monitor_stop",
+        correlation_prefix="monitor_stop",
+        patch_fn=patch_fn,
     )
 
 
@@ -204,6 +268,18 @@ class MonitoredActionHeroBehaviorBase:
             return cls.build_fail_message(record, str(monitor_result.get("error") or "lỗi không xác định"))
 
         outcome = cls.evaluate_monitor_result(monitor_result)
+        if outcome.intent != record.intent:
+            # Defends against a caller pairing the wrong record with the wrong
+            # monitor_result (e.g. iterating multiple running records and
+            # zipping them incorrectly) — evaluate_monitor_result above only
+            # checked that monitor_result's intent is *in scope*, not that it
+            # actually belongs to this record, so a mismatch would otherwise
+            # silently produce a message with the right display name but the
+            # wrong rule_id/reason_code.
+            raise ValueError(
+                f"monitor_result intent {outcome.intent!r} does not match "
+                f"record intent {record.intent!r} (action_id={record.action_id!r})"
+            )
         display_name = cls.DISPLAY_NAMES.get(record.intent, record.active_action_name)
         reason = outcome.reason_code or "yêu cầu an toàn từ Guardrail"
         rule = outcome.rule_id or "không xác định"
@@ -215,5 +291,13 @@ class MonitoredActionHeroBehaviorBase:
     @classmethod
     def build_fail_message(cls, record: ActiveActionRecord, error: str) -> str:
         """Grounded Vietnamese failure notice for a fail-safe monitor-error stop."""
+        if record.intent not in cls.HANDLED_INTENTS:
+            # Same "fail loudly on scope violation" guarantee as
+            # evaluate_monitor_result — a GuardrailMonitorAdapter ERROR outcome
+            # carries no reason_code/rule_id to validate, so record.intent is
+            # the only scope signal available on this path.
+            raise ValueError(
+                f"{cls.__name__} only handles {sorted(cls.HANDLED_INTENTS)}, got record.intent={record.intent!r}"
+            )
         display_name = cls.DISPLAY_NAMES.get(record.intent, record.active_action_name)
         return f"{display_name} đã dừng do lỗi giám sát an toàn: {error}."
