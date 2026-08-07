@@ -522,12 +522,14 @@ tasks:
     title: 'Xây adversarial execution-boundary suite'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: evals
     task_file: evals/eval-02/TASK.md
     depends_on: [EXEC-01, ORC-01, INT-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/evals/eval-02/test_eval02_adversarial_execution_boundary.py
+      - evals/eval-02/AGENT_SAFETY_TEST_REPORT.md
   - id: PERF-01
     title: 'Benchmark Agent/Vehicle latency và stability'
     priority: P0

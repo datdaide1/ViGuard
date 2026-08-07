@@ -15,3 +15,8 @@ achive/
 # Python-generated artifacts
 __pycache__/
 *.py[cod]
+
+# Local secrets — never commit API keys
+.env
+.env.*
+!.env.example
