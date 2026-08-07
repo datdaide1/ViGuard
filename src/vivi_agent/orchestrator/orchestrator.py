@@ -98,6 +98,27 @@ class ExecutionResult:
             raise ValueError("failed execution requires a typed error")
         object.__setattr__(self, "facts", MappingProxyType(dict(self.facts)))
 
+    def to_dict(self) -> dict[str, Any]:
+        """Stable, JSON-serializable shape — mirrors TurnError.to_dict().
+
+        Without this, any caller reaching for a plain-dict view of an
+        ExecutionResult (logging, an HTTP response, a downstream consumer
+        like ConfirmationManager.confirm()) has to duck-type around a frozen,
+        non-iterable dataclass carrying a MappingProxyType field and a nested
+        TurnError — both of which break naive conversions
+        (``dict(instance)`` raises ``TypeError: not iterable``;
+        ``dataclasses.asdict(instance)`` raises ``TypeError: cannot pickle
+        'mappingproxy' object``).
+        """
+        return {
+            "success": self.success,
+            "execution_id": self.execution_id,
+            "message": self.message,
+            "state_version": self.state_version,
+            "facts": dict(self.facts),
+            "error": self.error.to_dict() if self.error is not None else None,
+        }
+
 
 @dataclass(frozen=True)
 class TurnResult:
@@ -134,6 +155,23 @@ class ActionExecutor(Protocol):
     ) -> ExecutionResult: ...
 
 
+class ConfirmationRegistrar(Protocol):
+    """Confirmation-tracking port implemented by CNF-01's ConfirmationManager.
+
+    A structural Protocol (not a concrete import of
+    ``confirmation.manager.ConfirmationManager``) — matches
+    ``GuardrailClient``/``ActionExecutor`` above: this module owns only the
+    ports it calls through, not the concrete adapters that satisfy them.
+    """
+
+    def register_pending(
+        self,
+        decision: Mapping[str, Any],
+        proposal: Mapping[str, Any],
+        turn_id: str,
+    ) -> Any: ...
+
+
 class CancellationToken:
     def __init__(self) -> None:
         self._event = threading.Event()
@@ -165,12 +203,24 @@ class AgentOrchestrator:
         guardrail: GuardrailClient,
         executor: ActionExecutor,
         id_factory: Callable[[str], str] | None = None,
+        confirmation_manager: ConfirmationRegistrar | None = None,
     ) -> None:
         self._model_router = model_router
         self._mapper = mapper
         self._guardrail = guardrail
         self._executor = executor
         self._id_factory = id_factory or (lambda prefix: f"{prefix}-{uuid.uuid4().hex}")
+        # Optional port (mirrors guardrail/executor above): when supplied, a
+        # Guardrail CONFIRM decision is registered here so a later
+        # ConfirmationManager.confirm()/.cancel() call for the same
+        # confirmation_id can find it. Without this, CNF-01's ConfirmationManager
+        # was fully built but never reachable — handle_message validated and
+        # returned a NEEDS_CONFIRMATION result, but nothing ever called
+        # register_pending(), so confirm() always failed with
+        # CONFIRMATION_NOT_FOUND. Left optional (defaulting to None, a no-op)
+        # so existing callers that don't need confirmation tracking are
+        # unaffected.
+        self._confirmation_manager = confirmation_manager
         self._session_locks_guard = threading.Lock()
         self._session_locks: dict[str, tuple[threading.Lock, int]] = {}
 
@@ -257,6 +307,14 @@ class AgentOrchestrator:
 
                 if outcome == "CONFIRM":
                     confirmation = self._validate_confirmation(decision, proposal_id)
+                    if self._confirmation_manager is not None:
+                        # Only after _validate_confirmation has confirmed the
+                        # payload is well-formed (correlated proposal_id,
+                        # single_use, a real future expiry) — register_pending
+                        # trusts its caller not to hand it a malformed decision.
+                        self._confirmation_manager.register_pending(
+                            decision, action_proposal, request.turn_id
+                        )
                     trace.append(TurnState.AWAITING_CONFIRMATION)
                     return TurnResult(
                         TurnStatus.NEEDS_CONFIRMATION,

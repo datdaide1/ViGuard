@@ -315,6 +315,40 @@ def test_message_endpoint_returns_contract_valid_payload():
     assert response["execution_id"] == "execution-1"
 
 
+def test_execution_result_to_dict_is_json_serializable():
+    """Without to_dict(), a plain dict(ExecutionResult(...)) raises TypeError
+    (frozen dataclass, not iterable) and dataclasses.asdict() raises on the
+    MappingProxyType `facts` field — see confirmation/manager.py's
+    _execution_result_to_dict for the consumer this originally broke."""
+    import json
+
+    result = ExecutionResult(
+        success=False,
+        execution_id="exec-1",
+        message="denied",
+        state_version=3,
+        facts={"intent": "open_window"},
+        error=TurnError(code="EXECUTION_DENIED", message="denied", retryable=False),
+    )
+
+    as_dict = result.to_dict()
+
+    assert as_dict == {
+        "success": False,
+        "execution_id": "exec-1",
+        "message": "denied",
+        "state_version": 3,
+        "facts": {"intent": "open_window"},
+        "error": {"code": "EXECUTION_DENIED", "message": "denied", "retryable": False},
+    }
+    json.dumps(as_dict)  # must not raise
+
+
+def test_execution_result_to_dict_success_has_no_error():
+    result = ExecutionResult(success=True, execution_id="exec-2", message="ok")
+    assert result.to_dict()["error"] is None
+
+
 def test_orchestrator_has_no_action_handler_registry_reference():
     root = Path(__file__).parents[2] / "src" / "vivi_agent" / "orchestrator"
     for source_path in root.glob("*.py"):

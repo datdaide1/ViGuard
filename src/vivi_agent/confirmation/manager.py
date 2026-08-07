@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Mapping
+from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -90,6 +92,54 @@ class ConfirmationManager:
         except (ValueError, TypeError):
             return False
 
+    @staticmethod
+    def _execution_result_to_dict(exec_result: Any) -> dict[str, Any]:
+        """Normalize an executor's return value to a plain, JSON-serializable dict.
+
+        ``executor`` is intentionally typed ``Any`` (no import of a concrete
+        result type — importing ``orchestrator.orchestrator.ExecutionResult``
+        here would cycle back through ``orchestrator``'s own import of this
+        module). Handles, in order:
+
+        1. An object with its own ``to_dict()`` — the real
+           ``orchestrator.orchestrator.ExecutionResult`` returned by
+           ``VehicleToolGateway.execute``/``orchestrator.ActionExecutor``
+           implementations takes this path (``ExecutionResult.to_dict()``
+           recursively converts its nested ``TurnError`` and
+           ``MappingProxyType`` fields into plain dict/JSON-safe values).
+        2. A plain dataclass instance with no ``to_dict()`` — a fallback for
+           any *other* dataclass-shaped executor result. Uses a *shallow*
+           field extraction, not ``dataclasses.asdict()``: ``asdict()``
+           recursively deep-copies every field and would explode on a
+           ``MappingProxyType`` field with ``TypeError: cannot pickle
+           'mappingproxy' object`` (the exact crash ``ExecutionResult`` hit
+           before it gained its own ``to_dict()``). This path's output may
+           contain non-dict nested dataclass values (e.g. an ``error`` field)
+           — callers needing a fully JSON-serializable result should give
+           their result type a ``to_dict()`` instead of relying on this
+           fallback.
+        3. A dict/Mapping already in the expected shape (what CNF-01's own
+           unit tests pass via a plain-dict-returning mock).
+
+        Raises
+        ------
+        TypeError
+            If ``exec_result`` is none of the above — surfaces a clear,
+            actionable message instead of the raw ``dict(exec_result)``
+            ``TypeError: '...' object is not iterable``.
+        """
+        if hasattr(exec_result, "to_dict"):
+            return exec_result.to_dict()
+        if is_dataclass(exec_result) and not isinstance(exec_result, type):
+            return {f.name: getattr(exec_result, f.name) for f in dataclass_fields(exec_result)}
+        if isinstance(exec_result, Mapping):
+            return dict(exec_result)
+        raise TypeError(
+            f"executor.execute() returned {type(exec_result).__name__!r}, which is none of: "
+            "an object with to_dict(), a dataclass instance, or a Mapping — cannot normalize "
+            "to a dict for ConfirmationResult.execution."
+        )
+
     def confirm(
         self,
         confirmation_id: str,
@@ -98,6 +148,7 @@ class ConfirmationManager:
         executor: Any = None,
         request_id: str | None = None,
         now: datetime | None = None,
+        cancellation: Any = None,
     ) -> ConfirmationResult:
         """Resolve a pending confirmation via fresh Guardrail re-evaluation.
 
@@ -106,6 +157,14 @@ class ConfirmationManager:
         - Obtains fresh decision & single-use permit from Guardrail `confirm`.
         - Rejects expired, wrong session, or already consumed confirmations under lock.
         - Executes vehicle action ONLY if fresh decision outcome is `ALLOW`.
+
+        ``executor`` is called as ``executor.execute(proposal, decision, cancellation)``
+        — the same three-positional-argument shape as
+        ``orchestrator.ActionExecutor``/``VehicleToolGateway.execute`` (proposal,
+        the full fresh decision object carrying the permit, then an optional
+        cancellation token) — so any real gateway/orchestrator executor is a
+        drop-in match. ``cancellation`` defaults to ``None``, which
+        ``VehicleToolGateway.execute`` already treats as "not cancelled".
         """
         with self._lock:
             pending = self._pending.get(confirmation_id)
@@ -122,9 +181,14 @@ class ConfirmationManager:
                     message="Yêu cầu xác nhận không tồn tại.",
                 )
 
+            # A leading `session_id and` here would short-circuit the whole
+            # check to False whenever the caller passes a falsy session_id —
+            # skipping session ownership entirely instead of failing closed.
+            # pending.session_id (once registered from a real turn) is the
+            # authoritative side of this comparison; a missing/empty caller
+            # session_id must never bypass it.
             if (
-                session_id
-                and pending.session_id
+                pending.session_id
                 and pending.session_id != "unknown"
                 and session_id != pending.session_id
             ):
@@ -164,6 +228,28 @@ class ConfirmationManager:
                     message="Yêu cầu xác nhận đã hết hạn.",
                 )
 
+            if getattr(cancellation, "cancelled", False):
+                # Short-circuit BEFORE calling Guardrail or consuming the
+                # single-use token: without this, an already-cancelled
+                # cancellation token was only ever checked once it reached
+                # executor.execute(), by which point confirm() had already
+                # burned a fresh Guardrail re-evaluation and irreversibly
+                # marked the confirmation CONSUMED — a caller that already
+                # knows the request should not proceed gets neither the
+                # Guardrail call nor the single-use token back. Leaving
+                # pending.state untouched (still PENDING) lets a genuine
+                # retry (without a stale/cancelled token) still succeed.
+                return ConfirmationResult(
+                    status="failed",
+                    confirmation_id=confirmation_id,
+                    state=ConfirmationState.PENDING,
+                    error={
+                        "code": "EXECUTION_CANCELLED",
+                        "message": "Confirmation resolution was cancelled before Guardrail re-evaluation",
+                    },
+                    message="Yêu cầu xác nhận đã bị hủy trước khi xử lý.",
+                )
+
             # Mark in-flight / confirmed state under lock to prevent concurrent re-evaluation
             pending.state = ConfirmationState.CONFIRMED
 
@@ -197,12 +283,20 @@ class ConfirmationManager:
 
         # Only execute if fresh decision outcome is ALLOW
         if outcome_str == "ALLOW":
-            fresh_permit = fresh_decision.get("permit")
             if executor is not None:
                 try:
-                    exec_result = executor.execute(pending.action_proposal, fresh_decision, fresh_permit)
-                    exec_dict = exec_result.to_dict() if hasattr(exec_result, "to_dict") else dict(exec_result)
-                    exec_success = exec_dict.get("success", True)
+                    # fresh_decision (not a bare permit) is the second argument —
+                    # it already carries fresh_decision["permit"], and every real
+                    # executor (VehicleToolGateway.execute, orchestrator's
+                    # ActionExecutor) reads the permit out of the decision object
+                    # itself rather than accepting it as a separate parameter.
+                    exec_result = executor.execute(pending.action_proposal, fresh_decision, cancellation)
+                    exec_dict = self._execution_result_to_dict(exec_result)
+                    # Fail-closed default: an executor result missing a
+                    # "success" key entirely must never be read as a silent
+                    # success — matches this module's own "guarantees zero
+                    # pre-authorization executions" design principle.
+                    exec_success = exec_dict.get("success", False)
                     return ConfirmationResult(
                         status="completed" if exec_success else "failed",
                         confirmation_id=confirmation_id,
@@ -264,9 +358,14 @@ class ConfirmationManager:
                     message="Yêu cầu xác nhận không tồn tại.",
                 )
 
+            # A leading `session_id and` here would short-circuit the whole
+            # check to False whenever the caller passes a falsy session_id —
+            # skipping session ownership entirely instead of failing closed.
+            # pending.session_id (once registered from a real turn) is the
+            # authoritative side of this comparison; a missing/empty caller
+            # session_id must never bypass it.
             if (
-                session_id
-                and pending.session_id
+                pending.session_id
                 and pending.session_id != "unknown"
                 and session_id != pending.session_id
             ):

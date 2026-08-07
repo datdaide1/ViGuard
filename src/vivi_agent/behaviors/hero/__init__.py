@@ -33,6 +33,10 @@ from vivi_agent.behaviors.hero.autopark_campmode import (
 from vivi_agent.behaviors.hero.autopark_campmode import (
     make_monitored_active_action_handler as make_monitored_autopark_campmode_handler,
 )
+from vivi_agent.behaviors.hero.confirmation import (
+    CONFIRMATION_HERO_INTENT,
+    ConfirmationHeroBehavior,
+)
 from vivi_agent.behaviors.hero.open_door import (
     FakeStateCheckResult,
     OpenDoorHeroBehavior,
@@ -54,4 +58,6 @@ __all__ = [
     "AutoparkCampmodeMonitorHeroBehavior",
     "make_monitored_autopark_campmode_handler",
     "register_autopark_campmode_stop_handlers",
+    "CONFIRMATION_HERO_INTENT",
+    "ConfirmationHeroBehavior",
 ]

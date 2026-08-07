@@ -464,12 +464,17 @@ tasks:
     title: 'Hoàn thiện confirmation behavior'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-04/TASK.md
     depends_on: [CNF-01, INT-01, INT-02]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/confirmation.py
+      - src/vivi_agent/confirmation/manager.py
+      - src/vivi_agent/orchestrator/orchestrator.py
+      - tests/behaviors/test_hero_confirmation.py
+      - tests/integration/hero/test_hero04_confirmation.py
   - id: SCN-01
     title: 'Scenario “Agent bị lừa nhưng xe vẫn an toàn”'
     priority: P0
