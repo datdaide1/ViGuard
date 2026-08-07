@@ -8,8 +8,9 @@ monitor stop decision never reached the real :class:`VehicleState` (see
 ``src/vivi_agent/adapters/monitor/mon-adp-01/DEFERRED_FOLLOWUPS.md``, gap #1).
 
 This module closes that gap **for ``activate_hda``/``activate_aac`` only** —
-``activate_autopark``/``activate_campmode``/``activate_petmode`` remain open,
-deferred to HERO-03.
+HERO-03 (:mod:`vivi_agent.behaviors.hero.autopark_campmode`) closes the same
+gap for ``activate_autopark``/``activate_campmode``. ``activate_petmode``
+remains open.
 
 Design notes
 ------------
@@ -33,33 +34,29 @@ Design notes
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any, Callable, Mapping
 
 from vivi_agent.active_actions.models import ActiveActionRecord
-from vivi_agent.active_actions.registry import (
-    SUPERSEDED_BY_NEW_START_REASON,
-    ActiveActionRegistry,
+from vivi_agent.active_actions.registry import ActiveActionRegistry
+from vivi_agent.behaviors.hero._active_action_common import (
+    MonitoredActionHeroBehaviorBase,
+    apply_monitor_stop_patch,
+    assert_subset_of_monitored_intents,
+    bridge_active_action_handler,
+    drop_active_action,
+    is_restart_supersede,
 )
-from vivi_agent.catalog.manifest import MONITORED_INTENTS as _CATALOG_MONITORED_INTENTS
-from vivi_agent.vehicle.execution.generic import ActiveActionHandler, BehaviorConfig
-from vivi_agent.vehicle.state.events import ActorKind
+from vivi_agent.vehicle.execution.generic import BehaviorConfig
 from vivi_agent.vehicle.state.machine import VehicleStateMachine
-from vivi_agent.vehicle.state.model import AccState, ActiveActionPhase, VehicleState
+from vivi_agent.vehicle.state.model import AccState, VehicleState
 
 # The only two intents this module is responsible for. Kept as a frozen set
 # (rather than reusing the broader MONITORED_INTENTS from catalog.manifest)
 # so this module fails loudly if ever asked to handle an intent outside its
 # HERO-02 scope, instead of silently behaving as if HERO-03 were already done.
 HDA_AAC_INTENTS: frozenset[str] = frozenset({"activate_hda", "activate_aac"})
-if not HDA_AAC_INTENTS <= _CATALOG_MONITORED_INTENTS:
-    # Fail loudly, matching catalog/manifest.py's own MONITOR_COVERAGE_MISMATCH
-    # check, instead of letting this module's narrower scope silently drift
-    # out of sync with the catalog's declared monitored-intent set.
-    raise RuntimeError(
-        f"HDA_AAC_INTENTS {sorted(HDA_AAC_INTENTS)} is not a subset of "
-        f"catalog.manifest.MONITORED_INTENTS {sorted(_CATALOG_MONITORED_INTENTS)}"
-    )
+assert_subset_of_monitored_intents(HDA_AAC_INTENTS, label="HDA_AAC_INTENTS")
 
 _DISPLAY_NAMES: dict[str, str] = {
     "activate_hda": "Hỗ trợ lái trên cao tốc (HDA)",
@@ -94,73 +91,13 @@ def make_monitored_active_action_handler(
     ValueError
         If ``config.intent_id`` is outside :data:`HDA_AAC_INTENTS`.
     """
-    if config.intent_id not in HDA_AAC_INTENTS:
-        raise ValueError(
-            f"make_monitored_active_action_handler only supports {sorted(HDA_AAC_INTENTS)}, "
-            f"got {config.intent_id!r}"
-        )
-
-    base_handler = ActiveActionHandler(config, state_machine, actor_id=actor_id)
-
-    def _handler(proposal: Mapping[str, Any]) -> dict[str, Any]:
-        result = base_handler(proposal)
-        facts = result.get("facts", {})
-        # No catalog intent currently sends action="stop"/"cancel" for
-        # activate_hda/activate_aac (see DEFERRED_FOLLOWUPS.md) — ActiveActionHandler
-        # can only ever compute phase=STARTED for these two intents today, so a
-        # STOPPED branch here would be untestable dead code. Removed rather than
-        # kept "for completeness"; re-add once a real stop/cancel intent exists.
-        if facts.get("phase") != ActiveActionPhase.STARTED.value:
-            return result
-
-        action_id = facts.get("action_id")
-        session_id = str(proposal.get("session_id") or "")
-        try:
-            registry.start_action(
-                intent=config.intent_id,
-                proposal_id=str(proposal.get("proposal_id") or ""),
-                state_version=result.get("state_version")
-                if isinstance(result.get("state_version"), int)
-                else 0,
-                session_id=session_id,
-                turn_id=str(proposal.get("source_turn_id") or proposal.get("turn_id") or ""),
-                active_action_name=facts.get("action_name"),
-                action_id=action_id,
-            )
-        except Exception:
-            # Compensate: the base handler already committed a STARTED
-            # active_action entry to VehicleState above. If the registry never
-            # learns about it, that entry would be permanently invisible to
-            # GuardrailMonitorAdapter.tick() while the caller is told this
-            # execution failed — remove the orphaned entry before re-raising.
-            _remove_orphaned_active_action(
-                state_machine, action_id, intent=config.intent_id, session_id=session_id
-            )
-            raise
-
-        return result
-
-    return _handler
-
-
-def _remove_orphaned_active_action(
-    state_machine: VehicleStateMachine, action_id: Any, *, intent: str, session_id: str
-) -> None:
-    """Best-effort cleanup of an ``active_actions`` entry the registry never learned about."""
-    if not action_id:
-        return
-
-    def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != action_id)
-        return state if remaining == state.active_actions else replace(state, active_actions=remaining)
-
-    state_machine.apply(
-        patch_fn,
-        actor_kind=ActorKind.SYSTEM,
-        actor_id="registry_start_rollback",
-        # Includes intent/session (not just action_id) so a rollback transition
-        # is traceable in logs/audit without cross-referencing the registry.
-        correlation_id=f"rollback_{intent}_{session_id or 'unknown_session'}_{action_id}",
+    return bridge_active_action_handler(
+        config,
+        state_machine,
+        registry,
+        allowed_intents=HDA_AAC_INTENTS,
+        scope_name="make_monitored_active_action_handler",
+        actor_id=actor_id,
     )
 
 
@@ -170,25 +107,6 @@ def _remove_orphaned_active_action(
 # ---------------------------------------------------------------------------
 
 
-def _apply_system_patch(
-    state_machine: VehicleStateMachine,
-    record: ActiveActionRecord,
-    patch_fn: Callable[[VehicleState], VehicleState],
-) -> None:
-    """Shared SYSTEM-actor transition boilerplate for the fail-safe stop handlers below."""
-    state_machine.apply(
-        patch_fn,
-        actor_kind=ActorKind.SYSTEM,
-        actor_id="guardrail_monitor_stop",
-        # Includes intent/session (not just action_id) so a monitor-driven
-        # transition is traceable in logs/audit without cross-referencing the
-        # registry for context.
-        correlation_id=(
-            f"monitor_stop_{record.intent}_{record.session_id or 'unknown_session'}_{record.action_id}"
-        ),
-    )
-
-
 def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> None:
     """Turn ``adas.hda_active`` off and drop the matching active_action entry."""
     current = state_machine.snapshot()
@@ -196,11 +114,11 @@ def _apply_hda_off(state_machine: VehicleStateMachine, record: ActiveActionRecor
         return  # already off, nothing to clean up — skip a wasted apply()/event
 
     def patch_fn(state: VehicleState) -> VehicleState:
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         new_adas = replace(state.adas, hda_active=False) if state.adas.hda_active else state.adas
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
 
 
 def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActionRecord) -> bool:
@@ -223,12 +141,12 @@ def _apply_aac_cancelled(state_machine: VehicleStateMachine, record: ActiveActio
         nonlocal cascaded
         cascaded = state.adas.hda_active
         new_adas = replace(state.adas, acc_state=AccState.CANCELLED, hda_active=False)
-        remaining = tuple(a for a in state.active_actions if a.action_id != record.action_id)
+        remaining = drop_active_action(state, record.action_id)
         if cascaded:
             remaining = tuple(a for a in remaining if a.intent != "activate_hda")
         return replace(state, adas=new_adas, active_actions=remaining)
 
-    _apply_system_patch(state_machine, record, patch_fn)
+    apply_monitor_stop_patch(state_machine, record, patch_fn)
     return cascaded
 
 
@@ -245,17 +163,14 @@ def register_hda_aac_stop_handlers(
     """
 
     def _stop_hda(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             # A same-session restart, not a real stop: a fresh activate_hda
-            # record already exists and now owns adas.hda_active. Telemetry is
-            # unaffected by the agent restarting its own bookkeeping, so leave
-            # the real vehicle state alone instead of force-disengaging it out
-            # from under the new run.
+            # record already exists and now owns adas.hda_active.
             return
         _apply_hda_off(state_machine, record)
 
     def _stop_aac(record: ActiveActionRecord, reason: str) -> None:
-        if reason == SUPERSEDED_BY_NEW_START_REASON:
+        if is_restart_supersede(reason):
             return  # same rationale as _stop_hda above
         hda_cascaded = _apply_aac_cancelled(state_machine, record)
         if not hda_cascaded:
@@ -284,29 +199,16 @@ def register_hda_aac_stop_handlers(
 
 # ---------------------------------------------------------------------------
 # 3. Grounded stop/fail responses + pure (state-free) monitor result reading.
+#    Shared mechanics live in MonitoredActionHeroBehaviorBase — see
+#    _active_action_common.py.
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class MonitorOutcome:
-    """Typed view of a `GuardrailMonitorAdapter` evaluation result dict."""
-
-    stopped: bool
-    outcome: str
-    reason_code: str
-    rule_id: str
-    action_id: str
-    intent: str
-
-
-class AdasMonitorHeroBehavior:
+class AdasMonitorHeroBehavior(MonitoredActionHeroBehaviorBase):
     """Reference HDA/AAC interpretation of Guardrail monitor decisions.
 
-    Every method here reads only the Guardrail-produced monitor result (or
-    the registry record) — never vehicle telemetry (speed, hands-on-wheel,
-    battery, ...). That is a deliberate, structural guarantee: the Agent must
-    not reason about *why* a monitored action should stop, only relay
-    Guardrail's *outcome*. See module docstring.
+    See :class:`MonitoredActionHeroBehaviorBase` for the no-local-policy
+    guarantee this class inherits.
     """
 
     # Named distinctly from catalog.manifest.MONITORED_INTENTS (5 entries) —
@@ -314,49 +216,7 @@ class AdasMonitorHeroBehavior:
     # Guardrail monitors. HDA_AAC_INTENTS's own module-level assertion above
     # keeps it a subset of the catalog's set, so the two can't silently drift.
     HANDLED_INTENTS: frozenset[str] = HDA_AAC_INTENTS
-
-    @classmethod
-    def evaluate_monitor_result(cls, monitor_result: Mapping[str, Any]) -> MonitorOutcome:
-        """Interpret one result dict from ``GuardrailMonitorAdapter.tick()``/
-        ``evaluate_active_actions()`` — pure dict-in, dict-out, no state.
-        """
-        intent = str(monitor_result.get("intent", ""))
-        if intent not in cls.HANDLED_INTENTS:
-            raise ValueError(
-                f"AdasMonitorHeroBehavior only handles {sorted(cls.HANDLED_INTENTS)}, got {intent!r}"
-            )
-        return MonitorOutcome(
-            stopped=bool(monitor_result.get("stopped", False)),
-            outcome=str(monitor_result.get("outcome", "UNKNOWN")),
-            reason_code=str(monitor_result.get("reason_code", "")),
-            rule_id=str(monitor_result.get("rule_id", "")),
-            action_id=str(monitor_result.get("action_id", "")),
-            intent=intent,
-        )
-
-    @classmethod
-    def build_stop_message(cls, record: ActiveActionRecord, monitor_result: Mapping[str, Any]) -> str:
-        """Grounded Vietnamese stop notice — cites only real reason_code/rule_id.
-
-        A ``GuardrailMonitorAdapter`` fail-safe (``outcome="ERROR"``) carries no
-        reason_code/rule_id — only an ``error`` string — so it is routed to
-        :meth:`build_fail_message` instead of being formatted as a normal
-        policy-triggered stop here.
-        """
-        if str(monitor_result.get("outcome", "")) == "ERROR":
-            return cls.build_fail_message(record, str(monitor_result.get("error") or "lỗi không xác định"))
-
-        outcome = cls.evaluate_monitor_result(monitor_result)
-        display_name = _DISPLAY_NAMES.get(record.intent, record.active_action_name)
-        reason = outcome.reason_code or "yêu cầu an toàn từ Guardrail"
-        rule = outcome.rule_id or "không xác định"
-        return (
-            f"{display_name} đã dừng theo yêu cầu của Guardrail "
-            f"(rule_id={rule}, reason_code={reason})."
-        )
-
-    @classmethod
-    def build_fail_message(cls, record: ActiveActionRecord, error: str) -> str:
-        """Grounded Vietnamese failure notice for a fail-safe monitor-error stop."""
-        display_name = _DISPLAY_NAMES.get(record.intent, record.active_action_name)
-        return f"{display_name} đã dừng do lỗi giám sát an toàn: {error}."
+    # Defensive copy: a class attribute bound directly to the module-level
+    # dict would let an in-place mutation of DISPLAY_NAMES on this class leak
+    # back into _DISPLAY_NAMES (and therefore every other user of it).
+    DISPLAY_NAMES: dict[str, str] = dict(_DISPLAY_NAMES)

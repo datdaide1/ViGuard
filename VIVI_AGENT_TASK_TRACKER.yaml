@@ -450,12 +450,16 @@ tasks:
     title: 'Hoàn thiện Autopark và Camp mode behaviors'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-03/TASK.md
     depends_on: [ACTV-01, MON-ADP-01, SIM-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/autopark_campmode.py
+      - src/vivi_agent/behaviors/hero/_active_action_common.py
+      - tests/behaviors/test_hero_autopark_campmode.py
+      - tests/integration/hero/test_hero03_autopark_campmode.py
   - id: HERO-04
     title: 'Hoàn thiện confirmation behavior'
     priority: P0

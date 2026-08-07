@@ -14,7 +14,7 @@ from vivi_agent.adapters.monitor.adapter import GuardrailMonitorAdapter
 from vivi_agent.behaviors.catalog import get_behavior_config
 from vivi_agent.behaviors.hero import (
     AdasMonitorHeroBehavior,
-    make_monitored_active_action_handler,
+    make_monitored_hda_aac_handler,
     register_hda_aac_stop_handlers,
 )
 from vivi_agent.catalog import load_manifest
@@ -92,11 +92,11 @@ class TestHero02HdaAacE2E:
         gw = VehicleToolGateway()
         gw.registry.register(
             "activate_hda",
-            make_monitored_active_action_handler(get_behavior_config("activate_hda"), state_machine, registry),
+            make_monitored_hda_aac_handler(get_behavior_config("activate_hda"), state_machine, registry),
         )
         gw.registry.register(
             "activate_aac",
-            make_monitored_active_action_handler(get_behavior_config("activate_aac"), state_machine, registry),
+            make_monitored_hda_aac_handler(get_behavior_config("activate_aac"), state_machine, registry),
         )
         return gw
 
