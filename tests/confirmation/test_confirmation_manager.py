@@ -120,7 +120,11 @@ def test_confirm_triggers_fresh_guardrail_reevaluation_and_executes():
         session_id="session-1",
         request_id=None,
     )
-    executor.execute.assert_called_once_with(proposal, fresh_decision, fresh_permit)
+    # executor.execute(proposal, decision, cancellation) — the same shape as
+    # orchestrator.ActionExecutor/VehicleToolGateway.execute. The permit isn't
+    # passed as a separate argument: it already lives inside fresh_decision,
+    # and cancellation defaults to None when the caller doesn't supply one.
+    executor.execute.assert_called_once_with(proposal, fresh_decision, None)
 
 
 def test_confirm_expired_rejection():

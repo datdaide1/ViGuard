@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Mapping
+from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -90,6 +92,37 @@ class ConfirmationManager:
         except (ValueError, TypeError):
             return False
 
+    @staticmethod
+    def _execution_result_to_dict(exec_result: Any) -> dict[str, Any]:
+        """Normalize an executor's return value to a plain dict.
+
+        ``executor`` is intentionally typed ``Any`` (no import of a concrete
+        result type — importing ``orchestrator.orchestrator.ExecutionResult``
+        here would cycle back through ``orchestrator``'s own import of this
+        module). Handles, in order:
+
+        1. An object with its own ``to_dict()``.
+        2. A plain dataclass instance — the real shape returned by
+           ``VehicleToolGateway.execute``/``orchestrator.ActionExecutor``
+           implementations, which is a frozen dataclass with **no**
+           ``to_dict()`` and is not iterable, so a bare ``dict(exec_result)``
+           raises ``TypeError: '...' object is not iterable``. Uses a
+           *shallow* field extraction, not ``dataclasses.asdict()``:
+           ``asdict()`` recursively deep-copies every field and explodes on
+           ``ExecutionResult.facts`` (a ``MappingProxyType``) with
+           ``TypeError: cannot pickle 'mappingproxy' object``. The only
+           fields ever read below are ``success``/``message``, so a shallow,
+           non-recursive view of the top-level fields is exactly what's
+           needed and nothing more.
+        3. A dict/Mapping already in the expected shape (what CNF-01's own
+           unit tests pass via a plain-dict-returning mock).
+        """
+        if hasattr(exec_result, "to_dict"):
+            return exec_result.to_dict()
+        if is_dataclass(exec_result) and not isinstance(exec_result, type):
+            return {f.name: getattr(exec_result, f.name) for f in dataclass_fields(exec_result)}
+        return dict(exec_result)
+
     def confirm(
         self,
         confirmation_id: str,
@@ -98,6 +131,7 @@ class ConfirmationManager:
         executor: Any = None,
         request_id: str | None = None,
         now: datetime | None = None,
+        cancellation: Any = None,
     ) -> ConfirmationResult:
         """Resolve a pending confirmation via fresh Guardrail re-evaluation.
 
@@ -106,6 +140,14 @@ class ConfirmationManager:
         - Obtains fresh decision & single-use permit from Guardrail `confirm`.
         - Rejects expired, wrong session, or already consumed confirmations under lock.
         - Executes vehicle action ONLY if fresh decision outcome is `ALLOW`.
+
+        ``executor`` is called as ``executor.execute(proposal, decision, cancellation)``
+        — the same three-positional-argument shape as
+        ``orchestrator.ActionExecutor``/``VehicleToolGateway.execute`` (proposal,
+        the full fresh decision object carrying the permit, then an optional
+        cancellation token) — so any real gateway/orchestrator executor is a
+        drop-in match. ``cancellation`` defaults to ``None``, which
+        ``VehicleToolGateway.execute`` already treats as "not cancelled".
         """
         with self._lock:
             pending = self._pending.get(confirmation_id)
@@ -197,11 +239,15 @@ class ConfirmationManager:
 
         # Only execute if fresh decision outcome is ALLOW
         if outcome_str == "ALLOW":
-            fresh_permit = fresh_decision.get("permit")
             if executor is not None:
                 try:
-                    exec_result = executor.execute(pending.action_proposal, fresh_decision, fresh_permit)
-                    exec_dict = exec_result.to_dict() if hasattr(exec_result, "to_dict") else dict(exec_result)
+                    # fresh_decision (not a bare permit) is the second argument —
+                    # it already carries fresh_decision["permit"], and every real
+                    # executor (VehicleToolGateway.execute, orchestrator's
+                    # ActionExecutor) reads the permit out of the decision object
+                    # itself rather than accepting it as a separate parameter.
+                    exec_result = executor.execute(pending.action_proposal, fresh_decision, cancellation)
+                    exec_dict = self._execution_result_to_dict(exec_result)
                     exec_success = exec_dict.get("success", True)
                     return ConfirmationResult(
                         status="completed" if exec_success else "failed",
