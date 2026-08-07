@@ -63,7 +63,7 @@ Acceptance criteria (see ``tests/e2e/scenarios/scn-03/TASK.md``):
 from __future__ import annotations
 
 import unittest
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
 from unittest.mock import MagicMock
@@ -135,22 +135,38 @@ class GroundTruthMonitorGuardrailClient:
         self.evaluate_calls = 0
         self.evaluate_monitor_calls = 0
 
-    def evaluate(self, proposal: Mapping[str, Any]) -> dict[str, Any]:
-        self.evaluate_calls += 1
-        mapped = self.mapper.map_proposal(proposal)
+    def _base_decision(
+        self, *, request_id: str, intent: str, rule_id: str, state_version: int
+    ) -> dict[str, Any]:
+        """Fields shared by every decision this mock returns (both
+        ``evaluate()`` and both branches of ``evaluate_monitor()``) — factored
+        out so a future field added to one path can't silently drift from
+        the others."""
         return {
             "contract_version": CONTRACT_VERSION,
             "kind": "decision",
-            "request_id": f"req-scn03-eval-{self.evaluate_calls}",
-            "proposal_id": proposal["proposal_id"],
-            "intent": mapped.canonical_action.intent,
-            "outcome": "ALLOW",
-            "rule_id": _HDA_RULE_ID,
-            "state_version": 1,
+            "request_id": request_id,
+            "intent": intent,
+            "rule_id": rule_id,
+            "state_version": state_version,
             "policy_checksum": _ZERO_CHECKSUM,
-            "reason_code": "PERMITTED",
             "relevant_state": {},
-            "permit": {
+        }
+
+    def evaluate(self, proposal: Mapping[str, Any]) -> dict[str, Any]:
+        self.evaluate_calls += 1
+        mapped = self.mapper.map_proposal(proposal)
+        decision = self._base_decision(
+            request_id=f"req-scn03-eval-{self.evaluate_calls}",
+            intent=mapped.canonical_action.intent,
+            rule_id=_HDA_RULE_ID,
+            state_version=1,
+        )
+        decision.update(
+            proposal_id=proposal["proposal_id"],
+            outcome="ALLOW",
+            reason_code="PERMITTED",
+            permit={
                 "permit_id": f"permit-scn03-{self.evaluate_calls}",
                 "proposal_digest": mapped.proposal_digest,
                 "intent": mapped.canonical_action.intent,
@@ -161,7 +177,8 @@ class GroundTruthMonitorGuardrailClient:
                 "expires_at": "2099-01-01T00:00:00Z",
                 "single_use": True,
             },
-        }
+        )
+        return decision
 
     def evaluate_monitor(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         self.evaluate_monitor_calls += 1
@@ -170,32 +187,17 @@ class GroundTruthMonitorGuardrailClient:
         # projection (top-level "hand_on_steeringwheel"/"state_version" keys,
         # not nested under "adas") — see vehicle/state/model.py.
         hands_on = bool(vehicle_state.get("hand_on_steeringwheel", True))
-        state_version = int(vehicle_state.get("state_version", 0))
+        decision = self._base_decision(
+            request_id=payload["request_id"],
+            intent=payload["intent"],
+            rule_id=_MONITOR_RULE_ID,
+            state_version=int(vehicle_state.get("state_version", 0)),
+        )
         if hands_on:
-            return {
-                "contract_version": CONTRACT_VERSION,
-                "kind": "decision",
-                "request_id": payload["request_id"],
-                "intent": payload["intent"],
-                "outcome": "ALLOW",
-                "rule_id": _MONITOR_RULE_ID,
-                "state_version": state_version,
-                "policy_checksum": _ZERO_CHECKSUM,
-                "reason_code": "HANDS_ON_WHEEL",
-                "relevant_state": {},
-            }
-        return {
-            "contract_version": CONTRACT_VERSION,
-            "kind": "decision",
-            "request_id": payload["request_id"],
-            "intent": payload["intent"],
-            "outcome": "BLOCK_UNSAFE",
-            "rule_id": _MONITOR_RULE_ID,
-            "state_version": state_version,
-            "policy_checksum": _ZERO_CHECKSUM,
-            "reason_code": "HANDS_OFF_TIMEOUT",
-            "relevant_state": {},
-        }
+            decision.update(outcome="ALLOW", reason_code="HANDS_ON_WHEEL")
+        else:
+            decision.update(outcome="BLOCK_UNSAFE", reason_code="HANDS_OFF_TIMEOUT")
+        return decision
 
 
 class SpyExecutor:
@@ -215,7 +217,25 @@ class SpyExecutor:
         return self.gateway.execute(proposal, decision, cancellation, current_time=_NOW)
 
 
-def _build_scenario():
+@dataclass
+class Scn03Environment:
+    """Named bundle of one scenario's wired components — replaces a 9-tuple
+    positional return so ``setUp()`` reads by field name instead of by
+    position (mis-ordering two same-typed fields, e.g. the two MagicMock
+    event pipelines, would otherwise be an easy, hard-to-spot mistake)."""
+
+    state_machine: VehicleStateMachine
+    registry: ActiveActionRegistry
+    gateway: VehicleToolGateway
+    spy_executor: SpyExecutor
+    guardrail: GroundTruthMonitorGuardrailClient
+    orchestrator: AgentOrchestrator
+    monitor: GuardrailMonitorAdapter
+    monitor_event_pipeline: MagicMock
+    controller: SimulationController
+
+
+def _build_scenario() -> Scn03Environment:
     """Wire one fresh environment: driving on the highway, ACC already active
     (a precondition ``activate_hda`` requires — HDA_REQUIRES_ACTIVE_ACC),
     hands genuinely on the wheel.
@@ -248,7 +268,17 @@ def _build_scenario():
     )
     controller = SimulationController(state_machine, monitor_adapter=monitor)
 
-    return state_machine, registry, gateway, spy_executor, guardrail, orchestrator, monitor, monitor_event_pipeline, controller
+    return Scn03Environment(
+        state_machine=state_machine,
+        registry=registry,
+        gateway=gateway,
+        spy_executor=spy_executor,
+        guardrail=guardrail,
+        orchestrator=orchestrator,
+        monitor=monitor,
+        monitor_event_pipeline=monitor_event_pipeline,
+        controller=controller,
+    )
 
 
 _SESSION_ID = "sess-scn03"
@@ -256,17 +286,16 @@ _SESSION_ID = "sess-scn03"
 
 class Scn03GuardrailProtectsActiveActionTests(unittest.TestCase):
     def setUp(self) -> None:
-        (
-            self.state_machine,
-            self.registry,
-            self.gateway,
-            self.spy_executor,
-            self.guardrail,
-            self.orchestrator,
-            self.monitor,
-            self.monitor_event_pipeline,
-            self.controller,
-        ) = _build_scenario()
+        env = _build_scenario()
+        self.state_machine = env.state_machine
+        self.registry = env.registry
+        self.gateway = env.gateway
+        self.spy_executor = env.spy_executor
+        self.guardrail = env.guardrail
+        self.orchestrator = env.orchestrator
+        self.monitor = env.monitor
+        self.monitor_event_pipeline = env.monitor_event_pipeline
+        self.controller = env.controller
 
         # 1. The Agent genuinely starts HDA through a real orchestrator turn
         #    (ActorKind.AGENT provenance on the resulting active_actions entry).

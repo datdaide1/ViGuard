@@ -55,6 +55,7 @@ Acceptance criteria (see ``tests/e2e/scenarios/scn-02/TASK.md``):
 from __future__ import annotations
 
 import unittest
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -134,29 +135,40 @@ class GroundTruthConfirmationGuardrailClient:
         # stores the proposal, never the decision that created it.
         self.last_confirm_decision: dict[str, Any] | None = None
 
+    def _base_decision(self, *, request_id: str, state_version: int) -> dict[str, Any]:
+        """Fields shared by every decision this mock returns (both
+        ``evaluate()`` and ``confirm()``) — factored out so a future field
+        added to one can't silently drift from the other."""
+        return {
+            "contract_version": CONTRACT_VERSION,
+            "kind": "decision",
+            "request_id": request_id,
+            "intent": "open_window",
+            "rule_id": _RULE_ID,
+            "state_version": state_version,
+            "policy_checksum": _ZERO_CHECKSUM,
+        }
+
     def evaluate(self, proposal: Mapping[str, Any]) -> dict[str, Any]:
         self.evaluate_calls += 1
         self._last_proposal = proposal
-        decision = {
-            "contract_version": CONTRACT_VERSION,
-            "kind": "decision",
-            "request_id": f"req-scn02-eval-{self.evaluate_calls}",
-            "proposal_id": proposal["proposal_id"],
-            "intent": "open_window",
-            "outcome": "CONFIRM",
-            "rule_id": _RULE_ID,
-            "state_version": self.state_machine.snapshot().state_version,
-            "policy_checksum": _ZERO_CHECKSUM,
-            "reason_code": "DRIVER_CONFIRMATION_REQUIRED",
-            "relevant_state": {},
-            "confirmation": {
+        decision = self._base_decision(
+            request_id=f"req-scn02-eval-{self.evaluate_calls}",
+            state_version=self.state_machine.snapshot().state_version,
+        )
+        decision.update(
+            proposal_id=proposal["proposal_id"],
+            outcome="CONFIRM",
+            reason_code="DRIVER_CONFIRMATION_REQUIRED",
+            relevant_state={},
+            confirmation={
                 "confirmation_id": _CONFIRMATION_ID,
                 "proposal_id": proposal["proposal_id"],
                 "prompt": _PROMPT,
                 "expires_at": _EXPIRES_AT,
                 "single_use": True,
             },
-        }
+        )
         self.last_confirm_decision = decision
         return decision
 
@@ -166,16 +178,10 @@ class GroundTruthConfirmationGuardrailClient:
         self.confirm_calls += 1
         snapshot = self.state_machine.snapshot()
         moving = snapshot.motion.speed_kph > 0.0
-        base: dict[str, Any] = {
-            "contract_version": CONTRACT_VERSION,
-            "kind": "decision",
-            "request_id": f"req-scn02-confirm-{self.confirm_calls}",
-            "intent": "open_window",
-            "rule_id": _RULE_ID,
-            "state_version": snapshot.state_version,
-            "policy_checksum": _ZERO_CHECKSUM,
-            "relevant_state": {"speed": snapshot.motion.speed_kph},
-        }
+        base = self._base_decision(
+            request_id=f"req-scn02-confirm-{self.confirm_calls}", state_version=snapshot.state_version
+        )
+        base["relevant_state"] = {"speed": snapshot.motion.speed_kph}
         if moving:
             base.update(outcome="BLOCK_UNSAFE", reason_code="VEHICLE_MOVING")
             return base
@@ -213,7 +219,24 @@ class SpyExecutor:
         return self.gateway.execute(proposal, decision, cancellation, current_time=_NOW)
 
 
-def _build_scenario():
+@dataclass
+class Scn02Environment:
+    """Named bundle of one scenario's wired components — replaces an 8-tuple
+    positional return so ``setUp()`` reads by field name instead of by
+    position (mis-ordering two same-typed fields silently would otherwise be
+    an easy, hard-to-spot mistake as this wiring grows)."""
+
+    state_machine: VehicleStateMachine
+    gateway: VehicleToolGateway
+    spy_executor: SpyExecutor
+    guardrail: GroundTruthConfirmationGuardrailClient
+    router: DeterministicModelRouter
+    confirmation_manager: ConfirmationManager
+    controller: SimulationController
+    endpoint: MessageEndpoint
+
+
+def _build_scenario() -> Scn02Environment:
     """Wire one fresh environment — vehicle starts genuinely PARKED (safe)."""
     mapper = load_default_mapper(load_registry(), load_manifest())
     preset_state = get_simulation_preset(SimulationPresetId.PARKED, state_version=1, timestamp=_NOW)
@@ -239,7 +262,16 @@ def _build_scenario():
     )
     endpoint = MessageEndpoint(orchestrator)
 
-    return state_machine, gateway, spy_executor, guardrail, router, confirmation_manager, controller, endpoint
+    return Scn02Environment(
+        state_machine=state_machine,
+        gateway=gateway,
+        spy_executor=spy_executor,
+        guardrail=guardrail,
+        router=router,
+        confirmation_manager=confirmation_manager,
+        controller=controller,
+        endpoint=endpoint,
+    )
 
 
 def _request_payload(session_id: str, turn_id: str, request_id: str) -> dict[str, Any]:
@@ -257,16 +289,15 @@ def _request_payload(session_id: str, turn_id: str, request_id: str) -> dict[str
 
 class Scn02ConfirmationNotAPermanentPermitTests(unittest.TestCase):
     def setUp(self) -> None:
-        (
-            self.state_machine,
-            self.gateway,
-            self.spy_executor,
-            self.guardrail,
-            self.router,
-            self.confirmation_manager,
-            self.controller,
-            self.endpoint,
-        ) = _build_scenario()
+        env = _build_scenario()
+        self.state_machine = env.state_machine
+        self.gateway = env.gateway
+        self.spy_executor = env.spy_executor
+        self.guardrail = env.guardrail
+        self.router = env.router
+        self.confirmation_manager = env.confirmation_manager
+        self.controller = env.controller
+        self.endpoint = env.endpoint
 
         response = self.endpoint.post_message(
             _request_payload("sess-scn02", "turn-scn02-1", "req-scn02-1")
