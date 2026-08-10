@@ -659,13 +659,19 @@ tasks:
     title: 'Compound predefined workflows'
     priority: P1
     sprint: backlog
-    status: planned
+    status: completed
     area: backlog/p1
     task_file: backlog/p1/p1-workflow/TASK.md
     depends_on: []
     start_condition: 'Single-action safety gates đã đạt'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/workflows/registry.py
+      - src/vivi_agent/workflows/engine.py
+      - src/vivi_agent/workflows/README.md
+      - src/vivi_agent/model_providers/adapters.py
+      - tests/workflows/test_predefined_workflows.py
+      - tests/model_providers/test_model_providers.py
   - id: P1-PERSONA
     title: 'Persona verbalization nâng cao'
     priority: P1

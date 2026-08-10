@@ -122,6 +122,8 @@ Vì ba public adapter/mapping trên chưa tồn tại, tài liệu này **không
 
 UI render response status `completed`, `blocked`, `needs_confirmation`, `failed` hoặc `degraded`; đồng thời consume public events theo `sequence`. Luồng action hợp lệ là `proposal → decision → execution(started) → state/active-action events → terminal execution`. `BLOCK_*` và `CONFIRM` không có execution event.
 
+Với compound request, model chỉ được chọn `workflow_id` từ closed predefined workflow registry. Agent workflow engine mở workflow thành chuỗi domain-tool step tuần tự và chuyển từng step qua generic step-execution port do runtime inject. Engine không phụ thuộc UI, Guardrail, permit, policy outcome, vehicle handler hay transport. Generic step failure hoặc cancel dừng chuỗi ngay; engine không rollback ngầm bước đã hoàn tất.
+
 Khi mất kết nối, client ACK sequence cuối đã render. `UIConnectionRegistry.reconnect(session_id, connection_id)` chỉ trả event có sequence lớn hơn ACK; việc đọc lại event **không replay side effect**. Client deduplicate bằng `(session_id, sequence)` và ACK sau khi render thành công.
 
 ## 5. Reset, preset và readiness

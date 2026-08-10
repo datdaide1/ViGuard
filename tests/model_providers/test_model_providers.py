@@ -13,6 +13,7 @@ from src.vivi_agent.model_providers import (
     ProposalKind,
     TurnBinding,
 )
+from src.vivi_agent.workflows import load_default_workflows
 
 
 class SequenceTransport:
@@ -60,10 +61,22 @@ GEMINI_ACTION = {
         }
     ]
 }
+OPENAI_WORKFLOW = {
+    "choices": [{"message": {"tool_calls": [{"function": {
+        "name": "run_predefined_workflow",
+        "arguments": '{"workflow_id":"park_and_secure"}',
+    }}]}}]
+}
+GEMINI_WORKFLOW = {
+    "candidates": [{"content": {"parts": [{"functionCall": {
+        "name": "run_predefined_workflow",
+        "args": {"workflow_id": "park_and_secure"},
+    }}]}}]
+}
 
 
 class AdapterTests(unittest.TestCase):
-    def adapter(self, cls, transport):
+    def adapter(self, cls, transport, *, workflows=False):
         return cls(
             model_id="configured-model",
             api_key="backend-secret",
@@ -71,6 +84,9 @@ class AdapterTests(unittest.TestCase):
             transport=transport,
             config_checksum="sha256:test",
             clock=iter((1.0, 1.025)).__next__,
+            workflow_registry=(
+                load_default_workflows(RUNTIME_TOOL_REGISTRY) if workflows else None
+            ),
         )
 
     def test_openai_uses_strict_single_function_call_and_normalizes(self) -> None:
@@ -123,6 +139,7 @@ class AdapterTests(unittest.TestCase):
             for prop in parameters["properties"].values():
                 self.assertNotIn("const", prop)
 
+
         access = next(item for item in declarations if item["name"] == "control_access")["parameters"]
         self.assertEqual(set(access["properties"]["action"]["enum"]), {"open", "lock", "unlock"})
         self.assertIn("driver_door", access["properties"]["target"]["enum"])
@@ -147,6 +164,31 @@ class AdapterTests(unittest.TestCase):
             [{"role": "user", "content": "Mở cửa lái"}]
         )
         self.assertEqual(dict(result.arguments or {}), {"action": "open", "target": "driver_door"})
+
+    def test_both_providers_normalize_the_same_closed_workflow_selection(self) -> None:
+        for adapter_type, raw in (
+            (OpenAIAdapter, OPENAI_WORKFLOW),
+            (GeminiAdapter, GEMINI_WORKFLOW),
+        ):
+            adapter = self.adapter(adapter_type, SequenceTransport(raw), workflows=True)
+            result = adapter.propose_tool(
+                [{"role": "user", "content": "Park and secure the vehicle"}]
+            )
+            self.assertEqual(result.tool_name, "run_predefined_workflow")
+            self.assertEqual(dict(result.arguments or {}), {"workflow_id": "park_and_secure"})
+            payload = adapter._transport.calls[0][0]
+            if adapter_type is OpenAIAdapter:
+                workflow = next(
+                    tool["function"] for tool in payload["tools"]
+                    if tool["function"]["name"] == "run_predefined_workflow"
+                )
+                self.assertTrue(workflow["strict"])
+            else:
+                workflow = next(
+                    item for item in payload["tools"][0]["functionDeclarations"]
+                    if item["name"] == "run_predefined_workflow"
+                )
+                self.assertNotIn("additionalProperties", workflow["parameters"])
 
     def test_text_is_clarification_for_proposal_and_response_for_composition(self) -> None:
         proposal_transport = SequenceTransport(
@@ -221,6 +263,22 @@ class AdapterTests(unittest.TestCase):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_router_opt_in_exposes_and_returns_a_workflow_selection(self) -> None:
+        transport = SequenceTransport(OPENAI_WORKFLOW)
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": transport},
+            workflow_registry=load_default_workflows(RUNTIME_TOOL_REGISTRY),
+        )
+        result = router.propose_tool([{"role": "user", "content": "Park and secure"}])
+        self.assertEqual(result.tool_name, "run_predefined_workflow")
+        self.assertEqual(dict(result.arguments or {}), {"workflow_id": "park_and_secure"})
+        names = {
+            tool["function"]["name"] for tool in transport.calls[0][0]["tools"]
+        }
+        self.assertIn("run_predefined_workflow", names)
+
     def test_environment_config_priority_models_and_secret_free_checksum(self) -> None:
         config = ModelProviderConfig.from_env(
             {
