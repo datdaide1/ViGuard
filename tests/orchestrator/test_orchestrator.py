@@ -313,6 +313,34 @@ def test_message_endpoint_returns_contract_valid_payload():
     )
     assert response["status"] == "completed"
     assert response["execution_id"] == "execution-1"
+    events = endpoint.event_pipeline.store.get_events("session-1")
+    assert [event["event_type"] for event in events] == [
+        "turn_progress", "turn_progress", "turn_progress", "response_chunk", "turn_progress"
+    ]
+    assert events[-1]["phase"] == "completed"
+    assert "".join(
+        event["delta"] for event in events if event["event_type"] == "response_chunk"
+    ) == response["message"]
+
+
+def test_message_endpoint_keeps_agent_ui_10_non_streaming_compatibility():
+    endpoint = MessageEndpoint(make_orchestrator())
+    response = endpoint.post_message(
+        {
+            "contract_version": "1.0.0",
+            "kind": "request",
+            "request_type": "message",
+            "session_id": "legacy-session",
+            "turn_id": "legacy-turn",
+            "request_id": "legacy-request",
+            "occurred_at": "2026-08-04T00:00:00Z",
+            "message": "Open the driver door",
+        }
+    )
+
+    assert response["contract_version"] == "1.0.0"
+    assert response["status"] == "completed"
+    assert endpoint.event_pipeline.store.get_events("legacy-session") == []
 
 
 def test_execution_result_to_dict_is_json_serializable():

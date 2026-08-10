@@ -5,8 +5,16 @@ from __future__ import annotations
 import json
 import unittest
 from pathlib import Path
+from threading import Event, Thread
+from unittest.mock import patch
 
-from src.vivi_agent.contracts.agent_ui.v1.contract import AgentUIContractError, validate_event_stream
+from src.vivi_agent.contracts.agent_ui.v1.contract import (
+    AgentUIContractError,
+    MAX_CHUNK_CHARS,
+    MAX_RESPONSE_CHUNKS,
+    validate_event_stream,
+    validate_public_payload,
+)
 from src.vivi_agent.events import AgentEventPipeline
 
 
@@ -97,6 +105,41 @@ class P1StreamingTests(unittest.TestCase):
         self.pipeline.emit_turn_progress(**self.ids, phase="responding", progress=0.8)
         self.assertEqual(len(errors), 1, "failed subscription must be detached")
 
+    def test_broken_error_handler_cannot_break_event_storage(self) -> None:
+        def broken(_: dict[str, object]) -> None:
+            raise RuntimeError("UI disconnected")
+
+        def broken_error_handler(_: Exception) -> None:
+            raise RuntimeError("error channel disconnected")
+
+        self.pipeline.stream_adapter.subscribe_session(
+            "session-stream", broken, on_error=broken_error_handler
+        )
+        stored = self.pipeline.emit_turn_progress(**self.ids, phase="received", progress=0.0)
+        self.assertEqual(stored["sequence"], 1)
+
+    def test_callback_runs_outside_registry_lock(self) -> None:
+        callback_started = Event()
+        release_callback = Event()
+
+        def blocking(_: dict[str, object]) -> None:
+            callback_started.set()
+            release_callback.wait(timeout=2)
+
+        self.pipeline.stream_adapter.subscribe_session("session-stream", blocking)
+        producer = Thread(
+            target=lambda: self.pipeline.emit_turn_progress(
+                **self.ids, phase="received", progress=0.0
+            )
+        )
+        producer.start()
+        self.assertTrue(callback_started.wait(timeout=1))
+        token = self.pipeline.stream_adapter.subscribe_session("other-session", lambda _: None)
+        self.pipeline.stream_adapter.unsubscribe_session(token)
+        release_callback.set()
+        producer.join(timeout=1)
+        self.assertFalse(producer.is_alive())
+
     def test_subscriber_can_unsubscribe_itself_without_mutating_iteration(self) -> None:
         received: list[int] = []
         token = ""
@@ -120,6 +163,57 @@ class P1StreamingTests(unittest.TestCase):
                 **self.ids, stream_id="stream-1", chunk_index=1, delta="two", content_kind="status"
             )
         self.assertEqual(raised.exception.code, "RESPONSE_CONTENT_KIND_MISMATCH")
+
+    def test_contract_10_remains_valid_but_cannot_emit_streaming_events(self) -> None:
+        legacy_request = {
+            "contract_version": "1.0.0", "kind": "request", "request_type": "message",
+            "session_id": "legacy-session", "turn_id": "legacy-turn", "request_id": "legacy-request",
+            "occurred_at": "2026-08-10T00:00:00Z", "message": "hello",
+        }
+        validate_public_payload(legacy_request)
+        stream_event = self.pipeline.emit_turn_progress(**self.ids, phase="received", progress=0.0)
+        stream_event["contract_version"] = "1.0.0"
+        with self.assertRaises(AgentUIContractError) as raised:
+            validate_public_payload(stream_event)
+        self.assertEqual(raised.exception.code, "STREAMING_REQUIRES_V1_1")
+
+    def test_chunk_and_session_bounds_are_enforced(self) -> None:
+        self.pipeline.emit_response_chunk(
+            **self.ids, stream_id="stream-1", chunk_index=0, delta="x" * MAX_CHUNK_CHARS
+        )
+        with self.assertRaises(AgentUIContractError) as raised:
+            self.pipeline.emit_response_chunk(
+                **self.ids, stream_id="stream-1", chunk_index=1, delta="x" * (MAX_CHUNK_CHARS + 1)
+            )
+        self.assertEqual(raised.exception.code, "INVALID_CHUNK_DELTA")
+
+        bounded = AgentEventPipeline()
+        bounded.store.MAX_EVENTS_PER_SESSION = 1
+        bounded.emit_turn_progress(**self.ids, phase="received", progress=0.0)
+        with self.assertRaisesRegex(ValueError, "EVENT_STORE_SESSION_LIMIT"):
+            bounded.emit_turn_progress(**self.ids, phase="resolving", progress=0.1)
+
+    def test_store_validates_each_event_once_instead_of_rescanning_history(self) -> None:
+        from src.vivi_agent.events import store as store_module
+
+        with patch.object(
+            store_module, "validate_next_event", wraps=store_module.validate_next_event
+        ) as validator:
+            for index in range(20):
+                self.pipeline.emit_turn_progress(
+                    session_id="session-once", turn_id=f"turn-{index}", request_id=f"req-{index}",
+                    phase="received", progress=0.0,
+                )
+        self.assertEqual(validator.call_count, 20)
+
+    def test_chunk_index_limit_is_enforced_by_payload_validation(self) -> None:
+        event = self.pipeline.emit_response_chunk(
+            **self.ids, stream_id="stream-limit", chunk_index=0, delta="ok"
+        )
+        event["chunk_index"] = MAX_RESPONSE_CHUNKS
+        with self.assertRaises(AgentUIContractError) as raised:
+            validate_public_payload(event)
+        self.assertEqual(raised.exception.code, "RESPONSE_CHUNK_LIMIT")
 
     def test_json_schema_accepts_both_new_event_variants(self) -> None:
         try:
