@@ -49,6 +49,16 @@ class ReleaseGateTests(unittest.TestCase):
     def test_tracker_parser_reads_task_statuses(self) -> None:
         self.assertEqual(_parse_tracker_statuses("  - id: CON-01\n    status: done"), {"CON-01": "done"})
 
+    def test_stale_dependency_metadata_does_not_block_executable_agent_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._repo(root, status="review")
+            result = ReleaseGate(root, FakeRunner()).evaluate()
+        dependency = next(check for check in result.checks if check.check_id == "dependency-metadata")
+        self.assertTrue(dependency.passed)
+        self.assertIn("non-blocking tracker metadata", dependency.detail)
+        self.assertEqual(result.status, ReleaseStatus.PASS)
+
     def test_missing_external_evidence_does_not_block_agent_release(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

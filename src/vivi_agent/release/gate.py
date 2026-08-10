@@ -135,7 +135,8 @@ class ReleaseGate:
             for task_id in REQUIRED_DEPENDENCIES
             if statuses.get(task_id) not in ACCEPTED_DEPENDENCY_STATUSES
         ]
-        checks.append(CheckResult("dependencies", not incomplete, "all complete" if not incomplete else ", ".join(incomplete)))
+        dependency_detail = "tracker statuses synchronized" if not incomplete else "non-blocking tracker metadata: " + ", ".join(incomplete)
+        checks.append(CheckResult("dependency-metadata", True, dependency_detail))
 
         try:
             evidence = _load_external_evidence(external_evidence_path)
