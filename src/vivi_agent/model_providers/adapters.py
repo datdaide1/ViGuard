@@ -285,7 +285,9 @@ class GeminiAdapter(ModelProviderAdapter):
             "target": {"type": "string", "enum": targets},
         }
         if values:
-            properties["value"] = {"type": "string", "enum": values}
+            properties["value"] = {"type": "string"}
+            if values != ["*"]:
+                properties["value"]["enum"] = values
         return {
             "name": tool.name,
             "description": tool.description,

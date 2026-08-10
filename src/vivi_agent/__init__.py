@@ -75,15 +75,38 @@ from .coverage import (
     assert_agent_readiness,
     validate_agent_coverage,
 )
+from .model_providers import ModelProviderConfig
+from .runtime import AgentReadiness, AgentRuntime, build_agent_runtime
+
+
+def build_agent_runtime_from_env() -> AgentRuntime:
+    """Build the complete standalone Agent from process environment config."""
+
+    isolated = build_runtime()
+    try:
+        rpm = float(os.environ.get("AGENT_MODEL_RPM", "12"))
+    except ValueError as exc:
+        raise ValueError("AGENT_MODEL_RPM must be numeric") from exc
+    return build_agent_runtime(
+        config=ModelProviderConfig.from_env(),
+        manifest=isolated.intent_manifest,
+        registry=isolated.tool_registry,
+        mapper=isolated.tool_mapper,
+        max_requests_per_minute=rpm,
+    )
 
 __all__ = [
     "RUNTIME_INTENT_MANIFEST",
     "RUNTIME_TOOL_MAPPER",
     "RUNTIME_TOOL_REGISTRY",
     "AgentCoverageReport",
+    "AgentReadiness",
+    "AgentRuntime",
     "AgentReadinessError",
     "Runtime",
     "assert_agent_readiness",
     "build_runtime",
+    "build_agent_runtime",
+    "build_agent_runtime_from_env",
     "validate_agent_coverage",
 ]

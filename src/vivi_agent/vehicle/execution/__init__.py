@@ -14,6 +14,7 @@ from .errors import (
     SubstitutionAttackError,
 )
 from .gateway import HandlerRegistry, VehicleToolGateway
+from .approved import AgentToolExecutor, ApprovedToolExecutor
 from .generic import (
     AccessActuatorHandler,
     ActiveActionHandler,
@@ -49,6 +50,8 @@ __all__ = [
     "GatewayExecutionError",
     "HandlerNotFoundError",
     "HandlerRegistry",
+    "ApprovedToolExecutor",
+    "AgentToolExecutor",
     "InvalidDoorTargetError",
     "InvalidPermitError",
     "OneShotEventHandler",

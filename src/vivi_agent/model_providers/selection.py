@@ -24,7 +24,7 @@ class ModelProviderConfig:
     provider: str = "auto"
     priority: tuple[str, ...] = SUPPORTED_PROVIDERS
     openai_model: str = "gpt-5-mini"
-    gemini_model: str = "gemini-3.6-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     timeout_seconds: float = 10.0
     openai_api_key: str = ""
     gemini_api_key: str = ""
@@ -42,7 +42,7 @@ class ModelProviderConfig:
                 provider=source.get("AGENT_MODEL_PROVIDER", "auto").strip().lower(),
                 priority=priority,
                 openai_model=source.get("OPENAI_MODEL_ID", "gpt-5-mini").strip(),
-                gemini_model=source.get("GEMINI_MODEL_ID", "gemini-3.6-flash").strip(),
+                gemini_model=source.get("GEMINI_MODEL_ID", "gemini-3.5-flash-lite").strip(),
                 timeout_seconds=float(source.get("AGENT_MODEL_TIMEOUT_SECONDS", "10")),
                 openai_api_key=source.get("OPENAI_API_KEY", ""),
                 gemini_api_key=source.get("GEMINI_API_KEY", ""),

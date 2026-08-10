@@ -15,6 +15,7 @@ Catalog contents:
 from __future__ import annotations
 
 from vivi_agent.vehicle.execution.generic import BehaviorConfig, BehaviorHandlerType
+from vivi_agent.catalog.candidate import CANDIDATE_ACTION_INTENTS
 from vivi_agent.vehicle.state.model import (
     AccState,
     AutoparkState,
@@ -519,6 +520,14 @@ ACTION_BEHAVIOR_CONFIGS: tuple[BehaviorConfig, ...] = (
     *_TRANSMISSION,
     *_ADAS,
     *_UI,
+    *(
+        BehaviorConfig(
+            intent_id=intent_id,
+            handler_type=_ONE,
+            event_name=f"candidate_capability_{intent_id}_commanded",
+        )
+        for intent_id in sorted(CANDIDATE_ACTION_INTENTS)
+    ),
 )
 
 # The intent IDs of all explicit refusals (re-exported from refusal.py for single source of truth)

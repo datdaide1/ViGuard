@@ -35,7 +35,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from vivi_agent.catalog import load_manifest
+from vivi_agent.catalog.manifest import BASE_APPROVED_INTENTS
 from vivi_agent.tools.mapping.mapper import DEFAULT_MAPPING_RULES, MappingRule
 from vivi_agent.tools.registry import load_registry
 
@@ -491,7 +491,10 @@ def _resolve_tool_name(intent: str) -> str:
 
 
 def _clear_and_paraphrase_items() -> list[DatasetItem]:
-    manifest_intents = {definition.intent for definition in load_manifest().intents}
+    # EVAL-01 is the fixed benchmark for the original Guardrail-aligned
+    # 53-intent baseline. Agent-only candidate capabilities are covered by
+    # separate catalog/runtime tests so historical EVAL-01 scores stay stable.
+    manifest_intents = set(BASE_APPROVED_INTENTS)
     authored_intents = {row[0] for row in _INTENT_UTTERANCES}
     missing = manifest_intents - authored_intents
     extra = authored_intents - manifest_intents

@@ -18,12 +18,12 @@ if str(_EVAL01_DIR) not in sys.path:
 
 from dataset import CATEGORIES, DATASET, build_dataset, split_for  # noqa: E402
 
-from vivi_agent.catalog import load_manifest  # noqa: E402
+from vivi_agent.catalog.manifest import BASE_APPROVED_INTENTS  # noqa: E402
 
 
 class Eval01DatasetTests(unittest.TestCase):
     def test_covers_all_53_real_manifest_intents_with_clear_and_paraphrase(self) -> None:
-        manifest_intents = {definition.intent for definition in load_manifest().intents}
+        manifest_intents = set(BASE_APPROVED_INTENTS)
         self.assertEqual(len(manifest_intents), 53)
 
         clear_intents = {item.intent for item in DATASET if item.category == "clear"}

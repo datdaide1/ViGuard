@@ -22,7 +22,7 @@ Live provider credential validation remains an integration/release gate.
 **Ưu tiên:** P0  
 **Phụ thuộc:** TOOL-01
 
-**Mô tả:** Tạo abstraction provider-neutral và hai adapter API: OpenAI dùng mặc định `gpt-5-mini`, Gemini dùng mặc định `gemini-3.6-flash`. Cả hai phục vụ tool selection và response verbalization có kiểm soát, cùng trả một internal contract. Model không được kết nối Guardrail/Vehicle handlers trực tiếp.
+**Mô tả:** Tạo abstraction provider-neutral và hai adapter API: OpenAI dùng mặc định `gpt-5-mini`, Gemini dùng mặc định `gemini-3.5-flash-lite`. Cả hai phục vụ tool selection và response verbalization có kiểm soát, cùng trả một internal contract. Model không được kết nối Guardrail/Vehicle handlers trực tiếp.
 
 **Công việc chi tiết:**
 

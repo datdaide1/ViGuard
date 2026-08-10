@@ -65,8 +65,8 @@ class ToolMapperTests(unittest.TestCase):
         cls.manifest = load_manifest()
         cls.mapper = ToolMapper(cls.registry, cls.manifest)
 
-    def test_runtime_loads_full_53_intent_coverage(self) -> None:
-        self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 78)
+    def test_runtime_loads_full_baseline_and_candidate_coverage(self) -> None:
+        self.assertEqual(len(RUNTIME_TOOL_MAPPER.rules), 148)
         mapped_intents = {rule.intent for rule in RUNTIME_TOOL_MAPPER.rules}
         manifest_intents = {definition.intent for definition in RUNTIME_INTENT_MANIFEST.intents}
         # Set equality also proves exact-casing preservation (e.g. OPEN_BONNET,
@@ -74,7 +74,7 @@ class ToolMapperTests(unittest.TestCase):
         # would fail startup readiness (UNKNOWN_MAPPING_INTENT) long before
         # this assertion runs.
         self.assertEqual(mapped_intents, manifest_intents)
-        self.assertEqual(len(manifest_intents), 53)
+        self.assertEqual(len(manifest_intents), 123)
 
     def test_valid_call_maps_to_one_canonical_intent_and_event(self) -> None:
         result = self.mapper.map_proposal(proposal())

@@ -13,12 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from .candidate import CANDIDATE_CAPABILITIES, CANDIDATE_INTENTS, CANDIDATE_QUERY_INTENTS
+
 MANIFEST_PATH = Path(__file__).with_name("intent_manifest.v1.json")
 MANIFEST_VERSION = "1.0.0"
 
 # This allowlist is intentionally independent of the JSON manifest.  A missing
 # or extra JSON entry must therefore fail readiness instead of redefining truth.
-APPROVED_INTENTS = frozenset(
+BASE_APPROVED_INTENTS = frozenset(
     {
         "open_door", "open_trunk", "open_chargeport", "turnoff_highbeam",
         "turnon_highbeam", "turnoff_lowbeam", "turnon_lowbeam", "lock_doors",
@@ -36,13 +38,14 @@ APPROVED_INTENTS = frozenset(
         "get_gear", "get_door_lock_status", "get_avh_status", "explain_feature",
     }
 )
+APPROVED_INTENTS = BASE_APPROVED_INTENTS | CANDIDATE_INTENTS
 
 FORBIDDEN_DYNAMICS_INTENTS = frozenset(
     {"power_on", "start", "accelerate", "brake", "stop", "emergency_stop", "steer"}
 )
 QUERY_INTENTS = frozenset(
     {"get_current_speed", "get_battery_pct", "get_gear", "get_door_lock_status", "get_avh_status", "explain_feature"}
-)
+) | CANDIDATE_QUERY_INTENTS
 MONITORED_INTENTS = frozenset(
     {"activate_campmode", "activate_petmode", "activate_autopark", "activate_aac", "activate_hda"}
 )
@@ -59,6 +62,7 @@ ALLOWED_DOMAIN_TOOLS = frozenset(
         "control_ui",
         "query_vehicle_state",
         "explain_vehicle_feature",
+        "control_vehicle_capability",
     }
 )
 ALLOWED_BEHAVIORS = frozenset(
@@ -203,6 +207,23 @@ def validate_manifest(raw: Mapping[str, Any]) -> IntentManifest:
             )
         )
 
+    definitions.extend(
+        IntentDefinition(
+            intent=item.intent,
+            kind=item.kind,
+            domain_tool=(
+                "control_driver_assistance"
+                if item.intent == "turnon_LKA"
+                else "control_vehicle_capability"
+            ),
+            behavior_category="state_query" if item.kind == "query" else "ui_event",
+            required_parameters=("value",) if item.requires_value else (),
+            monitor_rule_ids=(),
+            sample_utterances=(item.description,),
+        )
+        for item in CANDIDATE_CAPABILITIES
+    )
+
     names = [definition.intent for definition in definitions]
     if len(names) != len(set(names)):
         raise CatalogReadinessError("DUPLICATE_INTENT", "manifest contains duplicate intent names")
@@ -225,7 +246,12 @@ def validate_manifest(raw: Mapping[str, Any]) -> IntentManifest:
     actual_monitored = {name for name, definition in by_name.items() if definition.monitor_capable}
     if actual_monitored != MONITORED_INTENTS:
         raise CatalogReadinessError("MONITOR_COVERAGE_MISMATCH", f"expected={sorted(MONITORED_INTENTS)!r}, actual={sorted(actual_monitored)!r}")
-    return IntentManifest(version, source, checksum, tuple(definitions))
+    return IntentManifest(
+        version,
+        f"{source}; Intents_Candidate.xlsx#Intents_Candidate (70 Agent capabilities, no policy conditions)",
+        checksum,
+        tuple(definitions),
+    )
 
 
 def load_manifest(path: Path | str = MANIFEST_PATH) -> IntentManifest:

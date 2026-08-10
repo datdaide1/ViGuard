@@ -90,10 +90,10 @@ class TestBehaviorCoverage:
         report = validate_behavior_coverage(ACTION_BEHAVIOR_CONFIGS, REFUSAL_INTENT_IDS)
         assert report.covered_refusal == 1
 
-    def test_total_47_entries(self):
-        """46 action configs + 1 refusal = 47 total."""
+    def test_total_baseline_and_candidate_entries(self):
+        """46 baseline + 66 candidate action configs + 1 refusal."""
         total = len(ACTION_BEHAVIOR_CONFIGS) + len(REFUSAL_INTENT_IDS)
-        assert total == 47, f"Expected 47, got {total}"
+        assert total == 113, f"Expected 113, got {total}"
 
     def test_coverage_fails_on_missing_intent(self):
         """Validator raises when a required action intent has no entry."""
