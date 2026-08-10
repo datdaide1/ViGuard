@@ -1,0 +1,3 @@
+recursive-include src/vivi_agent *.json *.md py.typed
+include README.md
+recursive-include docs *.md
