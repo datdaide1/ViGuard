@@ -691,13 +691,20 @@ tasks:
     title: 'Model/session optimization'
     priority: P1
     sprint: backlog
-    status: planned
-    area: backlog/p1
+    status: completed
+    area: src/vivi_agent/model_providers
     task_file: backlog/p1/p1-cache/TASK.md
-    depends_on: []
+    depends_on:
+      - MOD-01
+      - PERF-01
     start_condition: 'Có benchmark chứng minh bottleneck'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/model_providers/selection.py
+      - src/vivi_agent/model_providers/adapters.py
+      - tests/model_providers/test_model_providers.py
+      - tests/performance/p1-cache/benchmark.py
+      - tests/performance/p1-cache/BENCHMARK_REPORT.md
   - id: P2-DYN-RESEARCH
     title: 'Nghiên cứu start/accelerate/brake/stop intents'
     priority: P2
