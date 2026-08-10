@@ -125,7 +125,7 @@ class ModelProviderRouter:
         self.registry = registry
         # Cache correctness requires the provider-to-transport binding to stay
         # stable for the router lifetime. Snapshot caller-owned mutable maps.
-        self.transports = MappingProxyType(dict(transports))
+        self._transports: dict[str, ProviderTransport] = dict(transports)
         self._factory = adapter_factory
         self.workflow_registry = workflow_registry
         self._adapter_cache: dict[str, ModelProviderAdapter] = {}
@@ -133,7 +133,7 @@ class ModelProviderRouter:
 
     def readiness(self) -> ProviderReadiness:
         order = self._candidate_names()
-        available = tuple(name for name in order if self.config.key_for(name) and name in self.transports)
+        available = tuple(name for name in order if self.config.key_for(name) and name in self._transports)
         if not available:
             return ProviderReadiness(
                 False,
@@ -198,13 +198,41 @@ class ModelProviderRouter:
                 self._adapter_cache[provider] = adapter
             return adapter
 
+    @property
+    def transports(self) -> Mapping[str, ProviderTransport]:
+        """Read-only snapshot of the router's current provider bindings."""
+        with self._adapter_cache_lock:
+            return MappingProxyType(dict(self._transports))
+
+    def replace_transport(self, provider: str, transport: ProviderTransport) -> None:
+        """Atomically rebind a provider and invalidate its cached adapter.
+
+        Runtime owners that rotate a client/credential transport must use this
+        explicit lifecycle API instead of mutating the constructor input map.
+        """
+        if provider not in SUPPORTED_PROVIDERS:
+            raise ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                f"unsupported provider {provider!r}",
+                provider=provider,
+            )
+        if not callable(transport):
+            raise ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                "provider transport must be callable",
+                provider=provider,
+            )
+        with self._adapter_cache_lock:
+            self._transports[provider] = transport
+            self._adapter_cache.pop(provider, None)
+
     def _build_adapter(self, provider: str) -> ModelProviderAdapter:
         """Construct one provider adapter from immutable router configuration."""
         kwargs = {
             "model_id": self.config.model_for(provider),
             "api_key": self.config.key_for(provider),
             "registry": self.registry,
-            "transport": self.transports[provider],
+            "transport": self._transports[provider],
             "config_checksum": self.config.checksum,
             "timeout_seconds": self.config.timeout_seconds,
         }

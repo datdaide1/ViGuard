@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from vivi_agent import RUNTIME_TOOL_REGISTRY
-from vivi_agent.model_providers import ModelProviderConfig, ModelProviderRouter
+from vivi_agent.model_providers import GeminiAdapter, OpenAIAdapter
 
 
-def _unused_transport(payload: object, timeout_seconds: float) -> dict[str, Any]:
-    raise AssertionError("P1-CACHE benchmark must not invoke a provider transport")
+def _unused_transport(payload: Mapping[str, Any], timeout_seconds: float) -> dict[str, Any]:
+    if payload.get("model") == "benchmark-openai":
+        return {"choices": [{"message": {"content": "Cần làm rõ."}}]}
+    return {"candidates": [{"content": {"parts": [{"text": "Cần làm rõ."}]}}]}
 
 
 def _measure(operation: Callable[[], object], iterations: int) -> dict[str, float | int]:
@@ -37,24 +39,29 @@ def run(iterations: int = 2_000) -> dict[str, Any]:
         raise ValueError("iterations must be positive")
     messages = [{"role": "user", "content": "Mở cửa ghế lái"}]
     results: dict[str, Any] = {
-        "scope": "offline adapter construction and immutable tool-schema payload generation",
+        "scope": "offline public adapter proposal path with deterministic in-process transport",
         "iterations": iterations,
         "providers": {},
     }
     for provider in ("openai", "gemini"):
-        config = ModelProviderConfig(
-            provider=provider,
-            openai_api_key="benchmark-only" if provider == "openai" else "",
-            gemini_api_key="benchmark-only" if provider == "gemini" else "",
-        )
-        router = ModelProviderRouter(config, RUNTIME_TOOL_REGISTRY, {provider: _unused_transport})
-        cached_adapter = router._adapter(provider)
+        adapter_type = OpenAIAdapter if provider == "openai" else GeminiAdapter
+
+        def new_adapter():
+            return adapter_type(
+                model_id=f"benchmark-{provider}",
+                api_key="benchmark-only",
+                registry=RUNTIME_TOOL_REGISTRY,
+                transport=_unused_transport,
+                config_checksum="sha256:benchmark",
+            )
+
+        cached_adapter = new_adapter()
 
         baseline = _measure(
-            lambda: router._build_adapter(provider)._proposal_payload(messages),
+            lambda: new_adapter().propose_tool(messages),
             iterations,
         )
-        cached = _measure(lambda: cached_adapter._proposal_payload(messages), iterations)
+        cached = _measure(lambda: cached_adapter.propose_tool(messages), iterations)
         baseline_us = float(baseline["us_per_call"])
         cached_us = float(cached["us_per_call"])
         results["providers"][provider] = {

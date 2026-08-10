@@ -301,6 +301,39 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(len(original.calls), 1)
         self.assertEqual(len(replacement.calls), 0)
 
+    def test_explicit_transport_replacement_invalidates_cached_adapter(self) -> None:
+        original = SequenceTransport(OPENAI_ACTION)
+        replacement = SequenceTransport(OPENAI_ACTION)
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": original},
+        )
+        original_adapter = router._adapter("openai")
+
+        router.replace_transport("openai", replacement)
+        replacement_adapter = router._adapter("openai")
+        router.propose_tool([{"role": "user", "content": "open"}])
+
+        self.assertIsNot(original_adapter, replacement_adapter)
+        self.assertEqual(len(original.calls), 0)
+        self.assertEqual(len(replacement.calls), 1)
+        self.assertIs(router.transports["openai"], replacement)
+
+    def test_transport_replacement_rejects_invalid_binding(self) -> None:
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": SequenceTransport(OPENAI_ACTION)},
+        )
+        with self.assertRaises(ModelProviderError) as raised:
+            router.replace_transport("other", SequenceTransport(OPENAI_ACTION))
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
+        with self.assertRaises(ModelProviderError) as raised:
+            router.replace_transport("openai", None)
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
     def test_router_reuses_one_adapter_per_provider_across_threads(self) -> None:
         created = []
 

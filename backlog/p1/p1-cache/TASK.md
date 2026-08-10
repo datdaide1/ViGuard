@@ -21,6 +21,8 @@ request vẫn nhận defensive clone để transport không thể làm bẩn cac
   Vehicle State/PIP, execution result hoặc session lock.
 - Provider failover và turn pinning giữ nguyên.
 - Cache adapter được khởi tạo thread-safe, tối đa một instance mỗi provider.
+- Transport rotation dùng API `replace_transport()` để rebind và invalidate
+  đúng cache entry; không mutate constructor input mapping.
 
 ## Acceptance criteria
 
