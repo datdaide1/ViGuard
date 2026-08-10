@@ -28,7 +28,7 @@ Nếu gate fail, không chạy tiếp và không claim demo pass.
 Harness của từng test tạo state machine/session mới, tương đương clean reset. Với app adapter thật, trước scenario gọi reset `all`:
 
 ```json
-{"contract_version":"1.0.0","kind":"request","request_type":"reset","session_id":"demo","request_id":"reset-001","occurred_at":"2026-08-10T08:00:00Z","scope":"all"}
+{"contract_version":"1.1.0","kind":"request","request_type":"reset","session_id":"demo","request_id":"reset-001","occurred_at":"2026-08-10T08:00:00Z","scope":"all"}
 ```
 
 Chỉ bắt đầu khi response là `completed` và health có `ready=true`. Sau reset, load preset bằng operator-only `simulation_control`; adapter deployment ánh xạ request này tới `SimulationController.apply_preset`, không tới Agent/model.

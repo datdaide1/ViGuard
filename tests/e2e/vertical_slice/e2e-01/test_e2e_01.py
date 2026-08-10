@@ -15,6 +15,7 @@ from vivi_agent.contracts.agent_ui.v1.contract import (
     validate_public_payload,
 )
 from vivi_agent.contracts.guardrail.v1.contract import CONTRACT_VERSION, proposal_digest
+from vivi_agent.contracts.agent_ui.v1.contract import CONTRACT_VERSION as AGENT_UI_CONTRACT_VERSION
 from vivi_agent.orchestrator import (
     AgentOrchestrator,
     MessageEndpoint,
@@ -95,7 +96,7 @@ class E2EOpenDoorVerticalSliceTests(unittest.TestCase):
 
         # 2. Execute user message turn through public endpoint
         request_payload = {
-            "contract_version": CONTRACT_VERSION,
+            "contract_version": AGENT_UI_CONTRACT_VERSION,
             "kind": "request",
             "request_type": "message",
             "session_id": "sess-e2e-01",
@@ -141,7 +142,7 @@ class E2EOpenDoorVerticalSliceTests(unittest.TestCase):
         endpoint = MessageEndpoint(orchestrator)
 
         request_payload = {
-            "contract_version": CONTRACT_VERSION,
+            "contract_version": AGENT_UI_CONTRACT_VERSION,
             "kind": "request",
             "request_type": "message",
             "session_id": "sess-e2e-block",
@@ -191,7 +192,7 @@ class E2EOpenDoorVerticalSliceTests(unittest.TestCase):
         endpoint = MessageEndpoint(orchestrator)
 
         request_payload = {
-            "contract_version": CONTRACT_VERSION,
+            "contract_version": AGENT_UI_CONTRACT_VERSION,
             "kind": "request",
             "request_type": "message",
             "session_id": "sess-malformed",
@@ -405,7 +406,7 @@ class E2EOpenDoorVerticalSliceTests(unittest.TestCase):
 
         # Perform turn
         endpoint.post_message({
-            "contract_version": CONTRACT_VERSION,
+            "contract_version": AGENT_UI_CONTRACT_VERSION,
             "kind": "request",
             "request_type": "message",
             "session_id": "sess-reset",

@@ -17,7 +17,9 @@
     { "$ref": "#/$defs/decisionEvent" },
     { "$ref": "#/$defs/executionEvent" },
     { "$ref": "#/$defs/stateChangedEvent" },
-    { "$ref": "#/$defs/activeActionEvent" }
+    { "$ref": "#/$defs/activeActionEvent" },
+    { "$ref": "#/$defs/turnProgressEvent" },
+    { "$ref": "#/$defs/responseChunkEvent" }
   ],
   "$defs": {
     "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
@@ -26,7 +28,7 @@
       "type": "object",
       "required": ["contract_version", "kind", "request_type", "session_id", "request_id", "occurred_at"],
       "properties": {
-        "contract_version": { "const": "1.0.0" }, "kind": { "const": "request" },
+        "contract_version": { "enum": ["1.0.0", "1.1.0"] }, "kind": { "const": "request" },
         "request_type": { "type": "string" }, "session_id": { "$ref": "#/$defs/identifier" },
         "request_id": { "$ref": "#/$defs/identifier" }, "occurred_at": { "$ref": "#/$defs/timestamp" }
       }
@@ -64,7 +66,7 @@
     "responseBase": {
       "type": "object", "required": ["contract_version", "kind", "status", "session_id", "turn_id", "request_id", "occurred_at", "message"],
       "properties": {
-        "contract_version": { "const": "1.0.0" }, "kind": { "const": "response" }, "status": { "type": "string" },
+        "contract_version": { "enum": ["1.0.0", "1.1.0"] }, "kind": { "const": "response" }, "status": { "type": "string" },
         "session_id": { "$ref": "#/$defs/identifier" }, "turn_id": { "$ref": "#/$defs/identifier" }, "request_id": { "$ref": "#/$defs/identifier" },
         "occurred_at": { "$ref": "#/$defs/timestamp" }, "message": { "type": "string", "minLength": 1 }
       }
@@ -77,7 +79,7 @@
     "eventBase": {
       "type": "object", "required": ["contract_version", "kind", "event_type", "event_id", "sequence", "session_id", "turn_id", "request_id", "occurred_at", "actor"],
       "properties": {
-        "contract_version": { "const": "1.0.0" }, "kind": { "const": "event" }, "event_type": { "type": "string" },
+        "contract_version": { "enum": ["1.0.0", "1.1.0"] }, "kind": { "const": "event" }, "event_type": { "type": "string" },
         "event_id": { "$ref": "#/$defs/identifier" }, "sequence": { "type": "integer", "minimum": 1 }, "session_id": { "$ref": "#/$defs/identifier" },
         "turn_id": { "$ref": "#/$defs/identifier" }, "request_id": { "$ref": "#/$defs/identifier" }, "occurred_at": { "$ref": "#/$defs/timestamp" },
         "actor": { "enum": ["USER", "AGENT", "GUARDRAIL", "VEHICLE", "OPERATOR", "SYSTEM"] }
@@ -87,6 +89,8 @@
     "decisionEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["proposal_id", "outcome", "reason_code", "rule_id", "state_version"], "properties": { "event_type": { "const": "decision" }, "proposal_id": { "$ref": "#/$defs/identifier" }, "outcome": { "enum": ["ALLOW", "BLOCK_UNSAFE", "BLOCK_UNAVAILABLE", "CONFIRM", "NOT_VOICE_ACTIONABLE", "ANSWER", "UNKNOWN"] }, "reason_code": { "$ref": "#/$defs/identifier" }, "rule_id": { "$ref": "#/$defs/identifier" }, "state_version": { "type": "integer", "minimum": 0 } } }], "unevaluatedProperties": false },
     "executionEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["proposal_id", "execution_id", "intent", "phase"], "properties": { "event_type": { "const": "execution" }, "proposal_id": { "$ref": "#/$defs/identifier" }, "execution_id": { "$ref": "#/$defs/identifier" }, "intent": { "$ref": "#/$defs/identifier" }, "phase": { "enum": ["started", "succeeded", "failed", "stopped"] }, "detail": { "type": "object" } } }], "unevaluatedProperties": false },
     "stateChangedEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["state_version", "changes"], "properties": { "event_type": { "const": "state_changed" }, "state_version": { "type": "integer", "minimum": 0 }, "changes": { "type": "object" }, "source_execution_id": { "$ref": "#/$defs/identifier" } } }], "unevaluatedProperties": false },
-    "activeActionEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["proposal_id", "execution_id", "active_action_id", "intent", "phase"], "properties": { "event_type": { "const": "active_action" }, "proposal_id": { "$ref": "#/$defs/identifier" }, "execution_id": { "$ref": "#/$defs/identifier" }, "active_action_id": { "$ref": "#/$defs/identifier" }, "intent": { "$ref": "#/$defs/identifier" }, "phase": { "enum": ["started", "progress", "stopped", "failed", "completed"] }, "progress": { "type": "number", "minimum": 0, "maximum": 1 } } }], "unevaluatedProperties": false }
+    "activeActionEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["proposal_id", "execution_id", "active_action_id", "intent", "phase"], "properties": { "event_type": { "const": "active_action" }, "proposal_id": { "$ref": "#/$defs/identifier" }, "execution_id": { "$ref": "#/$defs/identifier" }, "active_action_id": { "$ref": "#/$defs/identifier" }, "intent": { "$ref": "#/$defs/identifier" }, "phase": { "enum": ["started", "progress", "stopped", "failed", "completed"] }, "progress": { "type": "number", "minimum": 0, "maximum": 1 } } }], "unevaluatedProperties": false },
+    "turnProgressEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["phase", "progress"], "properties": { "contract_version": { "const": "1.1.0" }, "event_type": { "const": "turn_progress" }, "phase": { "enum": ["received", "resolving", "proposing", "authorizing", "executing", "responding", "completed", "failed"] }, "progress": { "type": "number", "minimum": 0, "maximum": 1 }, "message": { "type": "string", "minLength": 1 } } }], "unevaluatedProperties": false },
+    "responseChunkEvent": { "allOf": [{ "$ref": "#/$defs/eventBase" }, { "type": "object", "required": ["stream_id", "chunk_index", "delta", "content_kind", "final"], "properties": { "contract_version": { "const": "1.1.0" }, "event_type": { "const": "response_chunk" }, "stream_id": { "$ref": "#/$defs/identifier" }, "chunk_index": { "type": "integer", "minimum": 0, "maximum": 511 }, "delta": { "type": "string", "minLength": 1, "maxLength": 4096 }, "content_kind": { "enum": ["answer", "clarification", "status"] }, "final": { "type": "boolean" } } }], "unevaluatedProperties": false }
   }
 }

@@ -65,6 +65,7 @@ from vivi_agent.catalog import load_manifest
 from vivi_agent.confirmation import ConfirmationManager, ConfirmationState
 from vivi_agent.contracts.agent_ui.v1.contract import validate_event_stream
 from vivi_agent.contracts.guardrail.v1.contract import CONTRACT_VERSION, proposal_digest
+from vivi_agent.contracts.agent_ui.v1.contract import CONTRACT_VERSION as AGENT_UI_CONTRACT_VERSION
 from vivi_agent.events import AgentEventPipeline, AgentEventStore
 from vivi_agent.model_providers import ModelActionProposal, ProviderMetadata, TurnBinding
 from vivi_agent.orchestrator import (
@@ -276,7 +277,7 @@ def _build_scenario() -> Scn02Environment:
 
 def _request_payload(session_id: str, turn_id: str, request_id: str) -> dict[str, Any]:
     return {
-        "contract_version": CONTRACT_VERSION,
+        "contract_version": AGENT_UI_CONTRACT_VERSION,
         "kind": "request",
         "request_type": "message",
         "session_id": session_id,

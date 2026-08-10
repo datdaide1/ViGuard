@@ -225,7 +225,7 @@ def test_operations_endpoint_exposes_contract_valid_reset_and_health():
     endpoint = OperationsEndpoint(runtime, health, ui, clock=lambda: NOW)
 
     response = endpoint.post_reset({
-        "contract_version": "1.0.0", "kind": "request", "request_type": "reset",
+        "contract_version": "1.1.0", "kind": "request", "request_type": "reset",
         "session_id": "s1", "request_id": "reset-1",
         "occurred_at": NOW.isoformat().replace("+00:00", "Z"), "scope": "session",
     })
