@@ -20,6 +20,7 @@ from vivi_agent.responses.models import (
     ResponseOutcome,
     ResponsePlan,
 )
+from vivi_agent.responses.persona import PersonaProfile, PersonaVerbalizer
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,17 @@ DEFAULT_MAX_RESPONSE_LENGTH = 150
 class GroundedResponseComposer:
     """Composer responsible for producing strictly grounded, deterministic Vietnamese responses."""
 
-    def __init__(self, max_length: int = DEFAULT_MAX_RESPONSE_LENGTH) -> None:
+    def __init__(
+        self,
+        max_length: int = DEFAULT_MAX_RESPONSE_LENGTH,
+        persona: PersonaProfile | None = None,
+    ) -> None:
+        if isinstance(max_length, bool) or not isinstance(max_length, int):
+            raise TypeError("max_length must be an integer")
+        if max_length < 4:
+            raise ValueError("max_length must be at least 4")
         self.max_length = max_length
+        self._persona = PersonaVerbalizer(persona)
 
     def compose_from_guardrail(
         self,
@@ -89,6 +99,9 @@ class GroundedResponseComposer:
             fallback_text=fallback_text,
         )
 
+        if is_fallback:
+            final_text = self._persona.render(final_text, outcome)
+
         # 6. Apply length limit constraint
         final_text, truncated = self._apply_length_limit(final_text)
 
@@ -133,6 +146,9 @@ class GroundedResponseComposer:
             model_verbalization=model_verbalization,
             fallback_text=fallback_text,
         )
+
+        if is_fallback:
+            final_text = self._persona.render(final_text, outcome)
 
         final_text, truncated = self._apply_length_limit(final_text)
 
