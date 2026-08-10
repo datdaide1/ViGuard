@@ -1,0 +1,69 @@
+{
+  "provider": "gemini",
+  "model_id": "gemini-3.5-flash-lite",
+  "rpm": 12.0,
+  "item_count": 5,
+  "elapsed_seconds": 20.6,
+  "outcomes": [
+    {
+      "item_id": "clear__open_door",
+      "provider": "gemini",
+      "latency_ms": 297,
+      "proposal_kind": null,
+      "tool": null,
+      "arguments": null,
+      "text": null,
+      "error_code": "MODEL_PROVIDER_API_ERROR",
+      "error_detail": "provider request failed",
+      "skipped_reason": null
+    },
+    {
+      "item_id": "paraphrase__open_door",
+      "provider": "gemini",
+      "latency_ms": 78,
+      "proposal_kind": null,
+      "tool": null,
+      "arguments": null,
+      "text": null,
+      "error_code": "MODEL_PROVIDER_API_ERROR",
+      "error_detail": "provider request failed",
+      "skipped_reason": null
+    },
+    {
+      "item_id": "clear__open_trunk",
+      "provider": "gemini",
+      "latency_ms": 63,
+      "proposal_kind": null,
+      "tool": null,
+      "arguments": null,
+      "text": null,
+      "error_code": "MODEL_PROVIDER_API_ERROR",
+      "error_detail": "provider request failed",
+      "skipped_reason": null
+    },
+    {
+      "item_id": "paraphrase__open_trunk",
+      "provider": "gemini",
+      "latency_ms": 63,
+      "proposal_kind": null,
+      "tool": null,
+      "arguments": null,
+      "text": null,
+      "error_code": "MODEL_PROVIDER_API_ERROR",
+      "error_detail": "provider request failed",
+      "skipped_reason": null
+    },
+    {
+      "item_id": "clear__open_chargeport",
+      "provider": "gemini",
+      "latency_ms": 63,
+      "proposal_kind": null,
+      "tool": null,
+      "arguments": null,
+      "text": null,
+      "error_code": "MODEL_PROVIDER_API_ERROR",
+      "error_detail": "provider request failed",
+      "skipped_reason": null
+    }
+  ]
+}

@@ -20,6 +20,12 @@ from vivi_agent.responses.models import (
     ResponseOutcome,
     ResponsePlan,
 )
+from vivi_agent.responses.persona import (
+    PersonaProfile,
+    PersonaTone,
+    PersonaVerbalizer,
+    UserAddress,
+)
 
 __all__ = [
     "ResponseOutcome",
@@ -33,4 +39,8 @@ __all__ = [
     "get_approved_recovery_suggestions",
     "format_relevant_state",
     "DEFAULT_MAX_RESPONSE_LENGTH",
+    "PersonaProfile",
+    "PersonaTone",
+    "PersonaVerbalizer",
+    "UserAddress",
 ]

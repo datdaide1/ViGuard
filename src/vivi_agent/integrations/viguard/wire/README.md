@@ -47,5 +47,5 @@ Version matching is exact in v1. A mismatch raises `CONTRACT_VERSION_MISMATCH` a
 
 - `guardrail-agent.schema.json`: JSON Schema Draft 2020-12 definitions.
 - `examples.json`: the seven outcomes, typed error, confirmation request, and monitor request.
-- `contract.py`: dependency-free semantic validation and digest reference implementation.
-- `mock_server.py`: deterministic protocol mock for Agent consumer tests only.
+- `../../authorization/contract.py`: Agent-owned semantic validation and digest reference.
+- `../mock_server.py`: deterministic protocol mock for Agent integration tests only.

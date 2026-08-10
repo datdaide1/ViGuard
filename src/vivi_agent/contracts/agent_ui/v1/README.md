@@ -1,4 +1,4 @@
-# Agent–UI public contract v1
+# Agent–UI public contract v1.1
 
 This contract is the only payload surface the UI needs to render Agent and
 Vehicle lifecycle state. It deliberately excludes Guardrail permits, model
@@ -38,15 +38,37 @@ request, proposal and execution correlation; proposal-before-decision;
 ALLOW-before-execution; a single execution terminal transition; and no Agent
 state/active-action effects after execution terminates.
 
+## P1 streaming extension (v1.1)
+
+`turn_progress` exposes coarse public phases and monotonic progress only. It
+never carries prompts, provider thoughts, hidden reasoning, Guardrail trace or
+permits. `response_chunk` carries normalized display-text deltas with one
+stable `stream_id`, contiguous zero-based `chunk_index`, stable `content_kind`
+and exactly one `final` chunk. The normal terminal response remains the source
+of truth.
+
+`subscribe_session()` atomically replays events after `since_sequence` and
+then follows only that session. A failing consumer is detached without
+breaking event persistence; it can reconnect from its last acknowledged
+global session sequence. Callbacks execute outside the subscription registry
+lock. Replay queues and live queues are bounded; clients that fall behind use
+polling to catch up.
+
 ## Visibility and evolution
 
 Payload shapes are closed. The semantic validator recursively rejects secret,
 credential, prompt, hidden-reasoning, provider-thought, and permit fields.
 Public payloads expose only stable reason codes and grounded display text.
 
-Version matching is exact for v1. Additive or breaking changes require an
-explicitly agreed contract version; consumers must not silently accept unknown
-fields.
+The endpoint accepts both 1.0.0 and 1.1.0 and echoes the requested version in
+its terminal response. Existing 1.0.0 operations and events remain valid and
+non-streaming. Consumers must explicitly send 1.1.0 to receive P1 streaming
+events; the two new event variants are invalid under 1.0.0. Unknown versions
+and unknown fields still fail closed.
+
+Each response delta is limited to 4,096 characters, each response stream to
+512 chunks, and each in-memory session event stream to 4,096 events. The store
+validates each appended event incrementally rather than rescanning history.
 
 Files:
 

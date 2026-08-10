@@ -3,7 +3,7 @@ project: vivi-vehicle-agent-simulator
 scope: agent-only
 source_plan: specs/agent/VIVI_IMPLEMENTATION_PLAN.md
 branch: vivi-agent/scafford
-status_values: [planned, ready, in_progress, blocked, review, done]
+status_values: [planned, ready, in_progress, blocked, review, done, completed]
 task_count: 48
 p0_count: 39
 completed_count: 0
@@ -45,10 +45,10 @@ tasks:
     external_gate_ids: [G-EXT-01, G-EXT-03, G-EXT-04]
     owner: agent-team
     evidence:
-      - src/vivi_agent/contracts/guardrail/v1/guardrail-agent.schema.json
-      - src/vivi_agent/contracts/guardrail/v1/examples.json
-      - src/vivi_agent/contracts/guardrail/v1/contract.py
-      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - src/vivi_agent/integrations/viguard/wire/guardrail-agent.schema.json
+      - src/vivi_agent/integrations/viguard/wire/examples.json
+      - src/vivi_agent/authorization/contract.py
+      - src/vivi_agent/integrations/viguard/mock_server.py
       - tests/contracts/guardrail/test_consumer_contract.py
   - id: CON-02
     title: 'Khóa Agent–UI contract'
@@ -112,6 +112,22 @@ tasks:
     priority: P0
     sprint: sprint-1
     status: review
+    known_issues:
+      - >
+        RESOLVED — was: GeminiAdapter's tool schema (via
+        ToolDefinition.model_schema()'s oneOf/const/additionalProperties
+        shape) rejected/misread by the real Gemini generateContent API,
+        confirmed live during EVAL-01 (see
+        evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1 and
+        evals/eval-01/results/gemini_schema_bug_evidence.json), blocking any
+        live Gemini tool call. Fixed by flattening the tool schema (PR #37,
+        commits c7a660a/38cdcf2, both touching this task's own
+        adapters.py) and confirmed live: the same 5-item smoke shape that
+        was 5/5 API_ERROR before the fix now returns 5/5 correct
+        tool+arguments against real gemini-3.5-flash-lite (commit 629b25f,
+        see evals/eval-01/results/gemini_smoke_after_fix.json). See EVAL-01
+        for what's still outstanding beyond this fix (full 146-item live
+        run, OpenAI comparison).
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]
@@ -122,6 +138,7 @@ tasks:
       - src/vivi_agent/model_providers/selection.py
       - src/vivi_agent/model_providers/README.md
       - tests/model_providers/test_model_providers.py
+      - evals/eval-01/results/gemini_smoke_after_fix.json
   - id: ORC-01
     title: 'Xây ViVi Agent Orchestrator nền tảng'
     priority: P0
@@ -147,7 +164,7 @@ tasks:
     evidence:
       - src/vivi_agent/adapters/guardrail/client.py
       - src/vivi_agent/adapters/guardrail/__init__.py
-      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - src/vivi_agent/integrations/viguard/mock_server.py
       - tests/adapters/guardrail/test_guardrail_adapter.py
   - id: VEH-01
     title: 'Định nghĩa Vehicle State Model và invariants'
@@ -425,177 +442,269 @@ tasks:
     title: 'Hoàn thiện `open_door` behavior'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-01/TASK.md
     depends_on: [INT-01, INT-02]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/open_door.py
+      - tests/behaviors/test_hero_open_door.py
+      - tests/integration/hero/test_hero01_open_door.py
+
   - id: HERO-02
     title: 'Hoàn thiện HDA và AAC active behaviors'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-02/TASK.md
     depends_on: [ACTV-01, MON-ADP-01, INT-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/active_driving_assist.py
   - id: HERO-03
     title: 'Hoàn thiện Autopark và Camp mode behaviors'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-03/TASK.md
     depends_on: [ACTV-01, MON-ADP-01, SIM-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/autopark_campmode.py
+      - src/vivi_agent/behaviors/hero/_active_action_common.py
+      - tests/behaviors/test_hero_autopark_campmode.py
+      - tests/integration/hero/test_hero03_autopark_campmode.py
   - id: HERO-04
     title: 'Hoàn thiện confirmation behavior'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/behaviors/hero
     task_file: src/vivi_agent/behaviors/hero/hero-04/TASK.md
     depends_on: [CNF-01, INT-01, INT-02]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/behaviors/hero/confirmation.py
+      - src/vivi_agent/confirmation/manager.py
+      - src/vivi_agent/orchestrator/orchestrator.py
+      - tests/behaviors/test_hero_confirmation.py
+      - tests/integration/hero/test_hero04_confirmation.py
   - id: SCN-01
     title: 'Scenario “Agent bị lừa nhưng xe vẫn an toàn”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-01/TASK.md
     depends_on: [HERO-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn01_agent_fooled_vehicle_safe.py
   - id: SCN-02
     title: 'Scenario “Confirmation không phải giấy phép vĩnh viễn”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-02/TASK.md
     depends_on: [HERO-04]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn02_confirmation_not_a_permanent_permit.py
   - id: SCN-03
     title: 'Scenario “Guardrail bảo vệ khi action đang chạy”'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: tests/e2e/scenarios
     task_file: tests/e2e/scenarios/scn-03/TASK.md
     depends_on: [HERO-02, SIM-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/e2e/scenarios/test_scn03_guardrail_stops_active_action.py
   - id: EVAL-01
     title: 'Xây Vietnamese tool-selection evaluation set'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: in_progress
+    blocked_reason: >
+      RESOLVED (was: GeminiAdapter's tool schema rejected/misread by the real
+      Gemini API — see evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1).
+      Fixed by flattening the tool schema (PR #37, commits c7a660a/38cdcf2)
+      and confirmed live: same 5-item smoke shape that was 5/5 API_ERROR
+      before the fix now returns 5/5 correct tool+arguments against real
+      gemini-3.5-flash-lite (commit 629b25f, see
+      evals/eval-01/results/gemini_smoke_after_fix.json). Remaining work is
+      not blocked, just not yet done: (1) re-run the full 146-item dataset
+      live via run_live_eval.py for real tool accuracy/argument exact
+      match/clarification/invalid-call numbers, (2) OpenAI side is still
+      blocked on a missing OPENAI_API_KEY, (3) the model-freeze
+      recommendation in AGENT_MODEL_EVALUATION_REPORT.md §3 still needs
+      updating from its pre-fix "blocked" state once (1)/(2) land.
     area: evals
     task_file: evals/eval-01/TASK.md
     depends_on: [MAP-02, MOD-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - evals/eval-01/dataset.py
+      - evals/eval-01/scoring.py
+      - evals/eval-01/runner.py
+      - evals/eval-01/transports.py
+      - evals/eval-01/run_live_eval.py
+      - evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md
+      - evals/eval-01/results/gemini_gemini-3.5-flash-lite_smoke.json
+      - evals/eval-01/results/gemini_schema_bug_evidence.json
+      - evals/eval-01/results/gemini_smoke_after_fix.json
+      - tests/evals/eval-01/test_eval01_dataset.py
+      - tests/evals/eval-01/test_eval01_scoring.py
+      - tests/evals/eval-01/test_eval01_runner_fake_transport.py
   - id: EVAL-02
     title: 'Xây adversarial execution-boundary suite'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: evals
     task_file: evals/eval-02/TASK.md
     depends_on: [EXEC-01, ORC-01, INT-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/evals/eval-02/test_eval02_adversarial_execution_boundary.py
+      - evals/eval-02/AGENT_SAFETY_TEST_REPORT.md
   - id: PERF-01
     title: 'Benchmark Agent/Vehicle latency và stability'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: in_progress
+    blocked_reason: >
+      Not blocked — local pipeline measured and reported (all 3 acceptance
+      criteria met for what was measured, see
+      tests/performance/perf-01/AGENT_PERFORMANCE_REPORT.md §7). Outstanding:
+      one TASK.md work item ("Model warm-up và tool selection latency") was
+      deliberately deferred this round (PM decision) to avoid spending live
+      GEMINI_API_KEY quota — no OPENAI_API_KEY is available at all. Follow-up:
+      run a live Gemini pass (evals/eval-01/runner.py already tracks
+      latency_ms per outcome, reusable directly) once approved, and an
+      OpenAI pass once a key is available.
     area: tests/performance
     task_file: tests/performance/perf-01/TASK.md
     depends_on: [INT-01, INT-02, EVAL-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - tests/performance/perf-01/benchmark.py
+      - tests/performance/perf-01/run_benchmark.py
+      - tests/performance/perf-01/test_perf01_benchmark.py
+      - tests/performance/perf-01/AGENT_PERFORMANCE_REPORT.md
+      - tests/performance/perf-01/results/local_run.json
   - id: OPS-01
     title: 'Xây Agent/Vehicle reset và degraded mode'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/operations
     task_file: src/vivi_agent/operations/ops-01/TASK.md
     depends_on: [SIM-01, ACTV-01, ORC-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/operations/endpoint.py
+      - src/vivi_agent/operations/runtime.py
+      - tests/operations/test_runtime_operations.py
   - id: DOC-01
     title: 'Viết Agent integration guide và demo runbook'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: in_progress
     area: docs/agent
     task_file: docs/agent/doc-01/TASK.md
     depends_on: [SCN-01, SCN-02, SCN-03, OPS-01]
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - docs/agent/doc-01/AGENT_INTEGRATION_GUIDE.md
+      - docs/agent/doc-01/DEMO_RUNBOOK.md
   - id: REL-01
     title: 'Chạy Agent-only release gate'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: release
     task_file: release/rel-01/TASK.md
     depends_on: [CON-01, CON-02, CAT-01, TOOL-01, MAP-01, MOD-01, ORC-01, GRD-ADP-01, VEH-01, VEH-02, EXEC-01, EXEC-02, EVT-01, E2E-01, MAP-02, EXEC-03, BEH-01, QRY-01, RSP-01, CNF-01, ACTV-01, MON-ADP-01, SIM-01, COV-01, INT-01, INT-02, HERO-01, HERO-02, HERO-03, HERO-04, SCN-01, SCN-02, SCN-03, EVAL-01, EVAL-02, PERF-01, OPS-01, DOC-01]
     external_gate_ids: [G-EXT-01, G-EXT-02, G-EXT-03, G-EXT-04, G-EXT-05, G-EXT-06]
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/release/gate.py
+      - release/rel-01/run_release_gate.py
+      - tests/release/test_release_gate.py
+      - release/rel-01/evidence/AGENT_RELEASE_REPORT.md
+      - release/rel-01/evidence/FROZEN_AGENT_MANIFEST.json
   - id: P1-STREAM
     title: 'Streaming token/progress nâng cao'
     priority: P1
     sprint: backlog
-    status: planned
+    status: completed
     area: backlog/p1
     task_file: backlog/p1/p1-stream/TASK.md
-    depends_on: []
+    depends_on: [CON-02, EVT-01, OPS-01]
     start_condition: 'P0 event ordering đã ổn định'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/events/models.py
+      - src/vivi_agent/events/adapters.py
+      - src/vivi_agent/events/pipeline.py
+      - src/vivi_agent/contracts/agent_ui/v1/agent-ui.schema.json
+      - tests/events/test_p1_streaming.py
   - id: P1-WORKFLOW
     title: 'Compound predefined workflows'
     priority: P1
     sprint: backlog
-    status: planned
+    status: completed
     area: backlog/p1
     task_file: backlog/p1/p1-workflow/TASK.md
     depends_on: []
     start_condition: 'Single-action safety gates đã đạt'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/workflows/registry.py
+      - src/vivi_agent/workflows/engine.py
+      - src/vivi_agent/workflows/README.md
+      - src/vivi_agent/model_providers/adapters.py
+      - tests/workflows/test_predefined_workflows.py
+      - tests/model_providers/test_model_providers.py
   - id: P1-PERSONA
     title: 'Persona verbalization nâng cao'
     priority: P1
     sprint: backlog
-    status: planned
-    area: backlog/p1
+    status: completed
+    area: src/vivi_agent/responses
     task_file: backlog/p1/p1-persona/TASK.md
-    depends_on: []
+    depends_on:
+      - RSP-01
     start_condition: 'Deterministic grounded responses hoàn chỉnh'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/responses/persona.py
+      - src/vivi_agent/responses/composer.py
+      - tests/responses/test_response_composer.py
   - id: P1-CACHE
     title: 'Model/session optimization'
     priority: P1
     sprint: backlog
-    status: planned
-    area: backlog/p1
+    status: completed
+    area: src/vivi_agent/model_providers
     task_file: backlog/p1/p1-cache/TASK.md
-    depends_on: []
+    depends_on:
+      - MOD-01
+      - PERF-01
     start_condition: 'Có benchmark chứng minh bottleneck'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/model_providers/selection.py
+      - src/vivi_agent/model_providers/adapters.py
+      - tests/model_providers/test_model_providers.py
+      - tests/performance/p1-cache/benchmark.py
+      - tests/performance/p1-cache/BENCHMARK_REPORT.md
   - id: P2-DYN-RESEARCH
     title: 'Nghiên cứu start/accelerate/brake/stop intents'
     priority: P2

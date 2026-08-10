@@ -18,7 +18,7 @@ from src.vivi_agent.adapters.guardrail import (
 from src.vivi_agent.contracts.guardrail.v1.mock_server import create_server
 
 EXAMPLES = json.loads(
-    Path("src/vivi_agent/contracts/guardrail/v1/examples.json").read_text(encoding="utf-8")
+    Path("src/vivi_agent/integrations/viguard/wire/examples.json").read_text(encoding="utf-8")
 )
 
 

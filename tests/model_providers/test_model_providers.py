@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 from src.vivi_agent import RUNTIME_TOOL_REGISTRY
 from src.vivi_agent.model_providers import (
@@ -13,6 +14,7 @@ from src.vivi_agent.model_providers import (
     ProposalKind,
     TurnBinding,
 )
+from src.vivi_agent.workflows import load_default_workflows
 
 
 class SequenceTransport:
@@ -60,10 +62,22 @@ GEMINI_ACTION = {
         }
     ]
 }
+OPENAI_WORKFLOW = {
+    "choices": [{"message": {"tool_calls": [{"function": {
+        "name": "run_predefined_workflow",
+        "arguments": '{"workflow_id":"park_and_secure"}',
+    }}]}}]
+}
+GEMINI_WORKFLOW = {
+    "candidates": [{"content": {"parts": [{"functionCall": {
+        "name": "run_predefined_workflow",
+        "args": {"workflow_id": "park_and_secure"},
+    }}]}}]
+}
 
 
 class AdapterTests(unittest.TestCase):
-    def adapter(self, cls, transport):
+    def adapter(self, cls, transport, *, workflows=False):
         return cls(
             model_id="configured-model",
             api_key="backend-secret",
@@ -71,6 +85,9 @@ class AdapterTests(unittest.TestCase):
             transport=transport,
             config_checksum="sha256:test",
             clock=iter((1.0, 1.025)).__next__,
+            workflow_registry=(
+                load_default_workflows(RUNTIME_TOOL_REGISTRY) if workflows else None
+            ),
         )
 
     def test_openai_uses_strict_single_function_call_and_normalizes(self) -> None:
@@ -95,6 +112,16 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(len(payload["tools"]), 10)
         self.assertNotIn("backend-secret", repr(payload))
 
+    def test_openai_cached_schema_is_isolated_from_transport_mutation(self) -> None:
+        adapter = self.adapter(OpenAIAdapter, SequenceTransport())
+
+        first = adapter._proposal_payload([{"role": "user", "content": "Mở cửa lái"}])
+        expected_name = first["tools"][0]["function"]["name"]
+        first["tools"][0]["function"]["name"] = "mutated"
+        second = adapter._proposal_payload([{"role": "user", "content": "Mở cửa lái"}])
+
+        self.assertEqual(second["tools"][0]["function"]["name"], expected_name)
+
     def test_gemini_uses_native_declarations_and_same_contract(self) -> None:
         transport = SequenceTransport(GEMINI_ACTION)
         result = self.adapter(GeminiAdapter, transport).propose_tool(
@@ -103,9 +130,87 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(result.kind, ProposalKind.ACTION)
         self.assertEqual(result.tool_name, "control_access")
         payload = transport.calls[0][0]
-        self.assertEqual(len(payload["tools"][0]["functionDeclarations"]), 10)
+        declarations = payload["tools"][0]["functionDeclarations"]
+        self.assertEqual(len(declarations), 10)
         self.assertEqual(payload["toolConfig"]["functionCallingConfig"]["mode"], "AUTO")
         self.assertIn("systemInstruction", payload)
+
+        # Regression guard for the confirmed real-API bug (see
+        # evals/eval-01/results/gemini_schema_bug_evidence.json): Gemini's
+        # generateContent parser 400s on oneOf/const/additionalProperties and,
+        # even with those stripped, ignores properties/required nested inside
+        # oneOf branches. Every declaration sent to Gemini must be flat.
+        for declaration in declarations:
+            parameters = declaration["parameters"]
+            self.assertEqual(parameters["type"], "object")
+            self.assertNotIn("oneOf", parameters)
+            self.assertNotIn("additionalProperties", parameters)
+            self.assertIn("properties", parameters)
+            self.assertIn("required", parameters)
+            for prop in parameters["properties"].values():
+                self.assertNotIn("const", prop)
+
+        access = next(item for item in declarations if item["name"] == "control_access")["parameters"]
+        self.assertEqual(set(access["properties"]["action"]["enum"]), {"open", "lock", "unlock"})
+        self.assertIn("driver_door", access["properties"]["target"]["enum"])
+        self.assertIn("all_doors", access["properties"]["target"]["enum"])
+        self.assertNotIn("value", access["properties"])
+        self.assertEqual(set(access["required"]), {"action", "target"})
+
+        # "value" is only required for some control_cabin/control_transmission
+        # signatures, so it must stay out of "required" at the schema level;
+        # ToolRegistry.validate_call still enforces it per-action.
+        drive = next(item for item in declarations if item["name"] == "set_drive_mode")["parameters"]
+        self.assertEqual(set(drive["properties"]["value"]["enum"]), {"eco", "normal", "sport"})
+        self.assertNotIn("value", drive["required"])
+
+    def test_gemini_cached_schema_is_isolated_from_transport_mutation(self) -> None:
+        adapter = self.adapter(GeminiAdapter, SequenceTransport())
+
+        first = adapter._proposal_payload([{"role": "user", "content": "Mở cửa lái"}])
+        declarations = first["tools"][0]["functionDeclarations"]
+        expected_name = declarations[0]["name"]
+        declarations[0]["name"] = "mutated"
+        second = adapter._proposal_payload([{"role": "user", "content": "Mở cửa lái"}])
+
+        declarations = second["tools"][0]["functionDeclarations"]
+        self.assertEqual(declarations[0]["name"], expected_name)
+
+    def test_gemini_flat_schema_lets_model_fill_arguments_in_one_pass(self) -> None:
+        # Reproduces finding_2 from evals/eval-01/results/gemini_schema_bug_evidence.json:
+        # with the old oneOf-nested schema Gemini returned the right tool name but
+        # empty args. The flat schema's args come straight through unmodified, so a
+        # non-empty args dict here would have masked the original bug.
+        transport = SequenceTransport(GEMINI_ACTION)
+        result = self.adapter(GeminiAdapter, transport).propose_tool(
+            [{"role": "user", "content": "Mở cửa lái"}]
+        )
+        self.assertEqual(dict(result.arguments or {}), {"action": "open", "target": "driver_door"})
+
+    def test_both_providers_normalize_the_same_closed_workflow_selection(self) -> None:
+        for adapter_type, raw in (
+            (OpenAIAdapter, OPENAI_WORKFLOW),
+            (GeminiAdapter, GEMINI_WORKFLOW),
+        ):
+            adapter = self.adapter(adapter_type, SequenceTransport(raw), workflows=True)
+            result = adapter.propose_tool(
+                [{"role": "user", "content": "Park and secure the vehicle"}]
+            )
+            self.assertEqual(result.tool_name, "run_predefined_workflow")
+            self.assertEqual(dict(result.arguments or {}), {"workflow_id": "park_and_secure"})
+            payload = adapter._transport.calls[0][0]
+            if adapter_type is OpenAIAdapter:
+                workflow = next(
+                    tool["function"] for tool in payload["tools"]
+                    if tool["function"]["name"] == "run_predefined_workflow"
+                )
+                self.assertTrue(workflow["strict"])
+            else:
+                workflow = next(
+                    item for item in payload["tools"][0]["functionDeclarations"]
+                    if item["name"] == "run_predefined_workflow"
+                )
+                self.assertNotIn("additionalProperties", workflow["parameters"])
 
     def test_text_is_clarification_for_proposal_and_response_for_composition(self) -> None:
         proposal_transport = SequenceTransport(
@@ -180,6 +285,93 @@ class AdapterTests(unittest.TestCase):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_router_snapshots_transport_bindings_for_cache_consistency(self) -> None:
+        original = SequenceTransport(OPENAI_ACTION)
+        replacement = SequenceTransport(OPENAI_ACTION)
+        transports = {"openai": original}
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            transports,
+        )
+
+        transports["openai"] = replacement
+        router.propose_tool([{"role": "user", "content": "open"}])
+
+        self.assertEqual(len(original.calls), 1)
+        self.assertEqual(len(replacement.calls), 0)
+
+    def test_explicit_transport_replacement_invalidates_cached_adapter(self) -> None:
+        original = SequenceTransport(OPENAI_ACTION)
+        replacement = SequenceTransport(OPENAI_ACTION)
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": original},
+        )
+        original_adapter = router._adapter("openai")
+
+        router.replace_transport("openai", replacement)
+        replacement_adapter = router._adapter("openai")
+        router.propose_tool([{"role": "user", "content": "open"}])
+
+        self.assertIsNot(original_adapter, replacement_adapter)
+        self.assertEqual(len(original.calls), 0)
+        self.assertEqual(len(replacement.calls), 1)
+        self.assertIs(router.transports["openai"], replacement)
+
+    def test_transport_replacement_rejects_invalid_binding(self) -> None:
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": SequenceTransport(OPENAI_ACTION)},
+        )
+        with self.assertRaises(ModelProviderError) as raised:
+            router.replace_transport("other", SequenceTransport(OPENAI_ACTION))
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
+        with self.assertRaises(ModelProviderError) as raised:
+            router.replace_transport("openai", None)
+        self.assertEqual(raised.exception.code, ModelErrorCode.INVALID_CONFIG)
+
+    def test_router_reuses_one_adapter_per_provider_across_threads(self) -> None:
+        created = []
+
+        def factory(**kwargs):
+            kwargs.pop("provider")
+            adapter = OpenAIAdapter(**kwargs)
+            created.append(adapter)
+            return adapter
+
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": SequenceTransport(*([OPENAI_ACTION] * 20))},
+            adapter_factory=factory,
+        )
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            adapters = list(pool.map(lambda _: router._adapter("openai"), range(20)))
+
+        self.assertEqual(len(created), 1)
+        self.assertTrue(all(adapter is created[0] for adapter in adapters))
+
+    def test_router_opt_in_exposes_and_returns_a_workflow_selection(self) -> None:
+        transport = SequenceTransport(OPENAI_WORKFLOW)
+        router = ModelProviderRouter(
+            ModelProviderConfig(openai_api_key="key"),
+            RUNTIME_TOOL_REGISTRY,
+            {"openai": transport},
+            workflow_registry=load_default_workflows(RUNTIME_TOOL_REGISTRY),
+        )
+        result = router.propose_tool([{"role": "user", "content": "Park and secure"}])
+        self.assertEqual(result.tool_name, "run_predefined_workflow")
+        self.assertEqual(dict(result.arguments or {}), {"workflow_id": "park_and_secure"})
+        names = {
+            tool["function"]["name"] for tool in transport.calls[0][0]["tools"]
+        }
+        self.assertIn("run_predefined_workflow", names)
+
     def test_environment_config_priority_models_and_secret_free_checksum(self) -> None:
         config = ModelProviderConfig.from_env(
             {

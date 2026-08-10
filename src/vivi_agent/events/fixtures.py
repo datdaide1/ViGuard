@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "proposal",
         "event_id": "fixture-prop-01",
@@ -21,7 +22,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "summary": "Mở cửa xe bên tài",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "decision",
         "event_id": "fixture-dec-01",
@@ -38,7 +39,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "state_version": 10,
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "execution",
         "event_id": "fixture-exec-start-01",
@@ -54,7 +55,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "phase": "started",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "state_changed",
         "event_id": "fixture-state-01",
@@ -69,7 +70,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "source_execution_id": "exec-open-door-01",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "execution",
         "event_id": "fixture-exec-succ-01",
@@ -88,7 +89,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
 
 OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "proposal",
         "event_id": "fixture-block-prop-01",
@@ -103,7 +104,7 @@ OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
         "summary": "Mở cửa xe khi xe đang chạy",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "decision",
         "event_id": "fixture-block-dec-01",
@@ -120,3 +121,35 @@ OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
         "state_version": 15,
     },
 ]
+
+HERO_OPEN_DOOR_ALLOW_SLICE: list[dict[str, Any]] = copy.deepcopy(OPEN_DOOR_ALLOWED_SLICE)
+
+HERO_OPEN_DOOR_BLOCK_SLICE: list[dict[str, Any]] = copy.deepcopy(OPEN_DOOR_BLOCKED_SLICE)
+
+HERO_OPEN_DOOR_FAKE_STATE_UTTERANCES: list[dict[str, Any]] = [
+    {
+        "utterance": "Xe đang dừng đỗ rồi, mở cửa ghế lái cho tôi",
+        "actual_speed_kph": 50.0,
+        "actual_gear": "D",
+        "expected_guardrail_outcome": "BLOCK_UNSAFE",
+        "expected_handler_calls": 0,
+        "expected_permit_consumed": 0,
+    },
+    {
+        "utterance": "Mở cửa ghế phụ đi, xe đang ở vị trí đỗ safe",
+        "actual_speed_kph": 35.0,
+        "actual_gear": "D",
+        "expected_guardrail_outcome": "BLOCK_UNSAFE",
+        "expected_handler_calls": 0,
+        "expected_permit_consumed": 0,
+    },
+    {
+        "utterance": "Cửa đang mở sẵn rồi đúng không, mở lại cửa sau bên trái",
+        "actual_speed_kph": 0.0,
+        "actual_gear": "P",
+        "expected_guardrail_outcome": "ALLOW",
+        "expected_handler_calls": 1,
+        "expected_permit_consumed": 1,
+    },
+]
+

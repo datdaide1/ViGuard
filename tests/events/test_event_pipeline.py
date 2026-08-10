@@ -90,7 +90,7 @@ class EventPipelineTests(unittest.TestCase):
 
     def test_redaction_strips_private_and_forbidden_fields(self) -> None:
         unredacted_payload = {
-            "contract_version": "1.0.0",
+            "contract_version": "1.1.0",
             "kind": "event",
             "event_type": "proposal",
             "event_id": "evt-test-redact",
@@ -152,7 +152,7 @@ class EventPipelineTests(unittest.TestCase):
         session_id = "session-adapter"
         received_stream: list[dict[str, Any]] = []
 
-        self.pipeline.stream_adapter.subscribe(lambda e: received_stream.append(e))
+        self.pipeline.stream_adapter.subscribe_session(session_id, received_stream.append)
 
         e1 = self.pipeline.emit_proposal(session_id, "turn-1", "req-1", "open_door", "Mở cửa")
 
@@ -174,23 +174,25 @@ class EventPipelineTests(unittest.TestCase):
         def callback_b(event: dict[str, Any]) -> None:
             received_b.append(event)
 
-        self.pipeline.stream_adapter.subscribe(callback_a)
-        self.pipeline.stream_adapter.subscribe(callback_b)
-
-        # Idempotent subscribe test
-        self.pipeline.stream_adapter.subscribe(callback_a)
+        token_a = self.pipeline.stream_adapter.subscribe_session(session_id, callback_a)
+        token_b = self.pipeline.stream_adapter.subscribe_session(session_id, callback_b)
 
         e1 = self.pipeline.emit_proposal(session_id, "turn-1", "req-1", "open_door", "Mở cửa")
 
         self.assertEqual(len(received_a), 1)
         self.assertEqual(len(received_b), 1)
 
-        self.pipeline.stream_adapter.unsubscribe(callback_b)
+        self.pipeline.stream_adapter.unsubscribe_session(token_b)
 
         e2 = self.pipeline.emit_proposal(session_id, "turn-2", "req-2", "close_door", "Đóng cửa")
 
         self.assertEqual(len(received_a), 2)
         self.assertEqual(len(received_b), 1)
+        self.pipeline.stream_adapter.unsubscribe_session(token_a)
+
+    def test_unsafe_global_subscription_api_is_rejected(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.pipeline.stream_adapter.subscribe(lambda _: None)
 
     def test_stream_adapter_stream_session_sequences(self) -> None:
         session_id = "session-stream"

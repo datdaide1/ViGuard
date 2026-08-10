@@ -26,6 +26,14 @@ logger = logging.getLogger(__name__)
 # Type definition for stop handler callbacks: func(record, reason)
 StopHandlerCallback = Callable[[ActiveActionRecord, str], None]
 
+# Reason string passed to registered stop handlers when start_action()
+# supersedes a same-session/same-intent record that's still running (a
+# restart, not a real stop). Exposed as a constant — not just an internal
+# literal — so stop handlers that need to distinguish "restart" from "real
+# stop" (e.g. to avoid clearing real vehicle state on a mere restart) match
+# against this instead of duplicating the raw string.
+SUPERSEDED_BY_NEW_START_REASON = "superseded_by_new_start"
+
 
 class ActiveActionRegistry:
     """Thread-safe registry managing long-running active action lifecycles."""
@@ -152,7 +160,7 @@ class ActiveActionRegistry:
                 ):
                     superseded.append(
                         self._internal_stop(
-                            existing_id, reason="superseded_by_new_start", turn_id=turn_id
+                            existing_id, reason=SUPERSEDED_BY_NEW_START_REASON, turn_id=turn_id
                         )
                     )
 
@@ -162,7 +170,7 @@ class ActiveActionRegistry:
         # Invoke stop handlers and emit typed events outside the lock (self._lock is
         # non-reentrant; a handler calling back into the registry would otherwise deadlock).
         for stopped_record in superseded:
-            self._invoke_stop_handler(stopped_record, reason="superseded_by_new_start")
+            self._invoke_stop_handler(stopped_record, reason=SUPERSEDED_BY_NEW_START_REASON)
             self._emit_event(stopped_record)
 
         self._emit_event(record)
@@ -350,7 +358,7 @@ class ActiveActionRegistry:
         return completed_record
 
     def reset_and_cleanup(
-        self, reason: str = "system_reset", turn_id: str = ""
+        self, reason: str = "system_reset", turn_id: str = "", session_id: str | None = None
     ) -> list[ActiveActionRecord]:
         """Reset and clean up active actions on agent restart or vehicle state reset.
 
@@ -360,6 +368,7 @@ class ActiveActionRegistry:
         Args:
             reason: Reason for reset/cleanup.
             turn_id: Conversational turn identifier that triggered this reset, if any.
+            session_id: Optional session boundary; omitted means all sessions.
 
         Returns:
             List of stopped/cleaned up ActiveActionRecords.
@@ -370,6 +379,7 @@ class ActiveActionRegistry:
                 rec.action_id
                 for rec in self._records.values()
                 if rec.phase in (ActiveActionPhase.STARTED, ActiveActionPhase.PROGRESS)
+                and (session_id is None or rec.session_id == session_id)
             ]
             for action_id in running_ids:
                 stopped_rec = self._internal_stop(action_id, reason=reason, turn_id=turn_id)
@@ -387,6 +397,20 @@ class ActiveActionRegistry:
     def get_action(self, action_id: str) -> ActiveActionRecord | None:
         """Retrieve a specific active action record by ID."""
         with self._lock:
+            return self._records.get(action_id)
+
+    def get_running_action(self, session_id: str, intent: str) -> ActiveActionRecord | None:
+        """O(1) lookup of the currently running record for (session_id, intent).
+
+        Backed directly by ``_running_index`` instead of the O(total records
+        ever created) scan ``get_active_actions``/``query_actions`` perform —
+        use this when the caller only needs "is there a running record for
+        this exact session+intent", not a filtered list.
+        """
+        with self._lock:
+            action_id = self._running_index.get((session_id, intent))
+            if action_id is None:
+                return None
             return self._records.get(action_id)
 
     def get_active_actions(self, session_id: str | None = None) -> list[ActiveActionRecord]:

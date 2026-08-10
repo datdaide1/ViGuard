@@ -514,8 +514,8 @@ class VehicleState:
                 "DUPLICATE_ACTIVE_ACTION", "active action IDs must be unique"
             )
 
-    def to_guardrail_snapshot(self) -> dict[str, Any]:
-        """Return the closed JSON-ready PIP projection required by ViGuard.
+    def to_authorization_snapshot(self) -> dict[str, Any]:
+        """Return the closed JSON-ready state projection for an authorizer.
 
         Source fields retain the ViGuard contract names.  Derived fields are
         calculated only from validated source groups and are not stored twice.
@@ -554,6 +554,10 @@ class VehicleState:
             "valet_mode_active": self.modes.valet_mode_active,
             "autopark_state": self.adas.autopark_state.value,
         }
+
+    def to_guardrail_snapshot(self) -> dict[str, Any]:
+        """Deprecated compatibility alias for ``to_authorization_snapshot``."""
+        return self.to_authorization_snapshot()
 
 
 def _finite_range(value: float, field_name: str, minimum: float, maximum: float | None) -> None:

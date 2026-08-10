@@ -95,6 +95,22 @@ class VehicleToolGateway:
             Typed result containing success flag, execution_id, message, state_version,
             facts, or error details.
         """
+        with self._verifier.store.lifecycle_boundary():
+            return self._execute_under_lifecycle_gate(
+                proposal,
+                decision_or_permit,
+                cancellation=cancellation,
+                current_time=current_time,
+            )
+
+    def _execute_under_lifecycle_gate(
+        self,
+        proposal: Mapping[str, Any],
+        decision_or_permit: Mapping[str, Any],
+        cancellation: Any = None,
+        current_time: datetime | None = None,
+    ) -> ExecutionResult:
+        """Execute while holding the PermitStore lifecycle boundary."""
         execution_id = f"exec-{uuid.uuid4().hex[:12]}"
 
         # Step 0: Check cancellation prior to processing

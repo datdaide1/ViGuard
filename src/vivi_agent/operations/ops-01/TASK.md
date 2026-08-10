@@ -1,6 +1,6 @@
 ﻿# OPS-01 — Xây Agent/Vehicle reset và degraded mode
 
-**Trạng thái:** planned  
+**Trạng thái:** completed
 **Sprint:** sprint-3  
 **Code area:** src/vivi_agent/operations  
 **Nguồn:** specs/agent/VIVI_IMPLEMENTATION_PLAN.md (mục OPS-01)

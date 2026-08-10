@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 import uuid
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 
 
 def generate_id(prefix: str = "evt") -> str:
@@ -158,4 +158,46 @@ class ActiveActionEvent(EventBase):
         })
         if self.progress is not None:
             data["progress"] = self.progress
+        return data
+
+
+@dataclass(frozen=True)
+class TurnProgressEvent(EventBase):
+    """Public, non-reasoning progress for one Agent turn."""
+
+    phase: str = "received"
+    progress: float = 0.0
+    message: str | None = None
+    event_type: str = "turn_progress"
+
+    def to_dict(self) -> dict[str, Any]:
+        data = super().to_dict()
+        data.update({"phase": self.phase, "progress": self.progress})
+        if self.message is not None:
+            data["message"] = self.message
+        return data
+
+
+@dataclass(frozen=True)
+class ResponseChunkEvent(EventBase):
+    """A normalized public response delta; never raw provider output."""
+
+    stream_id: str = ""
+    chunk_index: int = 0
+    delta: str = ""
+    content_kind: str = "answer"
+    final: bool = False
+    event_type: str = "response_chunk"
+
+    def to_dict(self) -> dict[str, Any]:
+        data = super().to_dict()
+        data.update(
+            {
+                "stream_id": self.stream_id,
+                "chunk_index": self.chunk_index,
+                "delta": self.delta,
+                "content_kind": self.content_kind,
+                "final": self.final,
+            }
+        )
         return data

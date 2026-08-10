@@ -152,6 +152,20 @@ def test_success_is_reported_only_after_execution_result():
     assert result.trace[-2:] == (TurnState.EXECUTING, TurnState.COMPLETED)
 
 
+def test_new_composition_uses_vendor_neutral_authorizer_keyword():
+    authorizer = FakeGuardrail()
+    orchestrator = AgentOrchestrator(
+        model_router=FakeRouter(),
+        mapper=load_default_mapper(load_registry(), load_manifest()),
+        authorizer=authorizer,
+        executor=FakeExecutor(),
+        id_factory=lambda prefix: f"{prefix}-neutral",
+    )
+    result = orchestrator.handle_message(REQUEST)
+    assert result.status is TurnStatus.COMPLETED
+    assert authorizer.calls == 1
+
+
 def test_execution_failure_never_reports_success():
     executor = FakeExecutor(
         ExecutionResult(
@@ -301,7 +315,7 @@ def test_message_endpoint_returns_contract_valid_payload():
     )
     response = endpoint.post_message(
         {
-            "contract_version": "1.0.0",
+            "contract_version": "1.1.0",
             "kind": "request",
             "request_type": "message",
             "session_id": "session-1",
@@ -313,6 +327,68 @@ def test_message_endpoint_returns_contract_valid_payload():
     )
     assert response["status"] == "completed"
     assert response["execution_id"] == "execution-1"
+    events = endpoint.event_pipeline.store.get_events("session-1")
+    assert [event["event_type"] for event in events] == [
+        "turn_progress", "turn_progress", "turn_progress", "response_chunk", "turn_progress"
+    ]
+    assert events[-1]["phase"] == "completed"
+    assert "".join(
+        event["delta"] for event in events if event["event_type"] == "response_chunk"
+    ) == response["message"]
+
+
+def test_message_endpoint_keeps_agent_ui_10_non_streaming_compatibility():
+    endpoint = MessageEndpoint(make_orchestrator())
+    response = endpoint.post_message(
+        {
+            "contract_version": "1.0.0",
+            "kind": "request",
+            "request_type": "message",
+            "session_id": "legacy-session",
+            "turn_id": "legacy-turn",
+            "request_id": "legacy-request",
+            "occurred_at": "2026-08-04T00:00:00Z",
+            "message": "Open the driver door",
+        }
+    )
+
+    assert response["contract_version"] == "1.0.0"
+    assert response["status"] == "completed"
+    assert endpoint.event_pipeline.store.get_events("legacy-session") == []
+
+
+def test_execution_result_to_dict_is_json_serializable():
+    """Without to_dict(), a plain dict(ExecutionResult(...)) raises TypeError
+    (frozen dataclass, not iterable) and dataclasses.asdict() raises on the
+    MappingProxyType `facts` field — see confirmation/manager.py's
+    _execution_result_to_dict for the consumer this originally broke."""
+    import json
+
+    result = ExecutionResult(
+        success=False,
+        execution_id="exec-1",
+        message="denied",
+        state_version=3,
+        facts={"intent": "open_window"},
+        error=TurnError(code="EXECUTION_DENIED", message="denied", retryable=False),
+    )
+
+    as_dict = result.to_dict()
+
+    assert as_dict == {
+        "success": False,
+        "execution_id": "exec-1",
+        "message": "denied",
+        "state_version": 3,
+        "facts": {"intent": "open_window"},
+        "error": {"code": "EXECUTION_DENIED", "message": "denied", "retryable": False},
+    }
+    json.dumps(as_dict)  # must not raise
+
+
+def test_execution_result_to_dict_success_has_no_error():
+    result = ExecutionResult(success=True, execution_id="exec-2", message="ok")
+    assert result.to_dict()["error"] is None
 
 
 def test_orchestrator_has_no_action_handler_registry_reference():

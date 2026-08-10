@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import time
+from copy import deepcopy
+from functools import cached_property
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
-from ..tools.registry import ToolRegistry
+from ..tools.registry import ToolDefinition, ToolRegistry
+from ..workflows import WorkflowRegistry
 from .contracts import (
     ModelActionProposal,
     ModelErrorCode,
@@ -37,6 +40,7 @@ class ModelProviderAdapter(ABC):
         config_checksum: str,
         timeout_seconds: float = 10.0,
         clock: Callable[[], float] = time.monotonic,
+        workflow_registry: WorkflowRegistry | None = None,
     ) -> None:
         self.model_id = model_id
         self._api_key = api_key
@@ -45,6 +49,7 @@ class ModelProviderAdapter(ABC):
         self.config_checksum = config_checksum
         self.timeout_seconds = timeout_seconds
         self._clock = clock
+        self.workflow_registry = workflow_registry
 
     @property
     @abstractmethod
@@ -145,6 +150,20 @@ class OpenAIAdapter(ModelProviderAdapter):
         return "openai"
 
     def _proposal_payload(self, messages: list[dict[str, str]]) -> Mapping[str, Any]:
+        return {
+            "model": self.model_id,
+            "messages": messages,
+            # Transports are external seams and may normalize payloads in-place.
+            # Clone the immutable-config cache so one request cannot corrupt another.
+            "tools": deepcopy(self._proposal_tools),
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
+        }
+
+    @cached_property
+    def _proposal_tools(self) -> list[dict[str, Any]]:
+        """Build immutable-registry tool declarations once per adapter."""
         tools = [
             {
                 "type": "function",
@@ -152,14 +171,14 @@ class OpenAIAdapter(ModelProviderAdapter):
             }
             for schema in self.registry.model_tools()
         ]
-        return {
-            "model": self.model_id,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
-            "parallel_tool_calls": False,
-            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
-        }
+        if self.workflow_registry is not None:
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {**self.workflow_registry.model_schema(), "strict": True},
+                }
+            )
+        return tools
 
     def _response_payload(self, grounded_facts: str) -> Mapping[str, Any]:
         return {
@@ -212,13 +231,70 @@ class GeminiAdapter(ModelProviderAdapter):
         payload: dict[str, Any] = {
             "model": self.model_id,
             "contents": contents,
-            "tools": [{"functionDeclarations": list(self.registry.model_tools())}],
+            # ToolRegistry.model_tools() (used by OpenAIAdapter) emits a
+            # oneOf/const/additionalProperties shape per tool. Gemini's
+            # generateContent function-calling parser rejects that outright
+            # (HTTP 400: Unknown name "const"/"additionalProperties") and, once
+            # those two keywords are stripped, still does not read
+            # properties/required nested inside oneOf branches — it returns the
+            # right tool name with empty args. See
+            # evals/eval-01/results/gemini_schema_bug_evidence.json. This is a
+            # Gemini-specific parser quirk, not a general schema concern, so the
+            # flattening lives here rather than on the registry; the real
+            # per-(action, target, value) enforcement still happens post-hoc in
+            # ToolRegistry.validate_call regardless of which schema shape a
+            # provider was sent.
+            "tools": [{"functionDeclarations": deepcopy(self._cached_proposal_declarations)}],
             "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
             "generationConfig": {"maxOutputTokens": self.MAX_OUTPUT_TOKENS},
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
         return payload
+
+    @cached_property
+    def _cached_proposal_declarations(self) -> list[dict[str, Any]]:
+        """Build immutable-registry Gemini declarations once per adapter."""
+        return self._proposal_declarations()
+
+    def _proposal_declarations(self) -> list[dict[str, Any]]:
+        declarations = [self._flat_declaration(tool) for tool in self.registry.tools]
+        if self.workflow_registry is not None:
+            workflow = self.workflow_registry.model_schema()
+            parameters = dict(workflow["parameters"])
+            parameters.pop("additionalProperties", None)
+            declarations.append({**workflow, "parameters": parameters})
+        return declarations
+
+    @staticmethod
+    def _flat_declaration(tool: ToolDefinition) -> dict[str, Any]:
+        """Flatten one tool's (action, target, value) signatures into the single
+        flat {type: object, properties, required} shape Gemini's function-calling
+        parser expects, instead of ToolDefinition.model_schema()'s oneOf-per-signature
+        shape. action/target/value are exposed as the union of every signature's
+        allowed values; "value" is left out of "required" because not every
+        signature of a tool carries one (e.g. control_cabin mixes value-bearing
+        and value-free actions) — ToolRegistry.validate_call still enforces it
+        per-action and returns a clarification when it's missing.
+        """
+        actions = sorted({signature.action for signature in tool.signatures})
+        targets = sorted({target for signature in tool.signatures for target in signature.targets})
+        values = sorted({value for signature in tool.signatures for value in signature.values})
+        properties: dict[str, Any] = {
+            "action": {"type": "string", "enum": actions},
+            "target": {"type": "string", "enum": targets},
+        }
+        if values:
+            properties["value"] = {"type": "string", "enum": values}
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": ["action", "target"],
+            },
+        }
 
     def _response_payload(self, grounded_facts: str) -> Mapping[str, Any]:
         return {

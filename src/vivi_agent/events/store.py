@@ -8,8 +8,8 @@ from threading import Lock
 from typing import Any, Sequence
 
 from src.vivi_agent.contracts.agent_ui.v1.contract import (
-    validate_event_stream,
-    validate_public_payload,
+    EventStreamState,
+    validate_next_event,
 )
 from src.vivi_agent.events.redaction import redact_event
 
@@ -17,8 +17,11 @@ from src.vivi_agent.events.redaction import redact_event
 class AgentEventStore:
     """Thread-safe append-only event store managing contiguous session event streams."""
 
+    MAX_EVENTS_PER_SESSION = 4096
+
     def __init__(self) -> None:
         self._events: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self._validation_states: dict[str, EventStreamState] = {}
         self._lock = Lock()
 
     def append(self, event_payload: dict[str, Any]) -> dict[str, Any]:
@@ -33,17 +36,15 @@ class AgentEventStore:
 
         with self._lock:
             session_stream = self._events[session_id]
+            if len(session_stream) >= self.MAX_EVENTS_PER_SESSION:
+                raise ValueError("EVENT_STORE_SESSION_LIMIT")
             next_seq = len(session_stream) + 1
             
             # Enforce or assign contiguous 1-based sequence
             redacted["sequence"] = next_seq
             
-            # Validate individual payload
-            validate_public_payload(redacted)
-            
-            # Validate entire stream state up to this event
-            tentative_stream = session_stream + [redacted]
-            validate_event_stream(tentative_stream)
+            state = self._validation_states.setdefault(session_id, EventStreamState())
+            validate_next_event(redacted, state)
             
             # Commit to store
             session_stream.append(redacted)
@@ -114,5 +115,7 @@ class AgentEventStore:
         with self._lock:
             if session_id:
                 self._events.pop(session_id, None)
+                self._validation_states.pop(session_id, None)
             else:
                 self._events.clear()
+                self._validation_states.clear()

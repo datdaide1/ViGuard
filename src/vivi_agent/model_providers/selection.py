@@ -5,11 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 from ..tools.registry import ToolRegistry
+from ..workflows import WorkflowRegistry
 from .adapters import GeminiAdapter, ModelProviderAdapter, OpenAIAdapter, ProviderTransport
 from .contracts import ModelActionProposal, ModelErrorCode, ModelProviderError
 
@@ -115,16 +118,22 @@ class ModelProviderRouter:
         transports: Mapping[str, ProviderTransport],
         *,
         adapter_factory: Callable[..., ModelProviderAdapter] | None = None,
+        workflow_registry: WorkflowRegistry | None = None,
     ) -> None:
         config.validate()
         self.config = config
         self.registry = registry
-        self.transports = transports
+        # Cache correctness requires the provider-to-transport binding to stay
+        # stable for the router lifetime. Snapshot caller-owned mutable maps.
+        self._transports: dict[str, ProviderTransport] = dict(transports)
         self._factory = adapter_factory
+        self.workflow_registry = workflow_registry
+        self._adapter_cache: dict[str, ModelProviderAdapter] = {}
+        self._adapter_cache_lock = threading.Lock()
 
     def readiness(self) -> ProviderReadiness:
         order = self._candidate_names()
-        available = tuple(name for name in order if self.config.key_for(name) and name in self.transports)
+        available = tuple(name for name in order if self.config.key_for(name) and name in self._transports)
         if not available:
             return ProviderReadiness(
                 False,
@@ -182,14 +191,53 @@ class ModelProviderRouter:
         return list(readiness.available_providers)
 
     def _adapter(self, provider: str) -> ModelProviderAdapter:
+        with self._adapter_cache_lock:
+            adapter = self._adapter_cache.get(provider)
+            if adapter is None:
+                adapter = self._build_adapter(provider)
+                self._adapter_cache[provider] = adapter
+            return adapter
+
+    @property
+    def transports(self) -> Mapping[str, ProviderTransport]:
+        """Read-only snapshot of the router's current provider bindings."""
+        with self._adapter_cache_lock:
+            return MappingProxyType(dict(self._transports))
+
+    def replace_transport(self, provider: str, transport: ProviderTransport) -> None:
+        """Atomically rebind a provider and invalidate its cached adapter.
+
+        Runtime owners that rotate a client/credential transport must use this
+        explicit lifecycle API instead of mutating the constructor input map.
+        """
+        if provider not in SUPPORTED_PROVIDERS:
+            raise ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                f"unsupported provider {provider!r}",
+                provider=provider,
+            )
+        if not callable(transport):
+            raise ModelProviderError(
+                ModelErrorCode.INVALID_CONFIG,
+                "provider transport must be callable",
+                provider=provider,
+            )
+        with self._adapter_cache_lock:
+            self._transports[provider] = transport
+            self._adapter_cache.pop(provider, None)
+
+    def _build_adapter(self, provider: str) -> ModelProviderAdapter:
+        """Construct one provider adapter from immutable router configuration."""
         kwargs = {
             "model_id": self.config.model_for(provider),
             "api_key": self.config.key_for(provider),
             "registry": self.registry,
-            "transport": self.transports[provider],
+            "transport": self._transports[provider],
             "config_checksum": self.config.checksum,
             "timeout_seconds": self.config.timeout_seconds,
         }
+        if self.workflow_registry is not None:
+            kwargs["workflow_registry"] = self.workflow_registry
         if self._factory:
             return self._factory(provider=provider, **kwargs)
         adapter_type = OpenAIAdapter if provider == "openai" else GeminiAdapter
