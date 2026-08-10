@@ -615,12 +615,14 @@ tasks:
     title: 'Viết Agent integration guide và demo runbook'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: in_progress
     area: docs/agent
     task_file: docs/agent/doc-01/TASK.md
     depends_on: [SCN-01, SCN-02, SCN-03, OPS-01]
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - docs/agent/doc-01/AGENT_INTEGRATION_GUIDE.md
+      - docs/agent/doc-01/DEMO_RUNBOOK.md
   - id: REL-01
     title: 'Chạy Agent-only release gate'
     priority: P0
