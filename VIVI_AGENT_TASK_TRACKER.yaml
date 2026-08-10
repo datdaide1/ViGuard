@@ -45,10 +45,10 @@ tasks:
     external_gate_ids: [G-EXT-01, G-EXT-03, G-EXT-04]
     owner: agent-team
     evidence:
-      - src/vivi_agent/contracts/guardrail/v1/guardrail-agent.schema.json
-      - src/vivi_agent/contracts/guardrail/v1/examples.json
-      - src/vivi_agent/contracts/guardrail/v1/contract.py
-      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - src/vivi_agent/integrations/viguard/wire/guardrail-agent.schema.json
+      - src/vivi_agent/integrations/viguard/wire/examples.json
+      - src/vivi_agent/authorization/contract.py
+      - src/vivi_agent/integrations/viguard/mock_server.py
       - tests/contracts/guardrail/test_consumer_contract.py
   - id: CON-02
     title: 'Khóa Agent–UI contract'
@@ -164,7 +164,7 @@ tasks:
     evidence:
       - src/vivi_agent/adapters/guardrail/client.py
       - src/vivi_agent/adapters/guardrail/__init__.py
-      - src/vivi_agent/contracts/guardrail/v1/mock_server.py
+      - src/vivi_agent/integrations/viguard/mock_server.py
       - tests/adapters/guardrail/test_guardrail_adapter.py
   - id: VEH-01
     title: 'Định nghĩa Vehicle State Model và invariants'
@@ -659,13 +659,19 @@ tasks:
     title: 'Compound predefined workflows'
     priority: P1
     sprint: backlog
-    status: planned
+    status: completed
     area: backlog/p1
     task_file: backlog/p1/p1-workflow/TASK.md
     depends_on: []
     start_condition: 'Single-action safety gates đã đạt'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/workflows/registry.py
+      - src/vivi_agent/workflows/engine.py
+      - src/vivi_agent/workflows/README.md
+      - src/vivi_agent/model_providers/adapters.py
+      - tests/workflows/test_predefined_workflows.py
+      - tests/model_providers/test_model_providers.py
   - id: P1-PERSONA
     title: 'Persona verbalization nâng cao'
     priority: P1

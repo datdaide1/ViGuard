@@ -17,10 +17,11 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, Protocol
 
-from ..contracts.guardrail.v1.contract import (
+from ..authorization import (
+    ActionAuthorizer,
+    AuthorizationContractError,
     CONTRACT_VERSION,
-    ContractValidationError,
-    validate_guardrail_result,
+    validate_authorization_result,
 )
 from ..model_providers import (
     ModelErrorCode,
@@ -30,6 +31,9 @@ from ..model_providers import (
     TurnBinding,
 )
 from ..tools.mapping import ToolMapper, UnsupportedToolMappingError
+
+# Backward-compatible type alias; new composition code should use ActionAuthorizer.
+GuardrailClient = ActionAuthorizer
 
 
 class TurnState(str, Enum):
@@ -138,12 +142,6 @@ class TurnResult:
     trace: tuple[TurnState, ...] = ()
 
 
-class GuardrailClient(Protocol):
-    """Authorization port implemented by GRD-ADP-01."""
-
-    def evaluate(self, proposal: Mapping[str, Any]) -> Mapping[str, Any]: ...
-
-
 class ActionExecutor(Protocol):
     """Execution port implemented by the vehicle gateway tasks."""
 
@@ -200,14 +198,17 @@ class AgentOrchestrator:
         *,
         model_router: ModelProviderRouter,
         mapper: ToolMapper,
-        guardrail: GuardrailClient,
+        guardrail: ActionAuthorizer | None = None,
         executor: ActionExecutor,
         id_factory: Callable[[str], str] | None = None,
         confirmation_manager: ConfirmationRegistrar | None = None,
+        authorizer: ActionAuthorizer | None = None,
     ) -> None:
         self._model_router = model_router
         self._mapper = mapper
-        self._guardrail = guardrail
+        if (authorizer is None) == (guardrail is None):
+            raise ValueError("provide exactly one of authorizer or legacy guardrail")
+        self._authorizer = authorizer or guardrail
         self._executor = executor
         self._id_factory = id_factory or (lambda prefix: f"{prefix}-{uuid.uuid4().hex}")
         # Optional port (mirrors guardrail/executor above): when supplied, a
@@ -266,8 +267,8 @@ class AgentOrchestrator:
             with self._state_change_lock(request.session_id):
                 token.raise_if_cancelled()
                 trace.append(TurnState.AUTHORIZING)
-                decision = self._guardrail.evaluate(action_proposal)
-                validate_guardrail_result(decision)
+                decision = self._authorizer.evaluate(action_proposal)
+                validate_authorization_result(decision)
                 self._validate_decision_correlation(
                     decision, proposal_id, mapped.canonical_action.intent
                 )
@@ -284,7 +285,7 @@ class AgentOrchestrator:
                 outcome = decision["outcome"]
                 if outcome == "ALLOW":
                     if decision["permit"]["proposal_digest"] != mapped.proposal_digest:
-                        raise ContractValidationError(
+                        raise AuthorizationContractError(
                             "INVALID_PERMIT", "permit digest does not match the mapped proposal"
                         )
                     binding.start_side_effect()
@@ -329,7 +330,7 @@ class AgentOrchestrator:
                 if outcome == "ANSWER":
                     answer = decision.get("answer")
                     if not isinstance(answer, Mapping) or answer.get("grounded") is not True:
-                        raise ContractValidationError(
+                        raise AuthorizationContractError(
                             "MALFORMED_GUARDRAIL_RESPONSE", "ANSWER requires typed grounded facts"
                         )
                     response = self._model_router.compose_response(
@@ -341,7 +342,7 @@ class AgentOrchestrator:
                         binding,
                     )
                     if response.kind is not ProposalKind.RESPONSE or not response.text:
-                        raise ContractValidationError(
+                        raise AuthorizationContractError(
                             "UNGROUNDED_RESPONSE", "response composer returned no grounded response"
                         )
                     trace.append(TurnState.COMPLETED)
@@ -382,7 +383,7 @@ class AgentOrchestrator:
                 retryable=exc.retryable,
                 trace=tuple(trace),
             )
-        except (ContractValidationError, UnsupportedToolMappingError) as exc:
+        except (AuthorizationContractError, UnsupportedToolMappingError) as exc:
             code = getattr(exc, "code", "ORCHESTRATION_VALIDATION_ERROR")
             return self._failed(trace, proposal_id, TurnError(code, str(exc), False))
         except Exception:
@@ -410,11 +411,11 @@ class AgentOrchestrator:
         if decision["kind"] != "decision":
             return
         if decision["proposal_id"] != proposal_id:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "DECISION_CORRELATION_MISMATCH", "Guardrail decision references another proposal"
             )
         if decision["intent"] != mapped_intent:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "DECISION_INTENT_MISMATCH", "Guardrail decision references another intent"
             )
 
@@ -424,40 +425,40 @@ class AgentOrchestrator:
     ) -> Mapping[str, Any]:
         confirmation = decision.get("confirmation")
         if not isinstance(confirmation, Mapping):
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "CONFIRM requires confirmation details"
             )
         confirmation_id = confirmation.get("confirmation_id")
         if not isinstance(confirmation_id, str) or not 1 <= len(confirmation_id) <= 128:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation_id must be an identifier"
             )
         if confirmation.get("proposal_id") != proposal_id:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "CONFIRMATION_CORRELATION_MISMATCH", "confirmation references another proposal"
             )
         if confirmation.get("single_use") is not True:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation must be single-use"
             )
         expires_at = confirmation.get("expires_at")
         if not isinstance(expires_at, str):
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation expiry must be a date-time"
             )
         try:
             parsed_expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
         except ValueError as exc:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation expiry must be a date-time"
             ) from exc
         if parsed_expiry.tzinfo is None:
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation expiry must include a timezone"
             )
         prompt = confirmation.get("prompt")
         if prompt is not None and (not isinstance(prompt, str) or not prompt.strip()):
-            raise ContractValidationError(
+            raise AuthorizationContractError(
                 "MALFORMED_GUARDRAIL_RESPONSE", "confirmation prompt must be non-empty text"
             )
         return confirmation

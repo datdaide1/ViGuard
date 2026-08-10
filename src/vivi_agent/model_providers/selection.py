@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..tools.registry import ToolRegistry
+from ..workflows import WorkflowRegistry
 from .adapters import GeminiAdapter, ModelProviderAdapter, OpenAIAdapter, ProviderTransport
 from .contracts import ModelActionProposal, ModelErrorCode, ModelProviderError
 
@@ -115,12 +116,14 @@ class ModelProviderRouter:
         transports: Mapping[str, ProviderTransport],
         *,
         adapter_factory: Callable[..., ModelProviderAdapter] | None = None,
+        workflow_registry: WorkflowRegistry | None = None,
     ) -> None:
         config.validate()
         self.config = config
         self.registry = registry
         self.transports = transports
         self._factory = adapter_factory
+        self.workflow_registry = workflow_registry
 
     def readiness(self) -> ProviderReadiness:
         order = self._candidate_names()
@@ -190,6 +193,8 @@ class ModelProviderRouter:
             "config_checksum": self.config.checksum,
             "timeout_seconds": self.config.timeout_seconds,
         }
+        if self.workflow_registry is not None:
+            kwargs["workflow_registry"] = self.workflow_registry
         if self._factory:
             return self._factory(provider=provider, **kwargs)
         adapter_type = OpenAIAdapter if provider == "openai" else GeminiAdapter

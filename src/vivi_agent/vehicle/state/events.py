@@ -114,7 +114,7 @@ class StateChangedEvent:
             "actor_kind": self.actor_kind.value,
             "actor_id": self.actor_id,
             "occurred_at": self.occurred_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "snapshot": self.snapshot.to_guardrail_snapshot(),
+            "snapshot": self.snapshot.to_authorization_snapshot(),
         }
 
 

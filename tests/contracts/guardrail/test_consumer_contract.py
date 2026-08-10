@@ -17,7 +17,7 @@ from src.vivi_agent.contracts.guardrail.v1.contract import (
 )
 from src.vivi_agent.contracts.guardrail.v1.mock_server import create_server
 
-CONTRACT_DIR = Path("src/vivi_agent/contracts/guardrail/v1")
+CONTRACT_DIR = Path("src/vivi_agent/integrations/viguard/wire")
 
 
 class ContractFixtureTests(unittest.TestCase):

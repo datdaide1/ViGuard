@@ -14,9 +14,9 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from ...catalog.manifest import IntentManifest
-from ...contracts.guardrail.v1.contract import (
-    ContractValidationError,
-    proposal_digest,
+from ...authorization import (
+    AuthorizationContractError,
+    authorization_request_digest,
     validate_action_proposal,
 )
 from ..registry import ClarificationRequest, ToolRegistry, ValidatedToolCall
@@ -340,7 +340,7 @@ class ToolMapper:
 
         try:
             validate_action_proposal(proposal)
-        except ContractValidationError as exc:
+        except AuthorizationContractError as exc:
             raise UnsupportedToolMappingError("INVALID_ACTION_PROPOSAL", str(exc)) from exc
 
         call = self._registry.validate_call(proposal["tool"], proposal["arguments"])
@@ -362,7 +362,7 @@ class ToolMapper:
         definition = self._manifest.by_intent(rule.intent)
         canonical_proposal = dict(proposal)
         canonical_proposal["arguments"] = dict(arguments)
-        digest = proposal_digest(canonical_proposal)
+        digest = authorization_request_digest(canonical_proposal)
         action = CanonicalAction(
             intent=rule.intent,
             normalized_arguments=arguments,

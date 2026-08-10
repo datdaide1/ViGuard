@@ -58,7 +58,7 @@ from vivi_agent.vehicle.state import VehicleStateMachine
 
 
 EXAMPLES = json.loads(
-    Path(SRC_PATH, "vivi_agent/contracts/guardrail/v1/examples.json").read_text(encoding="utf-8")
+    Path(SRC_PATH, "vivi_agent/integrations/viguard/wire/examples.json").read_text(encoding="utf-8")
 )
 META = ProviderMetadata("openai", "test-model-v1", "sha256:test", 5)
 FIXED_TIME = datetime.fromisoformat("2026-08-03T10:00:01+00:00")

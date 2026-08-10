@@ -9,6 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 from ..tools.registry import ToolDefinition, ToolRegistry
+from ..workflows import WorkflowRegistry
 from .contracts import (
     ModelActionProposal,
     ModelErrorCode,
@@ -37,6 +38,7 @@ class ModelProviderAdapter(ABC):
         config_checksum: str,
         timeout_seconds: float = 10.0,
         clock: Callable[[], float] = time.monotonic,
+        workflow_registry: WorkflowRegistry | None = None,
     ) -> None:
         self.model_id = model_id
         self._api_key = api_key
@@ -45,6 +47,7 @@ class ModelProviderAdapter(ABC):
         self.config_checksum = config_checksum
         self.timeout_seconds = timeout_seconds
         self._clock = clock
+        self.workflow_registry = workflow_registry
 
     @property
     @abstractmethod
@@ -152,6 +155,13 @@ class OpenAIAdapter(ModelProviderAdapter):
             }
             for schema in self.registry.model_tools()
         ]
+        if self.workflow_registry is not None:
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {**self.workflow_registry.model_schema(), "strict": True},
+                }
+            )
         return {
             "model": self.model_id,
             "messages": messages,
@@ -225,13 +235,22 @@ class GeminiAdapter(ModelProviderAdapter):
             # per-(action, target, value) enforcement still happens post-hoc in
             # ToolRegistry.validate_call regardless of which schema shape a
             # provider was sent.
-            "tools": [{"functionDeclarations": [self._flat_declaration(tool) for tool in self.registry.tools]}],
+            "tools": [{"functionDeclarations": self._proposal_declarations()}],
             "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
             "generationConfig": {"maxOutputTokens": self.MAX_OUTPUT_TOKENS},
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
         return payload
+
+    def _proposal_declarations(self) -> list[dict[str, Any]]:
+        declarations = [self._flat_declaration(tool) for tool in self.registry.tools]
+        if self.workflow_registry is not None:
+            workflow = self.workflow_registry.model_schema()
+            parameters = dict(workflow["parameters"])
+            parameters.pop("additionalProperties", None)
+            declarations.append({**workflow, "parameters": parameters})
+        return declarations
 
     @staticmethod
     def _flat_declaration(tool: ToolDefinition) -> dict[str, Any]:
