@@ -3,7 +3,10 @@
 **Task:** EVAL-01 — Xây Vietnamese tool-selection evaluation set
 **Sprint:** Sprint 3
 **Code area:** `evals/eval-01`, `tests/evals/eval-01`
-**Status:** Harness complete and offline-verified. **Live measurement blocked** — see §1.
+**Status:** Harness complete and offline-verified. The §1 schema bug that
+blocked Gemini is **fixed and confirmed live** (PR #37, commit `629b25f`) —
+see §1's update note. Still outstanding: the full 146-item live run and the
+OpenAI comparison, so the model-freeze decision (§3) is not yet made.
 
 ---
 
@@ -82,6 +85,16 @@ OpenAI/Gemini comparison and the "model freeze based on real measured
 results" acceptance criterion are both blocked pending (a) the Gemini
 adapter fix above and (b) an OpenAI API key.
 
+> **Update:** the Gemini adapter fix in (a) has landed — flattening the
+> tool schema (PR #37, commits `c7a660a`/`38cdcf2`) — and is confirmed live:
+> the same 5-item smoke shape that was 5/5 `API_ERROR` above now returns
+> 5/5 correct tool+arguments against real `gemini-3.5-flash-lite` (commit
+> `629b25f`, see
+> [`results/gemini_smoke_after_fix.json`](results/gemini_smoke_after_fix.json)).
+> That is a 5-item smoke re-run, not the full 146-item dataset — the "Next
+> steps" in §4 below are still open work, not yet done. (b) remains
+> blocked: no `OPENAI_API_KEY` in this environment.
+
 ---
 
 ## 2. Harness — built and independently verified offline
@@ -132,9 +145,9 @@ classifier accuracy is out of scope, consistent with EVAL-02's report.
 
 ## 3. Acceptance Criteria
 
-- ⏳ **Report có tool accuracy, argument exact match, clarification và invalid-call rate** — the harness computes all four (`scoring.aggregate_metrics`, offline-verified); the live *numbers* are blocked on §1.
+- ⏳ **Report có tool accuracy, argument exact match, clarification và invalid-call rate** — the harness computes all four (`scoring.aggregate_metrics`, offline-verified); the live *numbers* still need the full 146-item dataset run (§1's blocker is fixed, but that run hasn't happened yet).
 - ⏳ **Không trộn Guardrail classifier accuracy vào Agent metric** — satisfied by construction: `dataset.py`/`scoring.py` never call or import anything Guardrail-side; every `ExpectedOutcome` is scored purely against the model's own proposed tool call.
-- ❌ **Model được freeze dựa trên kết quả thực đo** — not yet possible: no successful live measurement exists for either provider (Gemini blocked by §1; OpenAI blocked by missing `OPENAI_API_KEY`).
+- ❌ **Model được freeze dựa trên kết quả thực đo** — not yet possible: the Gemini adapter bug is fixed and confirmed on a 5-item smoke run (§1 update), but no full-dataset live measurement exists yet for either provider (Gemini needs the 146-item `run_live_eval.py` run; OpenAI is still blocked on missing `OPENAI_API_KEY`).
 
 ---
 
