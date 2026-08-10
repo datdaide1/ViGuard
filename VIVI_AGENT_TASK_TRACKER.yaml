@@ -602,12 +602,15 @@ tasks:
     title: 'Xây Agent/Vehicle reset và degraded mode'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: src/vivi_agent/operations
     task_file: src/vivi_agent/operations/ops-01/TASK.md
     depends_on: [SIM-01, ACTV-01, ORC-01]
     owner: unassigned
-    evidence: []
+    evidence:
+      - src/vivi_agent/operations/endpoint.py
+      - src/vivi_agent/operations/runtime.py
+      - tests/operations/test_runtime_operations.py
   - id: DOC-01
     title: 'Viết Agent integration guide và demo runbook'
     priority: P0

@@ -10,6 +10,7 @@ Intents_Candidate.xlsx
 # Local agent operating manuals (intentionally not versioned)
 AGENTS.md
 CLAUDE.md
+.claude/
 achive/
 
 # Python-generated artifacts
@@ -20,3 +21,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Golden dataset work-in-progress (own workstream, kept out of version
+# control for now to avoid touching other in-flight branches/PRs)
+golden-dataset/
