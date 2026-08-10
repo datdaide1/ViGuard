@@ -643,13 +643,18 @@ tasks:
     title: 'Streaming token/progress nâng cao'
     priority: P1
     sprint: backlog
-    status: planned
+    status: completed
     area: backlog/p1
     task_file: backlog/p1/p1-stream/TASK.md
-    depends_on: []
+    depends_on: [CON-02, EVT-01, OPS-01]
     start_condition: 'P0 event ordering đã ổn định'
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/events/models.py
+      - src/vivi_agent/events/adapters.py
+      - src/vivi_agent/events/pipeline.py
+      - src/vivi_agent/contracts/agent_ui/v1/agent-ui.schema.json
+      - tests/events/test_p1_streaming.py
   - id: P1-WORKFLOW
     title: 'Compound predefined workflows'
     priority: P1

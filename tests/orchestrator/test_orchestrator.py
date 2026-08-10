@@ -301,7 +301,7 @@ def test_message_endpoint_returns_contract_valid_payload():
     )
     response = endpoint.post_message(
         {
-            "contract_version": "1.0.0",
+            "contract_version": "1.1.0",
             "kind": "request",
             "request_type": "message",
             "session_id": "session-1",

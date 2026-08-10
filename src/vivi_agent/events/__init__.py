@@ -13,7 +13,9 @@ from src.vivi_agent.events.models import (
     DecisionEvent,
     ExecutionEvent,
     ProposalEvent,
+    ResponseChunkEvent,
     StateChangedEvent,
+    TurnProgressEvent,
     generate_id,
 )
 from src.vivi_agent.events.pipeline import AgentEventPipeline
@@ -36,7 +38,9 @@ __all__ = [
     "OPEN_DOOR_ALLOWED_SLICE",
     "OPEN_DOOR_BLOCKED_SLICE",
     "ProposalEvent",
+    "ResponseChunkEvent",
     "StateChangedEvent",
+    "TurnProgressEvent",
     "generate_id",
     "redact_event",
     "replay_events",

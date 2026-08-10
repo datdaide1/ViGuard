@@ -7,7 +7,7 @@ from typing import Any
 
 OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "proposal",
         "event_id": "fixture-prop-01",
@@ -22,7 +22,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "summary": "Mở cửa xe bên tài",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "decision",
         "event_id": "fixture-dec-01",
@@ -39,7 +39,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "state_version": 10,
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "execution",
         "event_id": "fixture-exec-start-01",
@@ -55,7 +55,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "phase": "started",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "state_changed",
         "event_id": "fixture-state-01",
@@ -70,7 +70,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
         "source_execution_id": "exec-open-door-01",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "execution",
         "event_id": "fixture-exec-succ-01",
@@ -89,7 +89,7 @@ OPEN_DOOR_ALLOWED_SLICE: list[dict[str, Any]] = [
 
 OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "proposal",
         "event_id": "fixture-block-prop-01",
@@ -104,7 +104,7 @@ OPEN_DOOR_BLOCKED_SLICE: list[dict[str, Any]] = [
         "summary": "Mở cửa xe khi xe đang chạy",
     },
     {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "kind": "event",
         "event_type": "decision",
         "event_id": "fixture-block-dec-01",

@@ -10,7 +10,9 @@ from src.vivi_agent.events.models import (
     DecisionEvent,
     ExecutionEvent,
     ProposalEvent,
+    ResponseChunkEvent,
     StateChangedEvent,
+    TurnProgressEvent,
     generate_id,
 )
 from src.vivi_agent.events.store import AgentEventStore
@@ -157,3 +159,50 @@ class AgentEventPipeline:
             actor=actor,
         )
         return self.emit_raw(event.to_dict())
+
+    def emit_turn_progress(
+        self,
+        session_id: str,
+        turn_id: str,
+        request_id: str,
+        phase: str,
+        progress: float,
+        message: str | None = None,
+    ) -> dict[str, Any]:
+        """Emit safe public progress without provider reasoning or policy trace."""
+        return self.emit_raw(
+            TurnProgressEvent(
+                session_id=session_id,
+                turn_id=turn_id,
+                request_id=request_id,
+                phase=phase,
+                progress=progress,
+                message=message,
+            ).to_dict()
+        )
+
+    def emit_response_chunk(
+        self,
+        session_id: str,
+        turn_id: str,
+        request_id: str,
+        stream_id: str,
+        chunk_index: int,
+        delta: str,
+        *,
+        content_kind: str = "answer",
+        final: bool = False,
+    ) -> dict[str, Any]:
+        """Emit one ordered, normalized response chunk."""
+        return self.emit_raw(
+            ResponseChunkEvent(
+                session_id=session_id,
+                turn_id=turn_id,
+                request_id=request_id,
+                stream_id=stream_id,
+                chunk_index=chunk_index,
+                delta=delta,
+                content_kind=content_kind,
+                final=final,
+            ).to_dict()
+        )

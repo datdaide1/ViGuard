@@ -53,7 +53,9 @@ class AgentUIContractTests(unittest.TestCase):
         cls.schema = json.loads((CONTRACT_DIR / "agent-ui.schema.json").read_text(encoding="utf-8"))
 
     def test_schema_exposes_all_public_variants(self) -> None:
-        self.assertEqual(len(self.schema["oneOf"]), 15)
+        variants = {entry["$ref"].rsplit("/", 1)[-1] for entry in self.schema["oneOf"]}
+        self.assertEqual(len(variants), 17)
+        self.assertTrue({"turnProgressEvent", "responseChunkEvent"} <= variants)
         self.assertEqual(
             set(self.fixtures["requests"]),
             {"message", "confirm", "cancel", "simulation_control", "reset"},
@@ -202,7 +204,7 @@ class AgentUIContractTests(unittest.TestCase):
             events[1]["outcome"] = outcome
             events.append(
                 {
-                    "contract_version": "1.0.0", "kind": "event", "event_type": "execution",
+                    "contract_version": "1.1.0", "kind": "event", "event_type": "execution",
                     "event_id": "illegal-execution", "sequence": 3, "session_id": "scenario-1",
                     "turn_id": "turn-1", "request_id": "req-1", "occurred_at": "2026-08-03T11:00:02Z",
                     "actor": "AGENT", "proposal_id": "s1-prop", "execution_id": "exec-illegal",
@@ -217,7 +219,7 @@ class AgentUIContractTests(unittest.TestCase):
         events = copy.deepcopy(self.fixtures["scenarios"]["active_hda_monitor_stop"][:3])
         events.append(
             {
-                "contract_version": "1.0.0", "kind": "event", "event_type": "state_changed",
+                "contract_version": "1.1.0", "kind": "event", "event_type": "state_changed",
                 "event_id": "bad-state", "sequence": 4, "session_id": "scenario-3", "turn_id": "turn-1",
                 "request_id": "req-1", "occurred_at": "2026-08-03T11:20:03Z", "actor": "AGENT",
                 "state_version": 21, "changes": {"hda": {"from": False, "to": True}},

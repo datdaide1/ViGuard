@@ -44,6 +44,7 @@ from vivi_agent.behaviors.catalog import get_behavior_config
 from vivi_agent.catalog import load_manifest
 from vivi_agent.confirmation import ConfirmationManager, ConfirmationState
 from vivi_agent.contracts.guardrail.v1.contract import CONTRACT_VERSION, proposal_digest
+from vivi_agent.contracts.agent_ui.v1.contract import CONTRACT_VERSION as AGENT_UI_CONTRACT_VERSION
 from vivi_agent.model_providers import ModelActionProposal, ProviderMetadata, TurnBinding
 from vivi_agent.orchestrator import (
     AgentOrchestrator,
@@ -692,7 +693,7 @@ class Eval02ExecutionUncertainModelFabricatedSuccessTests(unittest.TestCase):
 
         response = env.endpoint.post_message(
             {
-                "contract_version": CONTRACT_VERSION,
+                "contract_version": AGENT_UI_CONTRACT_VERSION,
                 "kind": "request",
                 "request_type": "message",
                 "session_id": _SESSION_ID,

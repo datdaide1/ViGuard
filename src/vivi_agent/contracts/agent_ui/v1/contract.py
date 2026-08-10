@@ -6,14 +6,14 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 
 REQUEST_TYPES = frozenset({"message", "confirm", "cancel", "simulation_control", "reset"})
 RESPONSE_STATUSES = frozenset(
     {"completed", "blocked", "needs_confirmation", "failed", "degraded"}
 )
 EVENT_TYPES = frozenset(
-    {"proposal", "decision", "execution", "state_changed", "active_action"}
+    {"proposal", "decision", "execution", "state_changed", "active_action", "turn_progress", "response_chunk"}
 )
 
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -66,6 +66,9 @@ _EVENT_FIELDS = {
     | {"state_version", "changes", "source_execution_id"},
     "active_action": _EVENT_BASE
     | {"proposal_id", "execution_id", "active_action_id", "intent", "phase", "progress"},
+    "turn_progress": _EVENT_BASE | {"phase", "progress", "message"},
+    "response_chunk": _EVENT_BASE
+    | {"stream_id", "chunk_index", "delta", "content_kind", "final"},
 }
 
 _REQUIRED = {
@@ -88,10 +91,18 @@ _REQUIRED = {
     "state_changed": _EVENT_BASE | {"state_version", "changes"},
     "active_action": _EVENT_BASE
     | {"proposal_id", "execution_id", "active_action_id", "intent", "phase"},
+    "turn_progress": _EVENT_BASE | {"phase", "progress"},
+    "response_chunk": _EVENT_BASE
+    | {"stream_id", "chunk_index", "delta", "content_kind", "final"},
 }
 
 _EXECUTION_PHASES = frozenset({"started", "succeeded", "failed", "stopped"})
 _ACTIVE_PHASES = frozenset({"started", "progress", "stopped", "failed", "completed"})
+_TURN_PROGRESS_PHASES = (
+    "received", "resolving", "proposing", "authorizing", "executing", "responding", "completed", "failed"
+)
+_TURN_TERMINAL_PHASES = frozenset({"completed", "failed"})
+_CHUNK_CONTENT_KINDS = frozenset({"answer", "clarification", "status"})
 _DECISION_OUTCOMES = frozenset(
     {"ALLOW", "BLOCK_UNSAFE", "BLOCK_UNAVAILABLE", "CONFIRM", "NOT_VOICE_ACTIONABLE", "ANSWER", "UNKNOWN"}
 )
@@ -182,6 +193,27 @@ def validate_public_payload(payload: Mapping[str, Any]) -> None:
             raise AgentUIContractError("INVALID_OUTCOME", "Unsupported decision outcome")
         if event_type == "state_changed" and not isinstance(payload["changes"], Mapping):
             raise AgentUIContractError("INVALID_STATE_CHANGE", "changes must be an object")
+        if event_type == "turn_progress":
+            if payload["phase"] not in _TURN_PROGRESS_PHASES:
+                raise AgentUIContractError("INVALID_PROGRESS_PHASE", "Unsupported turn progress phase")
+            progress = payload["progress"]
+            if not isinstance(progress, (int, float)) or isinstance(progress, bool) or not 0 <= progress <= 1:
+                raise AgentUIContractError("INVALID_PROGRESS", "progress must be a number from 0 to 1")
+            message = payload.get("message")
+            if message is not None and (not isinstance(message, str) or not message.strip()):
+                raise AgentUIContractError("INVALID_PROGRESS_MESSAGE", "message must be non-empty public text")
+            if payload["phase"] == "completed" and progress != 1:
+                raise AgentUIContractError("INCOMPLETE_TERMINAL_PROGRESS", "completed progress must equal 1")
+        if event_type == "response_chunk":
+            _require_identifier(payload, "stream_id")
+            if not isinstance(payload["chunk_index"], int) or isinstance(payload["chunk_index"], bool) or payload["chunk_index"] < 0:
+                raise AgentUIContractError("INVALID_CHUNK_INDEX", "chunk_index must be a non-negative integer")
+            if not isinstance(payload["delta"], str) or not payload["delta"]:
+                raise AgentUIContractError("INVALID_CHUNK_DELTA", "delta must be non-empty public text")
+            if payload["content_kind"] not in _CHUNK_CONTENT_KINDS:
+                raise AgentUIContractError("INVALID_CONTENT_KIND", "Unsupported response chunk content kind")
+            if not isinstance(payload["final"], bool):
+                raise AgentUIContractError("INVALID_CHUNK_FINAL", "final must be boolean")
     else:
         raise AgentUIContractError("UNKNOWN_KIND", "kind must be request, response, or event")
 
@@ -199,6 +231,8 @@ def validate_event_stream(events: Sequence[Mapping[str, Any]]) -> None:
     proposals: dict[str, tuple[str, str, str]] = {}
     decisions: dict[str, str] = {}
     executions: dict[str, tuple[str, str, str, str]] = {}
+    turn_progress: dict[tuple[str, str], tuple[int, float, bool]] = {}
+    response_streams: dict[tuple[str, str], tuple[str, str, int, bool]] = {}
     for event in events:
         validate_public_payload(event)
         if event.get("kind") != "event":
@@ -213,7 +247,36 @@ def validate_event_stream(events: Sequence[Mapping[str, Any]]) -> None:
 
         event_type = event["event_type"]
         proposal_id = event.get("proposal_id")
-        if event_type == "proposal":
+        turn_key = (event["turn_id"], event["request_id"])
+        if event_type == "turn_progress":
+            phase_index = _TURN_PROGRESS_PHASES.index(event["phase"])
+            previous = turn_progress.get(turn_key)
+            if previous is not None:
+                previous_phase, previous_progress, terminal = previous
+                if terminal:
+                    raise AgentUIContractError("TURN_PROGRESS_ALREADY_TERMINAL", "turn progress already terminated")
+                if phase_index < previous_phase or event["progress"] < previous_progress:
+                    raise AgentUIContractError("TURN_PROGRESS_REGRESSION", "turn phase and progress must be monotonic")
+            turn_progress[turn_key] = (phase_index, event["progress"], event["phase"] in _TURN_TERMINAL_PHASES)
+        elif event_type == "response_chunk":
+            previous = response_streams.get(turn_key)
+            if previous is None:
+                if event["chunk_index"] != 0:
+                    raise AgentUIContractError("RESPONSE_CHUNK_GAP", "response stream must start at chunk zero")
+            else:
+                stream_id, content_kind, previous_index, terminal = previous
+                if terminal:
+                    raise AgentUIContractError("RESPONSE_STREAM_ALREADY_TERMINAL", "response stream already terminated")
+                if event["stream_id"] != stream_id:
+                    raise AgentUIContractError("RESPONSE_STREAM_MISMATCH", "turn cannot change response stream id")
+                if event["content_kind"] != content_kind:
+                    raise AgentUIContractError("RESPONSE_CONTENT_KIND_MISMATCH", "response stream cannot change content kind")
+                if event["chunk_index"] != previous_index + 1:
+                    raise AgentUIContractError("RESPONSE_CHUNK_GAP", "response chunk index must be contiguous")
+            response_streams[turn_key] = (
+                event["stream_id"], event["content_kind"], event["chunk_index"], event["final"]
+            )
+        elif event_type == "proposal":
             if proposal_id in proposals:
                 raise AgentUIContractError("DUPLICATE_PROPOSAL", "proposal_id was already emitted")
             proposals[proposal_id] = (

@@ -90,7 +90,7 @@ class EventPipelineTests(unittest.TestCase):
 
     def test_redaction_strips_private_and_forbidden_fields(self) -> None:
         unredacted_payload = {
-            "contract_version": "1.0.0",
+            "contract_version": "1.1.0",
             "kind": "event",
             "event_type": "proposal",
             "event_id": "evt-test-redact",

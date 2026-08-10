@@ -81,7 +81,7 @@ UI gửi một trong năm request type: `message`, `confirm`, `cancel`, `simulat
 
 ```json
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "kind": "request",
   "request_type": "message",
   "session_id": "session-demo",

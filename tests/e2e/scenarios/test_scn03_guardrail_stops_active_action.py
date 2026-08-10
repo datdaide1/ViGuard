@@ -78,6 +78,7 @@ from vivi_agent.behaviors.hero import (
 )
 from vivi_agent.catalog import load_manifest
 from vivi_agent.contracts.agent_ui.v1.contract import CONTRACT_VERSION, validate_event_stream
+from vivi_agent.contracts.guardrail.v1.contract import CONTRACT_VERSION as GUARDRAIL_CONTRACT_VERSION
 from vivi_agent.events import AgentEventPipeline, AgentEventStore
 from vivi_agent.model_providers import ModelActionProposal, ProviderMetadata, TurnBinding
 from vivi_agent.orchestrator import (
@@ -143,7 +144,7 @@ class GroundTruthMonitorGuardrailClient:
         out so a future field added to one path can't silently drift from
         the others."""
         return {
-            "contract_version": CONTRACT_VERSION,
+            "contract_version": GUARDRAIL_CONTRACT_VERSION,
             "kind": "decision",
             "request_id": request_id,
             "intent": intent,
