@@ -35,6 +35,7 @@ import sys
 import threading
 import time
 import tracemalloc
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -83,6 +84,18 @@ FIXED_TIME = datetime(2026, 8, 3, 10, 0, 1, tzinfo=timezone.utc)
 
 # --------------------------------------------------------------------------
 # Percentile / summary statistics (stdlib only — no numpy dependency in this repo)
+#
+# evals/eval-01/scoring.py has its own linear-interpolation percentile
+# (`_latency_stats`/nested `_percentile`) computing the same core formula.
+# Deliberately NOT imported from here: it's a private (`_`-prefixed) nested
+# closure, not independently callable; it's on a 0-1 `p` scale vs. this
+# module's 0-100 `pct`; it returns p50/p95 only (no p99/min/max, which this
+# harness needs); and importing it would pull eval-01-specific dependencies
+# into a perf-01 benchmark. A shared stats module would remove the
+# duplication properly, but every existing per-ticket folder in this repo
+# (int-01, eval-01, eval-02, perf-01, ...) is self-contained with no shared
+# test-utils module today — introducing one is an architecture change this
+# review pass intentionally left out-of-scope rather than doing silently.
 # --------------------------------------------------------------------------
 
 
@@ -186,14 +199,21 @@ class FixedClockExecutor:
 
 
 class ActuatorSpy:
-    """Counts handler invocations — proves zero side effects on BLOCK/timeout paths."""
+    """Counts handler invocations — proves zero side effects on BLOCK/timeout paths.
+
+    Also records each call's proposal (matching INT-01's ``ActuatorSpy``,
+    ``tests/integration/int-01/test_int01.py``) so this copy doesn't
+    silently diverge from the pattern it's documented as following.
+    """
 
     def __init__(self, target_handler: Any) -> None:
         self.target_handler = target_handler
         self.call_count = 0
+        self.calls: list[dict[str, Any]] = []
 
     def __call__(self, proposal: dict[str, Any]) -> dict[str, Any]:
         self.call_count += 1
+        self.calls.append(proposal)
         return self.target_handler(proposal)
 
 
@@ -222,10 +242,19 @@ class LocalPerfHarness:
 
     def __init__(self) -> None:
         self.server = create_server()
+        self.base_url = f"http://127.0.0.1:{self.server.server_port}"
+        try:
+            # Load before starting the server thread: if this raises (real
+            # file I/O — a missing/locked/malformed catalog or registry
+            # file), there is no live serve_forever() thread left dangling
+            # with nothing able to join() it (unittest's tearDown never
+            # runs when setUp doesn't complete).
+            self.mapper = load_default_mapper(load_registry(), load_manifest())
+        except Exception:
+            self.server.server_close()
+            raise
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
-        self.base_url = f"http://127.0.0.1:{self.server.server_port}"
-        self.mapper = load_default_mapper(load_registry(), load_manifest())
 
     def close(self) -> None:
         self.server.shutdown()
@@ -266,7 +295,13 @@ class LocalPerfHarness:
             mapper=self.mapper,
             guardrail=client,
             executor=FixedClockExecutor(gateway),
-            id_factory=lambda prefix: f"prop-{outcome}-{prefix}-{time.perf_counter_ns()}",
+            # Same uuid4().hex id-generation cost as production's own default
+            # id_factory (orchestrator.py) — only the outcome tag is added,
+            # which the mock server's fixture router requires (see
+            # mock_server.py's "block"/"confirm"/"answer" substring match).
+            # Using a cheaper generator here would measure e2e turn latency
+            # against a synthetically faster ID step than production pays.
+            id_factory=lambda prefix: f"prop-{outcome}-{prefix}-{uuid.uuid4().hex}",
         )
 
     # -- Pass A: guardrail round-trip only -------------------------------
@@ -336,6 +371,8 @@ class LocalPerfHarness:
     # -- Pass D: memory growth over repeated turns -------------------------
 
     def measure_memory_growth(self, iterations: int, checkpoint_every: int = 50) -> dict[str, Any]:
+        if checkpoint_every < 1:
+            raise ValueError(f"checkpoint_every must be >= 1, got {checkpoint_every}")
         client = self.new_client()
         gateway, spy = self.new_gateway()
         orchestrator = self.new_orchestrator(client, gateway, "allow")

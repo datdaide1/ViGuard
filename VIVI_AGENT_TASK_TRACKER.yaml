@@ -114,12 +114,20 @@ tasks:
     status: review
     known_issues:
       - >
-        GeminiAdapter's tool schema (via ToolDefinition.model_schema()'s
-        oneOf/const/additionalProperties shape) is rejected/misread by the
-        real Gemini generateContent API — confirmed live during EVAL-01
-        (see evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1 and
-        evals/eval-01/results/gemini_schema_bug_evidence.json). Blocks any
-        live Gemini tool call today. Flagged as a follow-up fix task.
+        RESOLVED — was: GeminiAdapter's tool schema (via
+        ToolDefinition.model_schema()'s oneOf/const/additionalProperties
+        shape) rejected/misread by the real Gemini generateContent API,
+        confirmed live during EVAL-01 (see
+        evals/eval-01/AGENT_MODEL_EVALUATION_REPORT.md §1 and
+        evals/eval-01/results/gemini_schema_bug_evidence.json), blocking any
+        live Gemini tool call. Fixed by flattening the tool schema (PR #37,
+        commits c7a660a/38cdcf2, both touching this task's own
+        adapters.py) and confirmed live: the same 5-item smoke shape that
+        was 5/5 API_ERROR before the fix now returns 5/5 correct
+        tool+arguments against real gemini-3.5-flash-lite (commit 629b25f,
+        see evals/eval-01/results/gemini_smoke_after_fix.json). See EVAL-01
+        for what's still outstanding beyond this fix (full 146-item live
+        run, OpenAI comparison).
     area: src/vivi_agent/model_providers
     task_file: src/vivi_agent/model_providers/mod-01/TASK.md
     depends_on: [TOOL-01]
@@ -130,6 +138,7 @@ tasks:
       - src/vivi_agent/model_providers/selection.py
       - src/vivi_agent/model_providers/README.md
       - tests/model_providers/test_model_providers.py
+      - evals/eval-01/results/gemini_smoke_after_fix.json
   - id: ORC-01
     title: 'Xây ViVi Agent Orchestrator nền tảng'
     priority: P0
