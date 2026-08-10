@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import time
+from copy import deepcopy
+from functools import cached_property
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
@@ -148,6 +150,20 @@ class OpenAIAdapter(ModelProviderAdapter):
         return "openai"
 
     def _proposal_payload(self, messages: list[dict[str, str]]) -> Mapping[str, Any]:
+        return {
+            "model": self.model_id,
+            "messages": messages,
+            # Transports are external seams and may normalize payloads in-place.
+            # Clone the immutable-config cache so one request cannot corrupt another.
+            "tools": deepcopy(self._proposal_tools),
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
+        }
+
+    @cached_property
+    def _proposal_tools(self) -> list[dict[str, Any]]:
+        """Build immutable-registry tool declarations once per adapter."""
         tools = [
             {
                 "type": "function",
@@ -162,14 +178,7 @@ class OpenAIAdapter(ModelProviderAdapter):
                     "function": {**self.workflow_registry.model_schema(), "strict": True},
                 }
             )
-        return {
-            "model": self.model_id,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
-            "parallel_tool_calls": False,
-            "max_completion_tokens": self.MAX_OUTPUT_TOKENS,
-        }
+        return tools
 
     def _response_payload(self, grounded_facts: str) -> Mapping[str, Any]:
         return {
@@ -235,13 +244,18 @@ class GeminiAdapter(ModelProviderAdapter):
             # per-(action, target, value) enforcement still happens post-hoc in
             # ToolRegistry.validate_call regardless of which schema shape a
             # provider was sent.
-            "tools": [{"functionDeclarations": self._proposal_declarations()}],
+            "tools": [{"functionDeclarations": deepcopy(self._cached_proposal_declarations)}],
             "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}},
             "generationConfig": {"maxOutputTokens": self.MAX_OUTPUT_TOKENS},
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
         return payload
+
+    @cached_property
+    def _cached_proposal_declarations(self) -> list[dict[str, Any]]:
+        """Build immutable-registry Gemini declarations once per adapter."""
+        return self._proposal_declarations()
 
     def _proposal_declarations(self) -> list[dict[str, Any]]:
         declarations = [self._flat_declaration(tool) for tool in self.registry.tools]

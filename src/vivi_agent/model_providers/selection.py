@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 from ..tools.registry import ToolRegistry
@@ -121,9 +123,13 @@ class ModelProviderRouter:
         config.validate()
         self.config = config
         self.registry = registry
-        self.transports = transports
+        # Cache correctness requires the provider-to-transport binding to stay
+        # stable for the router lifetime. Snapshot caller-owned mutable maps.
+        self.transports = MappingProxyType(dict(transports))
         self._factory = adapter_factory
         self.workflow_registry = workflow_registry
+        self._adapter_cache: dict[str, ModelProviderAdapter] = {}
+        self._adapter_cache_lock = threading.Lock()
 
     def readiness(self) -> ProviderReadiness:
         order = self._candidate_names()
@@ -185,6 +191,15 @@ class ModelProviderRouter:
         return list(readiness.available_providers)
 
     def _adapter(self, provider: str) -> ModelProviderAdapter:
+        with self._adapter_cache_lock:
+            adapter = self._adapter_cache.get(provider)
+            if adapter is None:
+                adapter = self._build_adapter(provider)
+                self._adapter_cache[provider] = adapter
+            return adapter
+
+    def _build_adapter(self, provider: str) -> ModelProviderAdapter:
+        """Construct one provider adapter from immutable router configuration."""
         kwargs = {
             "model_id": self.config.model_for(provider),
             "api_key": self.config.key_for(provider),
