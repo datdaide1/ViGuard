@@ -485,7 +485,7 @@ class Eval02DirectHandlerAccessTests(unittest.TestCase):
         allowed_attrs = {
             "_model_router",
             "_mapper",
-            "_guardrail",
+            "_authorizer",
             "_executor",
             "_id_factory",
             "_confirmation_manager",

@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from vivi_agent.contracts.guardrail.v1.contract import proposal_digest
+from vivi_agent.authorization import authorization_request_digest
 from vivi_agent.operations import HealthRegistry, OperationsEndpoint, RuntimeOperations, RuntimeResetError, UIConnectionRegistry
 from vivi_agent.vehicle.execution import HandlerRegistry, InvalidPermitError, PermitStore, PermitVerifier, VehicleToolGateway
 
@@ -101,7 +101,7 @@ def test_verifier_rejects_an_unconsumed_permit_issued_before_reset():
     issued_at = NOW - timedelta(seconds=1)
     permit = {
         "permit_id": "permit-before-reset",
-        "proposal_digest": proposal_digest(proposal),
+        "proposal_digest": authorization_request_digest(proposal),
         "intent": "open_door",
         "rule_id": "R001",
         "state_version": 1,
@@ -157,7 +157,7 @@ def test_reset_waits_for_in_flight_gateway_execution():
         "model_provider": "openai", "model_id": "test-model",
     }
     permit = {
-        "permit_id": "permit-race", "proposal_digest": proposal_digest(proposal),
+        "permit_id": "permit-race", "proposal_digest": authorization_request_digest(proposal),
         "intent": "open_door", "rule_id": "R001", "state_version": 1,
         "policy_checksum": "sha256:" + "a" * 64,
         "issued_at": (NOW - timedelta(seconds=1)).isoformat(),
@@ -209,18 +209,18 @@ def test_ui_reconnect_returns_only_unacknowledged_events():
 def test_readiness_names_unavailable_dependencies():
     health = HealthRegistry()
     health.report("model", True)
-    health.report("guardrail", False, "timeout")
+    health.report("authorization", False, "timeout")
     health.report("ui", True)
 
     snapshot = health.snapshot()
     assert snapshot["live"] is True and snapshot["ready"] is False
-    assert snapshot["unavailable_dependencies"] == ("guardrail",)
+    assert snapshot["unavailable_dependencies"] == ("authorization",)
 
 
 def test_operations_endpoint_exposes_contract_valid_reset_and_health():
     runtime, _events, ui, _permits, _simulation = make_runtime()
     health = HealthRegistry()
-    for dependency in ("model", "guardrail", "ui"):
+    for dependency in ("model", "authorization", "ui"):
         health.report(dependency, True)
     endpoint = OperationsEndpoint(runtime, health, ui, clock=lambda: NOW)
 

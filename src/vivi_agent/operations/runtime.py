@@ -24,7 +24,7 @@ class DependencyHealth:
 class HealthRegistry:
     """Expose liveness separately from dependency-backed readiness."""
 
-    def __init__(self, required: tuple[str, ...] = ("model", "guardrail", "ui")) -> None:
+    def __init__(self, required: tuple[str, ...] = ("model", "authorization", "ui")) -> None:
         self._required = frozenset(required)
         self._statuses = {name: DependencyHealth(name, False, "not_checked") for name in required}
         self._lock = threading.Lock()
@@ -32,6 +32,8 @@ class HealthRegistry:
     def report(self, name: str, available: bool, reason: str | None = None) -> None:
         if not name:
             raise ValueError("dependency name must be non-empty")
+        if name == "guardrail":
+            name = "authorization"
         with self._lock:
             self._statuses[name] = DependencyHealth(name, available, reason)
 

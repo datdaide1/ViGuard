@@ -157,11 +157,12 @@ class ConfirmationManager:
         self,
         confirmation_id: str,
         session_id: str,
-        guardrail_client: Any,
+        authorization_client: Any = None,
         executor: Any = None,
         request_id: str | None = None,
         now: datetime | None = None,
         cancellation: Any = None,
+        guardrail_client: Any = None,
     ) -> ConfirmationResult:
         """Resolve a pending confirmation via fresh Guardrail re-evaluation.
 
@@ -179,6 +180,12 @@ class ConfirmationManager:
         drop-in match. ``cancellation`` defaults to ``None``, which
         ``VehicleToolGateway.execute`` already treats as "not cancelled".
         """
+        if (authorization_client is None) == (guardrail_client is None):
+            raise ValueError(
+                "provide exactly one of authorization_client or legacy guardrail_client"
+            )
+        authorizer = authorization_client or guardrail_client
+
         with self._lock:
             pending = self._pending.get(confirmation_id)
 
@@ -268,7 +275,7 @@ class ConfirmationManager:
 
         # Re-evaluate with Guardrail client to get a fresh decision & permit
         try:
-            fresh_decision = guardrail_client.confirm(
+            fresh_decision = authorizer.confirm(
                 confirmation_id=confirmation_id,
                 session_id=session_id,
                 request_id=request_id,

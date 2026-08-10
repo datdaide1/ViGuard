@@ -152,6 +152,20 @@ def test_success_is_reported_only_after_execution_result():
     assert result.trace[-2:] == (TurnState.EXECUTING, TurnState.COMPLETED)
 
 
+def test_new_composition_uses_vendor_neutral_authorizer_keyword():
+    authorizer = FakeGuardrail()
+    orchestrator = AgentOrchestrator(
+        model_router=FakeRouter(),
+        mapper=load_default_mapper(load_registry(), load_manifest()),
+        authorizer=authorizer,
+        executor=FakeExecutor(),
+        id_factory=lambda prefix: f"{prefix}-neutral",
+    )
+    result = orchestrator.handle_message(REQUEST)
+    assert result.status is TurnStatus.COMPLETED
+    assert authorizer.calls == 1
+
+
 def test_execution_failure_never_reports_success():
     executor = FakeExecutor(
         ExecutionResult(

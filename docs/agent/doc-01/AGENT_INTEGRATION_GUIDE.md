@@ -46,7 +46,24 @@ Readiness của model đòi hỏi đồng thời credential và transport đã c
 
 ## 3. Biên tích hợp Guardrail
 
-Canonical contract là [`src/vivi_agent/contracts/guardrail/v1/README.md`](../../../src/vivi_agent/contracts/guardrail/v1/README.md), schema là `guardrail-agent.schema.json`, sample là `examples.json`. Deployment adapter ánh xạ ba operation:
+Agent core chỉ phụ thuộc stable authorization ports tại `src/vivi_agent/authorization/`. ViGuard wire contract và client nằm tách biệt tại [`src/vivi_agent/integrations/viguard/`](../../../src/vivi_agent/integrations/viguard/); schema/sample nằm trong thư mục `wire`. Deployment adapter ánh xạ ba operation:
+
+Composition tối thiểu khi nối ViGuard thật:
+
+```python
+from vivi_agent.integrations.viguard import (
+    ViGuardClient,
+    ViGuardClientConfig,
+    ViGuardProvider,
+)
+
+authorizer = ViGuardClient(
+    ViGuardClientConfig("https://viguard.example", ViGuardProvider.REAL)
+)
+agent = AgentOrchestrator(..., authorizer=authorizer, executor=vehicle_gateway)
+```
+
+Thay endpoint hoặc implementation ViGuard chỉ tác động integration/composition này; model, workflow và core Agent không import client cụ thể.
 
 | Operation | Ý nghĩa |
 | --- | --- |

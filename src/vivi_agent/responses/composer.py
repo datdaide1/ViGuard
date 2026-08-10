@@ -104,6 +104,9 @@ class GroundedResponseComposer:
             truncated=truncated,
         )
 
+    # Stable vendor-neutral entry point. The older name remains compatible.
+    compose_from_authorization = compose_from_guardrail
+
     def compose_from_query(
         self,
         query_result: Mapping[str, Any],

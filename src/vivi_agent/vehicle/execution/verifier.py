@@ -8,9 +8,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from vivi_agent.contracts.guardrail.v1.contract import (
-    ContractValidationError,
-    proposal_digest,
+from vivi_agent.authorization import (
+    AuthorizationContractError,
+    authorization_request_digest,
     validate_action_proposal,
 )
 from .errors import (
@@ -132,7 +132,7 @@ class PermitVerifier:
         # 1. Validate proposal envelope syntax
         try:
             validate_action_proposal(proposal)
-        except ContractValidationError as exc:
+        except AuthorizationContractError as exc:
             raise InvalidPermitError(f"Invalid proposal envelope: {exc}") from exc
 
         # 2. Check permit required fields
@@ -166,7 +166,7 @@ class PermitVerifier:
             raise ReplayAttackError(f"Permit {permit_id!r} has already been consumed")
 
         # 4. Check substitution attack (recalculate proposal digest)
-        expected_digest = proposal_digest(proposal)
+        expected_digest = authorization_request_digest(proposal)
         actual_digest = permit.get("proposal_digest")
         if actual_digest != expected_digest:
             raise SubstitutionAttackError(
