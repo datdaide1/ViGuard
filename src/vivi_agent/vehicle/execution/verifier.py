@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Mapping
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -42,7 +43,10 @@ class PermitStore:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._lifecycle_lock = threading.RLock()
         self._consumed_permits: set[str] = set()
+        self._revoked_before: dict[str, datetime] = {}
+        self._global_revoked_before: datetime | None = None
 
     def mark_used(self, permit_id: str) -> None:
         """Mark permit_id as consumed.
@@ -62,9 +66,45 @@ class PermitStore:
             return permit_id in self._consumed_permits
 
     def clear(self) -> None:
-        """Reset consumed permit history (for testing/resets)."""
+        """Reset consumed permit history for isolated tests.
+
+        Runtime reset must use :meth:`revoke_before`; clearing consumption
+        history in production would make used permits replayable.
+        """
         with self._lock:
             self._consumed_permits.clear()
+
+    def revoke_before(self, timestamp: datetime, session_id: str | None = None) -> None:
+        """Revoke permits issued at or before a runtime reset boundary."""
+        if timestamp.tzinfo is None:
+            raise ValueError("revocation timestamp must be timezone-aware")
+        with self._lock:
+            if session_id is None:
+                current = self._global_revoked_before
+                self._global_revoked_before = timestamp if current is None else max(current, timestamp)
+            else:
+                current = self._revoked_before.get(session_id)
+                self._revoked_before[session_id] = timestamp if current is None else max(current, timestamp)
+
+    def is_revoked(self, session_id: str, issued_at: datetime) -> bool:
+        with self._lock:
+            cutoffs = [
+                cutoff
+                for cutoff in (self._global_revoked_before, self._revoked_before.get(session_id))
+                if cutoff is not None
+            ]
+            return bool(cutoffs and issued_at <= max(cutoffs))
+
+    @contextmanager
+    def lifecycle_boundary(self):
+        """Serialize complete actuator executions and runtime resets.
+
+        VehicleToolGateway holds this boundary from permit verification through
+        actuator completion. RuntimeOperations holds the same boundary for the
+        entire reset, so neither operation can cross the other.
+        """
+        with self._lifecycle_lock:
+            yield
 
 
 class PermitVerifier:
@@ -152,6 +192,12 @@ class PermitVerifier:
 
         issued_at = _parse_iso_timestamp(permit["issued_at"], "issued_at")
         expires_at = _parse_iso_timestamp(permit["expires_at"], "expires_at")
+
+        session_id = proposal.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise InvalidPermitError("Proposal missing session_id")
+        if self._store.is_revoked(session_id, issued_at):
+            raise InvalidPermitError("Permit was revoked by runtime reset")
 
         if expires_at <= issued_at:
             raise InvalidPermitError("permit.expires_at must be strictly after permit.issued_at")

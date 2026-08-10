@@ -358,7 +358,7 @@ class ActiveActionRegistry:
         return completed_record
 
     def reset_and_cleanup(
-        self, reason: str = "system_reset", turn_id: str = ""
+        self, reason: str = "system_reset", turn_id: str = "", session_id: str | None = None
     ) -> list[ActiveActionRecord]:
         """Reset and clean up active actions on agent restart or vehicle state reset.
 
@@ -368,6 +368,7 @@ class ActiveActionRegistry:
         Args:
             reason: Reason for reset/cleanup.
             turn_id: Conversational turn identifier that triggered this reset, if any.
+            session_id: Optional session boundary; omitted means all sessions.
 
         Returns:
             List of stopped/cleaned up ActiveActionRecords.
@@ -378,6 +379,7 @@ class ActiveActionRegistry:
                 rec.action_id
                 for rec in self._records.values()
                 if rec.phase in (ActiveActionPhase.STARTED, ActiveActionPhase.PROGRESS)
+                and (session_id is None or rec.session_id == session_id)
             ]
             for action_id in running_ids:
                 stopped_rec = self._internal_stop(action_id, reason=reason, turn_id=turn_id)

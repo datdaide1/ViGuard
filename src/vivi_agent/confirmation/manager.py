@@ -78,6 +78,19 @@ class ConfirmationManager:
         with self._lock:
             return self._pending.get(confirmation_id)
 
+    def cancel_pending_for_reset(self, session_id: str | None = None) -> int:
+        """Invalidate pending confirmations during a session or global reset."""
+        cancelled = 0
+        with self._lock:
+            for pending in self._pending.values():
+                if pending.state is not ConfirmationState.PENDING:
+                    continue
+                if session_id is not None and pending.session_id != session_id:
+                    continue
+                pending.state = ConfirmationState.CANCELLED
+                cancelled += 1
+        return cancelled
+
     def is_expired(self, pending: PendingConfirmation, now: datetime | None = None) -> bool:
         """Check if a pending confirmation has passed its expiration time."""
         if not pending.expires_at:
