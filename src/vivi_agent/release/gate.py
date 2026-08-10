@@ -8,11 +8,13 @@ proof that a real external integration passed.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -21,6 +23,20 @@ from typing import Callable, Mapping, Sequence
 
 
 REQUIRED_EXTERNAL_GATES = tuple(f"G-EXT-{number:02d}" for number in range(1, 7))
+TRUSTED_GATE_OWNERS = {
+    "G-EXT-01": "Guardrail", "G-EXT-02": "Guardrail",
+    "G-EXT-03": "Guardrail", "G-EXT-04": "Guardrail+Agent",
+    "G-EXT-05": "UI+Agent", "G-EXT-06": "UI",
+}
+REQUIRED_ACCEPTANCE_SUITES = (
+    "tests/coverage/cov-01/test_cov01.py",
+    "tests/evals/eval-02/test_eval02_adversarial_execution_boundary.py",
+    "tests/e2e/scenarios/test_scn01_agent_fooled_vehicle_safe.py",
+    "tests/e2e/scenarios/test_scn02_confirmation_not_a_permanent_permit.py",
+    "tests/e2e/scenarios/test_scn03_guardrail_stops_active_action.py",
+    "tests/adapters/test_monitor_adapter.py",
+    "tests/performance/perf-01/test_perf01_benchmark.py",
+)
 ACCEPTED_DEPENDENCY_STATUSES = frozenset({"done", "completed"})
 REQUIRED_DEPENDENCIES = (
     "CON-01", "CON-02", "CAT-01", "TOOL-01", "MAP-01", "MOD-01",
@@ -89,7 +105,15 @@ def _parse_tracker_statuses(text: str) -> dict[str, str]:
     return statuses
 
 
-def _load_external_evidence(path: Path | None) -> dict[str, dict[str, str]]:
+def _signature_payload(gate_id: str, evidence: Mapping[str, object]) -> bytes:
+    signed = {key: evidence[key] for key in ("status", "owner", "artifact", "sha256")}
+    return json.dumps({"gate_id": gate_id, **signed}, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _load_external_evidence(
+    path: Path | None,
+    signing_keys: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, str]]:
     if path is None:
         return {}
     try:
@@ -98,13 +122,25 @@ def _load_external_evidence(path: Path | None) -> dict[str, dict[str, str]]:
         raise EvidenceError(f"Cannot read external evidence: {exc}") from exc
     if not isinstance(payload, dict) or set(payload) - set(REQUIRED_EXTERNAL_GATES):
         raise EvidenceError("External evidence must be an object keyed only by G-EXT-01..G-EXT-06")
+    keys = signing_keys or {
+        gate_id: os.environ.get(f"REL01_{gate_id.replace('-', '_')}_SIGNING_KEY", "")
+        for gate_id in REQUIRED_EXTERNAL_GATES
+    }
     validated: dict[str, dict[str, str]] = {}
     for gate_id, evidence in payload.items():
         if not isinstance(evidence, dict):
             raise EvidenceError(f"{gate_id} evidence must be an object")
-        required = {"status", "owner", "artifact", "sha256"}
+        required = {"status", "owner", "artifact", "sha256", "signature"}
         if set(evidence) != required or evidence.get("status") != "accepted":
-            raise EvidenceError(f"{gate_id} must contain accepted status, owner, artifact and sha256")
+            raise EvidenceError(f"{gate_id} must contain accepted status, owner, artifact, sha256 and signature")
+        if evidence.get("owner") != TRUSTED_GATE_OWNERS[gate_id]:
+            raise EvidenceError(f"{gate_id} owner must be {TRUSTED_GATE_OWNERS[gate_id]}")
+        key = keys.get(gate_id, "")
+        if not key:
+            raise EvidenceError(f"{gate_id} trusted signing key is not configured")
+        expected_signature = hmac.new(key.encode("utf-8"), _signature_payload(gate_id, evidence), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(str(evidence["signature"]), expected_signature):
+            raise EvidenceError(f"{gate_id} signature mismatch")
         artifact = Path(str(evidence["artifact"]))
         if not artifact.is_absolute():
             artifact = path.parent / artifact
@@ -113,7 +149,7 @@ def _load_external_evidence(path: Path | None) -> dict[str, dict[str, str]]:
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
         if digest != evidence["sha256"]:
             raise EvidenceError(f"{gate_id} artifact digest mismatch")
-        validated[gate_id] = {key: str(value) for key, value in evidence.items()}
+        validated[gate_id] = {field: str(value) for field, value in evidence.items()}
     return validated
 
 
@@ -124,7 +160,11 @@ class ReleaseGate:
         self.repo_root = repo_root.resolve()
         self.runner = runner
 
-    def evaluate(self, external_evidence_path: Path | None = None) -> ReleaseResult:
+    def evaluate(
+        self,
+        external_evidence_path: Path | None = None,
+        signing_keys: Mapping[str, str] | None = None,
+    ) -> ReleaseResult:
         commit = self._git_value("rev-parse", "HEAD")
         checks: list[CheckResult] = []
         statuses = _parse_tracker_statuses(
@@ -139,7 +179,7 @@ class ReleaseGate:
         checks.append(CheckResult("dependency-metadata", True, dependency_detail))
 
         try:
-            evidence = _load_external_evidence(external_evidence_path)
+            evidence = _load_external_evidence(external_evidence_path, signing_keys)
             missing = [gate_id for gate_id in REQUIRED_EXTERNAL_GATES if gate_id not in evidence]
             checks.append(CheckResult("external-evidence", not missing, "all accepted" if not missing else "missing: " + ", ".join(missing)))
         except EvidenceError as exc:
@@ -147,15 +187,39 @@ class ReleaseGate:
 
         env = os.environ.copy()
         env.update({"PYTHONPATH": ".;src", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"})
-        command = [sys.executable, "-m", "pytest", "-q", "--import-mode=importlib"]
-        completed = self.runner(command, self.repo_root, env)
-        output = (completed.stdout + "\n" + completed.stderr).strip()
-        detail = "pytest passed" if completed.returncode == 0 else f"pytest exit={completed.returncode}: {output[-1200:]}"
-        checks.append(CheckResult("automated-test-suite", completed.returncode == 0, detail))
+        status_result = self.runner(["git", "status", "--porcelain=v1", "--untracked-files=all"], self.repo_root, env)
+        status_lines = tuple(line for line in status_result.stdout.splitlines() if line)
+        tracked_changes = tuple(line for line in status_lines if not line.startswith("?? "))
+        untracked = tuple(line[3:] for line in status_lines if line.startswith("?? "))
+        worktree_clean = status_result.returncode == 0 and not tracked_changes
+        detail = "HEAD has no staged or unstaged tracked changes"
+        if tracked_changes:
+            detail = "tracked changes: " + ", ".join(tracked_changes)
+        if untracked:
+            detail += "; untracked excluded from frozen build: " + ", ".join(untracked)
+        checks.append(CheckResult("head-snapshot", worktree_clean, detail))
 
-        clean = self.runner(["git", "diff", "--quiet", "--", "."], self.repo_root, env)
-        checks.append(CheckResult("tracked-worktree", clean.returncode == 0, "clean" if clean.returncode == 0 else "tracked changes present"))
-        agent_check_ids = {"automated-test-suite", "tracked-worktree"}
+        with tempfile.TemporaryDirectory(prefix="rel01-") as directory:
+            snapshot = Path(directory) / "repo"
+            add = self.runner(["git", "worktree", "add", "--detach", str(snapshot), commit], self.repo_root, env)
+            if add.returncode != 0:
+                checks.append(CheckResult("automated-test-suite", False, "cannot create HEAD snapshot: " + add.stderr.strip()))
+                checks.append(CheckResult("acceptance-inventory", False, "HEAD snapshot unavailable"))
+            else:
+                try:
+                    full = self.runner([sys.executable, "-m", "pytest", "-q", "--import-mode=importlib"], snapshot, env)
+                    full_output = (full.stdout + "\n" + full.stderr).strip()
+                    checks.append(CheckResult("automated-test-suite", full.returncode == 0, "pytest passed on HEAD snapshot" if full.returncode == 0 else f"pytest exit={full.returncode}: {full_output[-1200:]}"))
+                    missing_suites = [path for path in REQUIRED_ACCEPTANCE_SUITES if not (snapshot / path).is_file()]
+                    if missing_suites:
+                        checks.append(CheckResult("acceptance-inventory", False, "missing from HEAD: " + ", ".join(missing_suites)))
+                    else:
+                        acceptance = self.runner([sys.executable, "-m", "pytest", "-q", "--import-mode=importlib", *REQUIRED_ACCEPTANCE_SUITES], snapshot, env)
+                        checks.append(CheckResult("acceptance-inventory", acceptance.returncode == 0, "required 53/47/6, monitor, adversarial and three-scenario suites passed" if acceptance.returncode == 0 else (acceptance.stdout + acceptance.stderr)[-1200:]))
+                finally:
+                    self.runner(["git", "worktree", "remove", "--force", str(snapshot)], self.repo_root, env)
+
+        agent_check_ids = {"automated-test-suite", "acceptance-inventory", "head-snapshot"}
         agent_ready = all(check.passed for check in checks if check.check_id in agent_check_ids)
         external_ready = next(check.passed for check in checks if check.check_id == "external-evidence")
         status = ReleaseStatus.PASS if agent_ready else ReleaseStatus.NOT_READY

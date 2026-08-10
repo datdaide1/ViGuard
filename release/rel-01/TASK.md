@@ -46,8 +46,15 @@ basename và package scenario `e2e-01`; import mode mặc định không collect
 toàn bộ suite trên Windows.
 
 Gate ghi `release-result.json` và `AGENT_RELEASE_REPORT.md`. Mã thoát `0` khi
-toàn bộ Agent suite đạt và worktree được freeze sạch. Sáu evidence ngoài team
+toàn bộ Agent suite đạt trên detached worktree của đúng `HEAD`; staged hoặc
+unstaged tracked changes đều block. Untracked files được report và loại khỏi
+frozen snapshot. Gate chạy riêng inventory bắt buộc cho coverage 53/47/6,
+monitor, adversarial, performance và ba scenarios. Sáu evidence ngoài team
 chỉ quyết định `integrated_demo_status`, không block `agent_release_status`.
 Nếu được cung cấp, external evidence phải trỏ tới artifact thực và khóa nội
-dung bằng SHA-256; thiếu evidence được báo rõ, không bị hiểu thành sign-off.
+dung bằng SHA-256. Mỗi gate phải dùng đúng owner định trước và chữ ký HMAC-SHA256
+với key ngoài repository (`REL01_G_EXT_01_SIGNING_KEY` đến
+`REL01_G_EXT_06_SIGNING_KEY`); thiếu evidence/key được báo rõ, không bị hiểu
+thành sign-off. `FROZEN_AGENT_MANIFEST.json` khóa source commit, test command và
+hash của release report, result và performance evidence.
 

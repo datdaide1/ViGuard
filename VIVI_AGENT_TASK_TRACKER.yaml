@@ -637,6 +637,8 @@ tasks:
       - src/vivi_agent/release/gate.py
       - release/rel-01/run_release_gate.py
       - tests/release/test_release_gate.py
+      - release/rel-01/evidence/AGENT_RELEASE_REPORT.md
+      - release/rel-01/evidence/FROZEN_AGENT_MANIFEST.json
   - id: P1-STREAM
     title: 'Streaming token/progress nâng cao'
     priority: P1
