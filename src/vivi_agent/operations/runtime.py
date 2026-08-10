@@ -63,6 +63,20 @@ class ReconnectResult:
         }
 
 
+class RuntimeResetError(RuntimeError):
+    """Typed failure returned when a reset dependency cannot reset safely."""
+
+    code = "VEHICLE_RESET_FAILED"
+
+    def __init__(self, scope: str, reason: str | None) -> None:
+        self.scope = scope
+        self.reason = reason or "unknown vehicle reset failure"
+        super().__init__(f"{self.code}: {self.reason}")
+
+    def to_dict(self) -> dict[str, str]:
+        return {"code": self.code, "scope": self.scope, "reason": self.reason}
+
+
 class UIConnectionRegistry:
     """Resume event delivery after the last ACK without invoking side effects."""
 
@@ -123,9 +137,9 @@ class RuntimeOperations:
             raise ValueError("scope must be session, simulator, or all")
         if scope == "session" and not session_id:
             raise ValueError("session reset requires session_id")
-        with self._lock, self._permit_store.reset_boundary():
-            # Take the cutoff only after acquiring the execution boundary so
-            # every permit derived from the pre-reset snapshot is covered.
+        with self._lock, self._permit_store.lifecycle_boundary():
+            # Take the cutoff only after acquiring the shared lifecycle
+            # boundary so every permit from the pre-reset snapshot is covered.
             reset_at = self._clock()
             if reset_at.tzinfo is None:
                 raise ValueError("reset clock must return a timezone-aware datetime")
@@ -144,5 +158,5 @@ class RuntimeOperations:
                 result = self._simulation.reset(correlation_id="ops-01-reset")
                 vehicle_reset = bool(result.success)
                 if not vehicle_reset:
-                    raise RuntimeError(f"vehicle reset failed: {result.error}")
+                    raise RuntimeResetError(scope, result.error)
             return ResetResult(scope, session_id, stopped, cancelled, vehicle_reset, reset_at)

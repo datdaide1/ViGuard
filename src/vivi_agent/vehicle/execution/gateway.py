@@ -95,7 +95,7 @@ class VehicleToolGateway:
             Typed result containing success flag, execution_id, message, state_version,
             facts, or error details.
         """
-        with self._verifier.store.execution_boundary():
+        with self._verifier.store.lifecycle_boundary():
             return self._execute_under_lifecycle_gate(
                 proposal,
                 decision_or_permit,

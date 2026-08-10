@@ -96,14 +96,13 @@ class PermitStore:
             return bool(cutoffs and issued_at <= max(cutoffs))
 
     @contextmanager
-    def execution_boundary(self):
-        """Prevent reset from completing across an in-flight actuator call."""
-        with self._lifecycle_lock:
-            yield
+    def lifecycle_boundary(self):
+        """Serialize complete actuator executions and runtime resets.
 
-    @contextmanager
-    def reset_boundary(self):
-        """Exclude permit verification and actuator calls for the full reset."""
+        VehicleToolGateway holds this boundary from permit verification through
+        actuator completion. RuntimeOperations holds the same boundary for the
+        entire reset, so neither operation can cross the other.
+        """
         with self._lifecycle_lock:
             yield
 

@@ -3,13 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import threading
-import time
 import json
 
 import pytest
 
 from vivi_agent.contracts.guardrail.v1.contract import proposal_digest
-from vivi_agent.operations import HealthRegistry, OperationsEndpoint, RuntimeOperations, UIConnectionRegistry
+from vivi_agent.operations import HealthRegistry, OperationsEndpoint, RuntimeOperations, RuntimeResetError, UIConnectionRegistry
 from vivi_agent.vehicle.execution import HandlerRegistry, InvalidPermitError, PermitStore, PermitVerifier, VehicleToolGateway
 
 
@@ -141,6 +140,7 @@ def test_reset_waits_for_in_flight_gateway_execution():
     handler_started = threading.Event()
     release_handler = threading.Event()
     reset_finished = threading.Event()
+    reset_entered = threading.Event()
 
     def handler(_proposal):
         handler_started.set()
@@ -165,16 +165,35 @@ def test_reset_waits_for_in_flight_gateway_execution():
     }
 
     execution = threading.Thread(target=lambda: gateway.execute(proposal, permit, current_time=NOW))
-    reset = threading.Thread(target=lambda: (runtime.reset("session", session_id="s1"), reset_finished.set()))
+    def run_reset():
+        reset_entered.set()
+        runtime.reset("session", session_id="s1")
+        reset_finished.set()
+
+    reset = threading.Thread(target=run_reset)
     execution.start()
     assert handler_started.wait(timeout=2)
     reset.start()
-    time.sleep(0.03)
+    assert reset_entered.wait(timeout=2)
     assert not reset_finished.is_set()
     release_handler.set()
     execution.join(timeout=2)
     reset.join(timeout=2)
     assert reset_finished.is_set()
+
+
+def test_vehicle_reset_failure_raises_typed_error():
+    runtime, _events, _ui, _permits, simulation = make_runtime()
+    simulation.reset = lambda **_kwargs: SimulationResult(False, "vehicle offline")
+
+    with pytest.raises(RuntimeResetError) as raised:
+        runtime.reset("simulator")
+
+    assert raised.value.to_dict() == {
+        "code": "VEHICLE_RESET_FAILED",
+        "scope": "simulator",
+        "reason": "vehicle offline",
+    }
 
 
 def test_ui_reconnect_returns_only_unacknowledged_events():
