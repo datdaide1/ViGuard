@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 import threading
 import time
 from typing import Any
@@ -12,6 +13,42 @@ import requests
 
 class RetryableTransportError(RuntimeError):
     pass
+
+
+_SECRET_PATTERNS = (
+    re.compile(r"AIza[0-9A-Za-z_-]{8,}"),
+    re.compile(r"sk-[0-9A-Za-z_-]{8,}"),
+    re.compile(
+        r"(?i)\b(api[_ -]?key|authorization|bearer|token|secret)"
+        r"(?:\s*[:=]\s*|\s+)[^\s,;]+"
+    ),
+)
+
+
+def _safe_error_detail(response: requests.Response, limit: int = 200) -> str:
+    """Return bounded allowlisted provider error fields with secrets redacted."""
+
+    try:
+        payload = response.json()
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(payload, Mapping):
+        return ""
+    error = payload.get("error")
+    if not isinstance(error, Mapping):
+        return ""
+    parts = [
+        str(error[field])
+        for field in ("status", "code", "message")
+        if error.get(field) not in (None, "")
+    ]
+    detail = " ".join(parts)
+    detail = " ".join(detail.split())
+    for pattern in _SECRET_PATTERNS:
+        detail = pattern.sub("[REDACTED]", detail)
+    if len(detail) > limit:
+        detail = detail[: limit - 1].rstrip() + "…"
+    return f" (provider detail: {detail})" if detail else ""
 
 
 class RateLimitedTransport:
@@ -71,11 +108,12 @@ class GeminiRestTransport:
         except requests.exceptions.ConnectionError as exc:
             raise RetryableTransportError("Gemini connection failed") from exc
         if response.status_code != 200:
+            detail = _safe_error_detail(response)
             if response.status_code == 429 or response.status_code >= 500:
                 raise RetryableTransportError(
-                    f"Gemini API returned retryable HTTP {response.status_code}"
+                    f"Gemini API returned retryable HTTP {response.status_code}{detail}"
                 )
-            raise RuntimeError(f"Gemini API returned HTTP {response.status_code}")
+            raise RuntimeError(f"Gemini API returned HTTP {response.status_code}{detail}")
         return response.json()
 
 
@@ -101,9 +139,10 @@ class OpenAIRestTransport:
         except requests.exceptions.ConnectionError as exc:
             raise RetryableTransportError("OpenAI connection failed") from exc
         if response.status_code != 200:
+            detail = _safe_error_detail(response)
             if response.status_code == 429 or response.status_code >= 500:
                 raise RetryableTransportError(
-                    f"OpenAI API returned retryable HTTP {response.status_code}"
+                    f"OpenAI API returned retryable HTTP {response.status_code}{detail}"
                 )
-            raise RuntimeError(f"OpenAI API returned HTTP {response.status_code}")
+            raise RuntimeError(f"OpenAI API returned HTTP {response.status_code}{detail}")
         return response.json()
