@@ -26,16 +26,16 @@ class IntentManifestTests(unittest.TestCase):
         raw["checksum"] = manifest_checksum(raw)
         return raw
 
-    def test_checked_in_manifest_is_ready_with_exact_53_intents(self) -> None:
+    def test_checked_in_manifest_is_ready_with_all_baseline_and_candidate_intents(self) -> None:
         manifest = load_manifest()
-        self.assertEqual(len(manifest.intents), 53)
+        self.assertEqual(len(manifest.intents), 123)
         self.assertEqual({item.intent for item in manifest.intents}, APPROVED_INTENTS)
-        self.assertEqual(sum(item.is_action for item in manifest.intents), 47)
-        self.assertEqual(sum(item.is_query for item in manifest.intents), 6)
+        self.assertEqual(sum(item.is_action for item in manifest.intents), 113)
+        self.assertEqual(sum(item.is_query for item in manifest.intents), 10)
 
     def test_runtime_package_validates_manifest_at_import_startup(self) -> None:
         self.assertEqual(RUNTIME_INTENT_MANIFEST.checksum, self.raw["checksum"])
-        self.assertEqual(len(RUNTIME_INTENT_MANIFEST.intents), 53)
+        self.assertEqual(len(RUNTIME_INTENT_MANIFEST.intents), 123)
 
     def test_source_casing_and_explicit_refusal_are_preserved(self) -> None:
         manifest = load_manifest()

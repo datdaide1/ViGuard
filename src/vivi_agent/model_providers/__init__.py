@@ -9,9 +9,16 @@ from .contracts import (
     ProposalKind,
 )
 from .selection import ModelProviderConfig, ModelProviderRouter, ProviderReadiness, TurnBinding
+from .transports import (
+    GeminiRestTransport,
+    OpenAIRestTransport,
+    RateLimitedTransport,
+    RetryableTransportError,
+)
 
 __all__ = [
     "GeminiAdapter",
+    "GeminiRestTransport",
     "ModelActionProposal",
     "ModelErrorCode",
     "ModelProviderAdapter",
@@ -19,9 +26,12 @@ __all__ = [
     "ModelProviderError",
     "ModelProviderRouter",
     "OpenAIAdapter",
+    "OpenAIRestTransport",
     "ProviderMetadata",
     "ProviderReadiness",
     "ProviderTransport",
     "ProposalKind",
+    "RateLimitedTransport",
+    "RetryableTransportError",
     "TurnBinding",
 ]

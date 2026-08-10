@@ -11,7 +11,7 @@ Guardrail or vehicle handler.
 - `AGENT_MODEL_PROVIDER=auto|openai|gemini` (default `auto`)
 - `AGENT_MODEL_PROVIDER_PRIORITY` (default `openai,gemini`)
 - `OPENAI_MODEL_ID` (default `gpt-5-mini`)
-- `GEMINI_MODEL_ID` (default `gemini-3.6-flash`)
+- `GEMINI_MODEL_ID` (default `gemini-3.5-flash-lite`)
 - `AGENT_MODEL_TIMEOUT_SECONDS` (default `10`)
 - `OPENAI_API_KEY` and `GEMINI_API_KEY` (backend only)
 

@@ -14,6 +14,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from ...catalog.candidate import CANDIDATE_CAPABILITIES
+
 REGISTRY_PATH = Path(__file__).with_name("domain_tools.v1.json")
 REGISTRY_VERSION = "1.0.0"
 ARGUMENT_FIELDS = frozenset({"action", "target", "value"})
@@ -30,6 +32,7 @@ APPROVED_TOOL_NAMES = frozenset(
         "control_ui",
         "query_vehicle_state",
         "explain_vehicle_feature",
+        "control_vehicle_capability",
     }
 )
 
@@ -95,7 +98,9 @@ class ToolDefinition:
                 "target": {"type": "string", "enum": sorted(signature.targets)},
             }
             if signature.values:
-                properties["value"] = {"type": "string", "enum": sorted(signature.values)}
+                properties["value"] = {"type": "string"}
+                if signature.values != ("*",):
+                    properties["value"]["enum"] = sorted(signature.values)
             variants.append(
                 {
                     "type": "object",
@@ -150,6 +155,10 @@ class ToolRegistry:
         for key, value in arguments.items():
             if not isinstance(value, str) or not value:
                 raise ToolCallValidationError("INVALID_ARGUMENTS", f"{key} must be a non-empty string")
+            if key == "value" and len(value) > 512:
+                raise ToolCallValidationError(
+                    "INVALID_VALUE", "free-text tool value cannot exceed 512 characters"
+                )
 
         action = arguments.get("action")
         action_signatures = tuple(item for item in tool.signatures if item.action == action)
@@ -177,7 +186,7 @@ class ToolRegistry:
             return ClarificationRequest(
                 name, action, ("value",), MappingProxyType({"value": allowed_values})
             )
-        if allowed_values and value not in allowed_values:
+        if allowed_values and allowed_values != ("*",) and value not in allowed_values:
             raise ToolCallValidationError(
                 "INVALID_VALUE", f"value {value!r} is not valid for {name}.{action}.{target}"
             )
@@ -231,6 +240,38 @@ def _parse_registry(raw: Mapping[str, Any]) -> ToolRegistry:
                 raise ToolCallValidationError("INVALID_REGISTRY", "signature enums must be unique strings")
             signatures.append(ToolSignature(action, tuple(targets), tuple(values)))
         tools.append(ToolDefinition(entry["name"], entry["description"], tuple(signatures)))
+    for index, tool in enumerate(tools):
+        if tool.name == "control_driver_assistance":
+            tools[index] = ToolDefinition(
+                tool.name,
+                tool.description + " Supports activating lane keeping assist.",
+                (*tool.signatures, ToolSignature("activate", ("lane_keeping_assist",), ())),
+            )
+            break
+    candidate_actions = tuple(
+        item.intent
+        for item in CANDIDATE_CAPABILITIES
+        if item.operation == "execute" and item.intent != "turnon_LKA"
+    )
+    candidate_setters = tuple(item.intent for item in CANDIDATE_CAPABILITIES if item.operation == "set")
+    candidate_queries = tuple(item.intent for item in CANDIDATE_CAPABILITIES if item.operation == "query")
+    tools.append(
+        ToolDefinition(
+            "control_vehicle_capability",
+            "Execute or query an Agent capability from Intents_Candidate.xlsx. "
+            + "Capability glossary: "
+            + "; ".join(
+                f"{item.intent} = {item.description}"
+                for item in CANDIDATE_CAPABILITIES
+                if item.intent != "turnon_LKA"
+            ),
+            (
+                ToolSignature("execute", candidate_actions, ()),
+                ToolSignature("set", candidate_setters, ("*",)),
+                ToolSignature("query", candidate_queries, ()),
+            ),
+        )
+    )
     names = [tool.name for tool in tools]
     if len(names) != len(set(names)):
         raise ToolCallValidationError("INVALID_REGISTRY", "duplicate tool name")

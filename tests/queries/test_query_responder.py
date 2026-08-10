@@ -47,8 +47,8 @@ class TestQueryCoverage:
         """Registry must cover all 6 query intents from manifest."""
         report = validate_query_coverage(QUERY_RESPONDER_REGISTRY)
         assert report.passed is True
-        assert report.covered_query == 6
-        assert report.total_query_intents == 6
+        assert report.covered_query == 10
+        assert report.total_query_intents == 10
         assert report.missing_query == []
 
     def test_no_action_intent_in_query_registry(self):
@@ -59,7 +59,7 @@ class TestQueryCoverage:
     def test_startup_gate_report_accessible(self):
         from vivi_agent.queries import STARTUP_QUERY_COVERAGE_REPORT
         assert STARTUP_QUERY_COVERAGE_REPORT.passed is True
-        assert STARTUP_QUERY_COVERAGE_REPORT.covered_query == 6
+        assert STARTUP_QUERY_COVERAGE_REPORT.covered_query == 10
 
     def test_assert_query_coverage_fails_on_missing(self):
         """assert_query_coverage raises BehaviorReadinessError if a query intent is missing."""

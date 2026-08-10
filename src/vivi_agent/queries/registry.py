@@ -18,6 +18,7 @@ from vivi_agent.queries.state_queries import (
     SpeedQueryResponder,
 )
 from vivi_agent.vehicle.execution.errors import HandlerNotFoundError
+from vivi_agent.catalog.candidate import CANDIDATE_QUERY_INTENTS
 
 QueryResponderFn = Callable[[Mapping[str, Any], Any], QueryResult]
 
@@ -84,7 +85,7 @@ class QueryResponderRegistry:
 
 
 def build_default_query_registry() -> QueryResponderRegistry:
-    """Instantiate and populate QueryResponderRegistry with all 6 default query responders."""
+    """Instantiate all baseline and candidate query responders."""
     registry = QueryResponderRegistry()
 
     # 5 State Query Responders + 1 Knowledge Query Responder. Each responder's
@@ -99,6 +100,32 @@ def build_default_query_registry() -> QueryResponderRegistry:
         ExplainFeatureResponder(),
     ):
         registry.register(responder.intent_id, responder)
+
+    def candidate_query(proposal: Mapping[str, Any], state: Any) -> QueryResult:
+        params = proposal.get("arguments") or proposal
+        intent_id = proposal.get("intent") or params.get("target")
+        observed_at = getattr(state, "timestamp", None)
+        if intent_id == "get_chargestatus" and state is not None:
+            charging = state.power.charging
+            return QueryResult(
+                intent_id=intent_id,
+                status=QueryStatus.ANSWER,
+                facts={"charging": charging},
+                response_text="Xe đang sạc." if charging else "Xe hiện không sạc.",
+                source=QueryResultSource.VEHICLE_STATE,
+                observed_at=observed_at,
+            )
+        return QueryResult(
+            intent_id=str(intent_id),
+            status=QueryStatus.UNKNOWN,
+            facts={"available": False},
+            response_text="Xe chưa cung cấp dữ liệu này cho Agent.",
+            source=QueryResultSource.VEHICLE_STATE,
+            observed_at=observed_at,
+        )
+
+    for intent_id in CANDIDATE_QUERY_INTENTS:
+        registry.register(intent_id, candidate_query)
 
     return registry
 

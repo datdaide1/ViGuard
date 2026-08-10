@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from ...catalog.manifest import IntentManifest
+from ...catalog.candidate import CANDIDATE_CAPABILITIES
 from ...authorization import (
     AuthorizationContractError,
     authorization_request_digest,
@@ -224,6 +225,7 @@ DEFAULT_MAPPING_RULES = (
     MappingRule("control_driver_assistance", "activate", "traction_control", "activate_tcs"),
     MappingRule("control_driver_assistance", "activate", "auto_vehicle_hold", "activate_avh"),
     MappingRule("control_driver_assistance", "deactivate", "lane_keeping_assist", "turnoff_LKA"),
+    MappingRule("control_driver_assistance", "activate", "lane_keeping_assist", "turnon_LKA"),
     MappingRule("control_driver_assistance", "deactivate", "electronic_stability_control", "deactivate_esc"),
     # control_special_mode
     MappingRule("control_special_mode", "activate", "creep_mode", "activate_creepmode"),
@@ -255,6 +257,16 @@ DEFAULT_MAPPING_RULES = (
     MappingRule("explain_vehicle_feature", "explain", "pet_mode", "explain_feature"),
     MappingRule("explain_vehicle_feature", "explain", "traction_control", "explain_feature"),
     MappingRule("explain_vehicle_feature", "explain", "valet_mode", "explain_feature"),
+) + tuple(
+    MappingRule(
+        "control_vehicle_capability",
+        item.operation,
+        item.intent,
+        item.intent,
+        value="*" if item.requires_value else None,
+    )
+    for item in CANDIDATE_CAPABILITIES
+    if item.intent != "turnon_LKA"
 )
 
 
@@ -343,7 +355,12 @@ class ToolMapper:
         except AuthorizationContractError as exc:
             raise UnsupportedToolMappingError("INVALID_ACTION_PROPOSAL", str(exc)) from exc
 
-        call = self._registry.validate_call(proposal["tool"], proposal["arguments"])
+        try:
+            call = self._registry.validate_call(proposal["tool"], proposal["arguments"])
+        except ValueError as exc:
+            raise UnsupportedToolMappingError(
+                getattr(exc, "code", "INVALID_TOOL_CALL"), str(exc)
+            ) from exc
         if isinstance(call, ClarificationRequest):
             raise UnsupportedToolMappingError(
                 "INCOMPLETE_TOOL_CALL", f"missing {list(call.missing_parameters)!r}"
@@ -354,6 +371,8 @@ class ToolMapper:
         )
         key = _mapping_key(call.tool_name, arguments)
         rule = self._rules.get(key)
+        if rule is None and "value" in arguments:
+            rule = self._rules.get((call.tool_name, arguments["action"], arguments["target"], "*"))
         if rule is None:
             raise UnsupportedToolMappingError(
                 "UNSUPPORTED_TOOL_MAPPING", f"no exact reviewed mapping for {key!r}"

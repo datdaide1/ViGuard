@@ -23,7 +23,7 @@ class TestAgentCoverageGate(unittest.TestCase):
         report = validate_agent_coverage()
         self.assertIsInstance(report, AgentCoverageReport)
         self.assertTrue(report.passed, f"Capability gate failed:\n{report.summary()}")
-        self.assertEqual(report.total_manifest_intents, 53)
+        self.assertEqual(report.total_manifest_intents, 123)
         self.assertTrue(report.tool_mapping_coverage.is_complete)
         self.assertTrue(report.behavior_coverage.passed)
         self.assertTrue(report.query_coverage.passed)
@@ -73,7 +73,7 @@ class TestAgentCoverageGate(unittest.TestCase):
         empty_query_reg = QueryResponderRegistry()
         report = validate_agent_coverage(query_registry=empty_query_reg)
         self.assertFalse(report.passed)
-        self.assertEqual(len(report.query_coverage.missing_query), 6)
+        self.assertEqual(len(report.query_coverage.missing_query), 10)
 
         with self.assertRaises(AgentReadinessError) as ctx:
             assert_agent_readiness(query_registry=empty_query_reg)
@@ -95,9 +95,9 @@ class TestAgentCoverageGate(unittest.TestCase):
         report = validate_agent_coverage()
         summary_text = report.summary()
         self.assertIn("AGENT CAPABILITY COVERAGE REPORT [PASS]", summary_text)
-        self.assertIn("Tool Mapping (53/53)", summary_text)
-        self.assertIn("Behavior Catalog (47/47)", summary_text)
-        self.assertIn("Query Responders (6/6)", summary_text)
+        self.assertIn("Tool Mapping (123/123)", summary_text)
+        self.assertIn("Behavior Catalog (113/113)", summary_text)
+        self.assertIn("Query Responders (10/10)", summary_text)
         self.assertIn("Monitor Integration (5/5)", summary_text)
         self.assertIn("RELEASE GATE STATUS: PASS", summary_text)
 

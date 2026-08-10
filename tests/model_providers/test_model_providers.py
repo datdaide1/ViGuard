@@ -109,7 +109,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(payload["max_completion_tokens"], 512)
         self.assertNotIn("max_output_tokens", payload)
         self.assertTrue(all(tool["function"]["strict"] for tool in payload["tools"]))
-        self.assertEqual(len(payload["tools"]), 10)
+        self.assertEqual(len(payload["tools"]), 11)
         self.assertNotIn("backend-secret", repr(payload))
 
     def test_openai_cached_schema_is_isolated_from_transport_mutation(self) -> None:
@@ -131,7 +131,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(result.tool_name, "control_access")
         payload = transport.calls[0][0]
         declarations = payload["tools"][0]["functionDeclarations"]
-        self.assertEqual(len(declarations), 10)
+        self.assertEqual(len(declarations), 11)
         self.assertEqual(payload["toolConfig"]["functionCallingConfig"]["mode"], "AUTO")
         self.assertIn("systemInstruction", payload)
 

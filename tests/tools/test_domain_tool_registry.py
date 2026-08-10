@@ -42,7 +42,7 @@ class DomainToolRegistryTests(unittest.TestCase):
         self.assertEqual(RUNTIME_TOOL_REGISTRY.checksum, self.registry.checksum)
         self.assertEqual(set(self.registry.names), ALLOWED_DOMAIN_TOOLS)
         self.assertEqual(set(self.registry.names), APPROVED_TOOL_NAMES)
-        self.assertEqual(len(self.registry.names), 10)
+        self.assertEqual(len(self.registry.names), 11)
 
     def test_model_sees_only_registered_closed_json_schemas(self) -> None:
         schemas = self.registry.model_tools()
