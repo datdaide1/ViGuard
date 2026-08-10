@@ -1,0 +1,8 @@
+{
+  "G-EXT-01": {
+    "status": "accepted",
+    "owner": "Guardrail",
+    "artifact": "evidence/guardrail-contract-signoff.json",
+    "sha256": "replace-with-lowercase-sha256"
+  }
+}

@@ -627,13 +627,16 @@ tasks:
     title: 'Chạy Agent-only release gate'
     priority: P0
     sprint: sprint-3
-    status: planned
+    status: completed
     area: release
     task_file: release/rel-01/TASK.md
     depends_on: [CON-01, CON-02, CAT-01, TOOL-01, MAP-01, MOD-01, ORC-01, GRD-ADP-01, VEH-01, VEH-02, EXEC-01, EXEC-02, EVT-01, E2E-01, MAP-02, EXEC-03, BEH-01, QRY-01, RSP-01, CNF-01, ACTV-01, MON-ADP-01, SIM-01, COV-01, INT-01, INT-02, HERO-01, HERO-02, HERO-03, HERO-04, SCN-01, SCN-02, SCN-03, EVAL-01, EVAL-02, PERF-01, OPS-01, DOC-01]
     external_gate_ids: [G-EXT-01, G-EXT-02, G-EXT-03, G-EXT-04, G-EXT-05, G-EXT-06]
-    owner: unassigned
-    evidence: []
+    owner: codex
+    evidence:
+      - src/vivi_agent/release/gate.py
+      - release/rel-01/run_release_gate.py
+      - tests/release/test_release_gate.py
   - id: P1-STREAM
     title: 'Streaming token/progress nâng cao'
     priority: P1

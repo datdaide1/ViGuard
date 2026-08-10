@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Run REL-01 and write auditable JSON/Markdown outputs."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from vivi_agent.release.gate import ReleaseGate, ReleaseStatus, render_report  # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--external-evidence", type=Path)
+    parser.add_argument("--output-dir", type=Path, default=Path("release/rel-01/results"))
+    args = parser.parse_args()
+    output_dir = args.output_dir if args.output_dir.is_absolute() else REPO_ROOT / args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result = ReleaseGate(REPO_ROOT).evaluate(args.external_evidence)
+    (output_dir / "release-result.json").write_text(json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "AGENT_RELEASE_REPORT.md").write_text(render_report(result), encoding="utf-8")
+    print(f"REL-01 Agent: {result.status.value}; integrated demo: {result.integrated_demo_status.value}")
+    return 0 if result.status is ReleaseStatus.PASS else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
