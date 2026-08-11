@@ -180,6 +180,8 @@ class GuardedAgentCoordinator:
             raise ValueError("unsupported Guardrail outcome")
         if not isinstance(decision.request_id, str) or not decision.request_id.strip():
             raise ValueError("Guardrail request_id must be non-empty")
+        if decision.request_id != request.request_id:
+            raise ValueError("Guardrail request_id does not match Agent request_id")
         if not isinstance(decision.intent, str) or not decision.intent.strip():
             raise ValueError("Guardrail intent must be non-empty")
         if decision.outcome != "ALLOW" and (

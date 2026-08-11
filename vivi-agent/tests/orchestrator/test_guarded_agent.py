@@ -50,7 +50,7 @@ def turn() -> GuardedTurnRequest:
 
 def decision(outcome: str, **overrides) -> UpstreamGuardrailDecision:
     values = {
-        "request_id": "guardrail-1",
+        "request_id": "request-1",
         "intent": "open_door",
         "outcome": outcome,
         "response": "Bạn có chắc muốn mở cửa không?" if outcome == "CONFIRM" else "Đã xử lý.",
@@ -81,6 +81,17 @@ def test_allow_does_not_require_guardrail_response_text():
     assert result.status is TurnStatus.COMPLETED
     assert result.message == "Đã mở cửa."
     assert len(calls) == 1
+
+
+def test_guardrail_decision_for_another_request_is_rejected_without_action():
+    calls = []
+
+    with pytest.raises(ValueError, match="request_id does not match"):
+        coordinator(calls).handle_decision(
+            turn(), decision("ALLOW", request_id="request-from-another-turn")
+        )
+
+    assert calls == []
 
 
 @pytest.mark.parametrize("outcome", ["BLOCK", "BLOCK_UNSAFE", "BLOCK_UNAVAILABLE"])
