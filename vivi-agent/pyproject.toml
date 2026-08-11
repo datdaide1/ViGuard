@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vivi-agent"
+version = "1.0.0"
+description = "Standalone Vietnamese vehicle action Agent runtime"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vivi_agent = ["**/*.json", "**/*.md", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+pythonpath = ["src", "."]
