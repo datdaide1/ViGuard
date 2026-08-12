@@ -25,3 +25,8 @@ __pycache__/
 # Golden dataset work-in-progress (own workstream, kept out of version
 # control for now to avoid touching other in-flight branches/PRs)
 golden-dataset/
+
+# Local build/temp artifacts
+.codex-tmp/
+release/
+vivi-agent.zip
