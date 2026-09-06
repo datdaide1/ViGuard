@@ -184,37 +184,44 @@ Khi (a) intent không phân loại được, hoặc (b) không rule nào match, 
 
 ---
 
-## 6. Trình tự đề xuất (4 pha)
+## 6. Trình tự (ĐÃ ĐẢO — chốt 2026-09-06)
 
-### Pha 0 — Chốt & chuẩn bị (≈2–3 d)
-- PM chốt D1–D4.
-- Import `vf_guardrails/` vào repo (đã làm trên branch này).
-- Đối chiếu `safety_rules.yaml` (52) vs `rules.json` (109) — bảng diff (K5).
-- **Sửa bug fail-open (F1)** như thay đổi đứng một mình đầu tiên.
+> **Vì sao đảo:** `golden-dataset/.../tools/derive_witness_states.py` đã chứa closed
+> AST evaluator hoàn chỉnh (`evaluate_condition`, `normalize`, `MANUAL_REWRITES` cho 7
+> rule `=`-typo / pseudo-function), chạy sạch **109/109** condition, có test. Phần tôi
+> ước lượng nặng nhất & rủi ro nhất của Pha 1 cũ (parser condition) → đã xong. Kéo
+> decision core + metrics lên trước; HTTP/contract layer (rủi ro thấp, đã đặc tả kỹ,
+> agent đã có `MockGuardrail`) đẩy xuống sau. Estimate tổng: **~15–22 dev-days** (từ 25–40).
 
-### Pha 1 — Contract layer / walking skeleton (≈8–12 d)
-Mục tiêu: **1 câu lệnh chạy hết `text → guardrail(HTTP) → agent → mock actuator → trace`**, chỉ ALLOW + BLOCK_UNSAFE, VF8.
-- B1 (HTTP 4 endpoint, tối thiểu action + query), B2, B4, B5.
-- F2 (GuardrailDecision), F4 (state_version), B3 (permit cho ALLOW).
-- B10 tối thiểu: 1 E2E test agent↔guardrail thật thay mock.
-- **Gate:** AC-9 (`open_door` + parked → ALLOW + actuator 1 lần) và AC-10 (đang chạy → BLOCK_UNSAFE + 0 actuator) chạy xanh qua HTTP thật.
+### Pha 0 — Chốt & chuẩn bị ✅ XONG
+- Import `vf_guardrails/`, chốt D1–D6, rule diff ([PHASE0_RULE_DIFF.md](PHASE0_RULE_DIFF.md)), sửa bug fail-open (`a167eaa`).
 
-### Pha 2 — Đủ 7 outcome + confirm + monitor (≈10–14 d)
-- B7 (policy loader 109 rule, fail-closed), F6 (mã hoá nốt rule).
-- CONFIRM lifecycle: `/v1/confirmations/confirm` + re-evaluate (FR-10, AC 14–16).
+### Pha 1′ — Decision core + metrics golden dataset (≈1 tuần) ← ĐANG LÀM
+Mục tiêu: **guardrail phân giải + đánh giá đúng 109 rule, đo được trên 2.313 dòng golden dataset.** Zero phụ thuộc agent/HTTP/UI.
+1. `vf_guardrails/policy/conditions.py` — tách `evaluate_condition` + `normalize` + `MANUAL_REWRITES` từ `derive_witness_states.py`, giữ **byte-identical** (kể cả rewrite `speed<3→==0` — đây là quyết định PM đã chốt ở PLAN.md §6a, golden dataset gán nhãn theo nó nên runtime phải theo).
+2. `vf_guardrails/policy/rules.py` — nạp 109 rule từ `Driver_constraints(Constraints).csv` (đã trong repo, == `rules.json`), index `(intent, check_mode)`, fail-closed nếu ≠ 109 / ≠ 53 intent / 104 gate / 5 monitor.
+3. `vf_guardrails/policy/state.py` — `VehicleState` canonical: field name + enum theo `derive_witness_states.DOMAINS` (21 biến, lowercase `day`/`night`, `speed` không `speed_kmh`, `door_lock_state` không `doors_locked`). D4.
+4. `vf_guardrails/policy/engine.py` — `PolicyEngine.evaluate(intent, state, phase)` → `Decision(outcome, rule_id, reason_code, relevant_state)`; đúng 1 outcome; **fail closed** 0-match / multi-match / parse-error / unknown-var.
+5. Test oracle: với mỗi rule, các witness state trong `rule_witness_states.json` phải cho ra outcome của rule đó.
+6. T1 (`intent_keywords.json` mở rộng 53 intent) + T2 (`setup_model.py` nạp PhoBERT) + margin check.
+7. Harness `vf_guardrails/evals/run_golden.py` — chạy classifier + PolicyEngine trên 2.313 dòng → confusion matrix, accuracy / F1 / FN-rate / FP-rate theo intent & outcome, latency p50/p95/p99 (T1 ≤5ms, T2 ≤20ms, gate ≤5ms p99 — §15 PRD).
+8. `docs/guardrail-integration/METRICS_PHASE1.md`.
+- **Gate:** 109/109 rule reproduce đúng outcome trên witness states; báo cáo metrics per-intent trên golden dataset; xoá `safety_rules.yaml` + `safety_engine.py` cũ.
+
+### Pha 2′ — Contract / HTTP layer (≈1–1.5 tuần)
+- Wrap engine đã chứng minh vào service HTTP v1: B1 (4 endpoint), B2 (proposal + digest), B3 (permit ALLOW), B4 (`policy_checksum`), B5 (typed error), F2 (GuardrailDecision), F4 (`state_version` + immutable snapshot).
+- CONFIRM lifecycle `/v1/confirmations/confirm` + re-evaluate (FR-10, AC 14–16).
 - B6 Monitor Engine + 5 monitor rule (FR-13, AC-19).
-- F3 + D2 (ANSWER path).
-- K1/K2/F5: T1 phủ 53 intent, T2 wire model + calib.
-- **Gate:** 7/7 outcome routing test xanh; confirmation state-machine test xanh; 5/5 monitor rule có scenario.
+- D2 ANSWER: guardrail trả `answer={grounded, facts}`.
+- B10: swap `MockGuardrail` → service thật trong E2E agent.
+- **Gate:** 7/7 outcome routing xanh; confirmation state-machine xanh; AC-9 + AC-10 qua HTTP thật.
 
-### Pha 3 — Đo & siết trên golden dataset (≈6–10 d)
-- Chạy T1/T2 + constraint engine trên `golden-dataset/driver-constraints/` (2.313 dòng).
-- Đo: accuracy, F1, false-negative rate, false-positive rate theo intent + toàn hệ; latency T1/T2/gate theo §15 PRD (T1 ≤5ms p99, T2 ≤20ms p99, gate ≤5ms p99, fast-path ≤25ms p99).
-- B8 trace đầy đủ §16.
-- Tinh chỉnh threshold/margin/rule theo kết quả đo.
-- **Gate:** báo cáo metrics per-intent; 0 block-path actuator violation; determinism 100%.
+### Pha 3′ — End-to-end demo + polish (≈3–5 d)
+- `run_both.py` boot agent + guardrail; demo `text → guardrail → agent → mock actuator → trace` cho ALLOW/BLOCK/CONFIRM.
+- B8 trace đầy đủ §16. T3 SLM nếu còn thời gian (D5).
+- **Gate:** Definition of Done phần guardrail+agent (PRD §20, trừ UI).
 
-> Pha "scale (multi-agent/multi-vehicle) + UI" nằm **ngoài** tài liệu này — brainstorm riêng sau khi Pha 3 xong.
+> Pha "scale (multi-agent/multi-vehicle) + UI" — brainstorm riêng sau Pha 3′.
 
 ---
 
@@ -238,7 +245,10 @@ Mục tiêu: **1 câu lệnh chạy hết `text → guardrail(HTTP) → agent �
 - [x] **PM chốt D1–D6** (§5.5).
 - [x] **Pha 0 — rule diff:** [PHASE0_RULE_DIFF.md](PHASE0_RULE_DIFF.md). Kết luận: `safety_rules.yaml` bỏ, parse `condition` canonical trực tiếp.
 - [x] **Pha 0 — sửa bug fail-open** `vf_guardrails/src/guardrail.py` (commit riêng).
-- [ ] **Pha 1** — walking skeleton: HTTP service v1 (action + query), GuardrailDecision, permit ALLOW, 1 E2E test agent↔guardrail thật. Gate: AC-9 + AC-10 xanh qua HTTP.
+- [x] **Pha 1′ — decision core** (`vf_guardrails/policy/`: `conditions.py`, `rules.py`, `state.py`, `engine.py`) + oracle test + harness `evals/run_golden.py`.
+  → **[METRICS_PHASE1.md](METRICS_PHASE1.md): constraint engine 2313/2313 = 100% trên golden dataset, latency p99 0.14 ms.** 15 test pass.
+- [ ] **Pha 1′ (còn lại)** — T1 mở rộng 53 intent + T2 setup PhoBERT + `run_classifier.py` (intent accuracy) + pipeline gộp; rồi xoá `src/safety_engine.py` + `config/safety_rules.yaml`.
+- [ ] **Pha 2′** — HTTP service v1, permit, CONFIRM lifecycle, Monitor wiring, swap MockGuardrail.
 
 ### Việc git còn treo
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng (`git worktree remove`).
