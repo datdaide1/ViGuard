@@ -106,14 +106,25 @@ def test_guardrail_facade():
     assert result.action == "CONFIRM"
     assert result.reason == "NIGHT_LIGHT_CONFIRM"
     
-    # Test ALLOW (Default success)
+    # Fail closed: intent hợp lệ nhưng chưa có rule gate nào match (safety_rules.yaml
+    # hiện thiếu toàn bộ 45 rule ALLOW). KHÔNG được suy ra ALLOW ngầm — xem
+    # docs/guardrail-integration/PHASE0_RULE_DIFF.md. ALLOW thật đến ở Pha 1 khi
+    # parser condition nạp đủ 109 rule từ Driver_constraints.xlsx.
     state_day_stopped = VehicleState(speed_kmh=0.0, gear="P", ambient_light="DAY")
-    result_allow = guardrail.process("tắt đèn pha đi", state_day_stopped)
-    assert result_allow.action == "ALLOW"
-    assert result_allow.reason == "NO_SAFETY_VIOLATION"
+    result_nomatch = guardrail.process("tắt đèn pha đi", state_day_stopped)
+    assert result_nomatch.action == "BLOCK_UNAVAILABLE"
+    assert result_nomatch.reason == "NO_MATCHING_POLICY"
 
-    # Test ANSWER (Info retrieval)
-    result_speed = guardrail.process("xe đang chạy tốc độ bao nhiêu", state_night_moving)
+    # Test ANSWER (query intent trả facts từ snapshot, không actuator).
+    # Truyền intent tường minh để không phụ thuộc T2 (PhoBERT có thể chưa nạp).
+    result_speed = guardrail.process(
+        "xe đang chạy tốc độ bao nhiêu", state_night_moving, intent="get_current_speed"
+    )
     assert result_speed.action == "ANSWER"
-    assert result_speed.reason == "INFO_RETRIEVAL"
-    assert "Tốc độ hiện tại của xe là 45.0 km/h." in result_speed.response
+    assert result_speed.reason == "STATE_VALUE_AVAILABLE"
+    assert "45.0" in result_speed.response
+
+    # Fail closed: lỗi phân loại không phải outcome policy, không đánh giá constraint
+    result_unknown = guardrail.process("bật nhạc Sơn Tùng", state_day_stopped)
+    assert result_unknown.action == "CLASSIFICATION_ERROR"
+    assert result_unknown.reason == "INTENT_UNRESOLVED"
