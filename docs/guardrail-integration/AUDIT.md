@@ -132,7 +132,7 @@ Khi (a) intent không phân loại được, hoặc (b) không rule nào match, 
 | K2 | T2 PhoBERT ONNX semantic approach (`_classify_level2`, `_get_embedding`) | Wire model (`setup_model.py`), thêm **margin vs nhãn nhì** (FR-03), calib threshold trên golden dataset | 1–2 d |
 | K3 | `SafetyEngine.evaluate_condition` (operator an toàn, no-`eval`) | Giữ nguyên; thêm operator nếu workbook cần (`in`, range) | 0.5 d |
 | K4 | YAML rule schema (`intent` + `target_state` + `logic` + `enforcement`) | Giữ làm **policy format**; bổ sung `check_mode`, `rule_id` chuẩn, `outcome` đủ 7 loại | — (dùng ở B7) |
-| K5 | Nội dung 52 rule đã mã hoá (điều kiện, ngưỡng, `speed_kmh>=3`…) | **Đối chiếu từng dòng** với `golden-dataset/driver-constraints/data/rules.json` trước khi tin | 1–2 d |
+| ~~K5~~ | ~~Nội dung 52 rule đã mã hoá~~ | **BỎ** — Phase 0 diff ([PHASE0_RULE_DIFF.md](PHASE0_RULE_DIFF.md)): chỉ phủ 47/109, 6 rule trỏ sai intent, sai enum case / field name / boolean structure. Không dịch tay nữa — parse `condition` canonical trực tiếp | → B7 |
 | K6 | `VehicleState` field catalog (~45 field) | Giữ danh mục field; bọc trong lớp versioned (xem F4) | 0.5 d |
 | K7 | `tests/run_benchmark.py` + `data/vinfast_test_data.json` | Harness đo latency §15 PRD | 0.5 d |
 
@@ -171,16 +171,16 @@ Khi (a) intent không phân loại được, hoặc (b) không rule nào match, 
 | X3 | Hardcode câu ANSWER trong `guardrail.py` | Sai ranh giới (F3) |
 | X4 | `golden_dataset_review.json` / `.csv` trong `vf_guardrails/` | Trùng `golden-dataset/driver-constraints/` của Đạt — không import |
 
-### 5.5. QUYẾT ĐỊNH — cần PM chốt trước khi code
+### 5.5. QUYẾT ĐỊNH — ✅ đã chốt 2026-09-06 (PM: Đạt)
 
-| # | Quyết định | Bối cảnh | Khuyến nghị |
-|---|---|---|---|
-| D1 | **Layout repo:** giữ `vf_guardrails/` tách, nói chuyện qua HTTP contract; hay gộp vào `vivi-agent/` monorepo | Contract v1 vốn thiết kế cho 2 service. Tách → guardrail test độc lập trên golden dataset. Gộp → ít overhead cho solo | **Giữ tách**, `vf_guardrails/` là service, `vivi-agent/` là service, `docs/guardrail-integration/` là seam. Có `docker-compose`/runner boot cả hai |
-| D2 | **Ai sinh text ANSWER:** guardrail trả `answer={grounded, facts}` (contract cho phép) hay agent tự soạn từ `relevant_state` | PRD §5.2 nói agent; contract cho phép field `answer` | Guardrail trả **facts có cấu trúc** trong `answer`, agent verbalize. Không để guardrail trả câu tiếng Việt hoàn chỉnh |
-| D3 | **Source of truth 109 rule:** `golden-dataset/.../data/rules.json` (Đạt) hay `vf_guardrails/config/safety_rules.yaml` (Long) | Đang có 2 bản mã hoá cùng workbook | `Driver_constraints.xlsx` là gốc → B7 sinh ra 1 bản YAML runtime duy nhất; `rules.json` của golden-dataset dùng cho test |
-| D4 | **VehicleState schema:** hợp nhất `car_status.py` (Long) với `vivi-agent/vehicle/` | Field name có thể lệch (`speed_kmh` vs `speed`) | Chốt 1 schema, đặt trong contract wire, cả 2 bên import |
-| D5 | **T3 SLM:** làm ngay hay hoãn | PRD coi T3 optional, demo phải chạy được không cần mạng | Hoãn sau khi T1/T2 đạt metric trên golden dataset |
-| D6 | **UI:** seed từ `vf_guardrails/simulator/` hay xây mới | Thuộc pha 2 (scale + UI), chưa quyết bây giờ | Để pha 2 |
+| # | Quyết định | ✅ Chốt |
+|---|---|---|
+| D1 | Layout repo | **2 service tách**, nói chuyện qua HTTP contract v1. `vf_guardrails/` = service guardrail, `vivi-agent/` = service agent, `docs/guardrail-integration/` = seam. Runner boot cả hai |
+| D2 | Ai sinh text ANSWER | **Guardrail trả `answer={grounded, facts}` (facts có cấu trúc)**, agent verbalize thành câu tiếng Việt |
+| D3 | Source of truth 109 rule | **`golden-dataset/.../data/rules.json`** (== `Driver_constraints.xlsx#Constraints`, cột `condition` biểu thức) là gốc. **Parse `condition` trực tiếp** (tái dùng `derive_witness_states.py`), retire `safety_rules.yaml`. Bằng chứng: [PHASE0_RULE_DIFF.md](PHASE0_RULE_DIFF.md) |
+| D4 | VehicleState schema | **1 schema chung** trong wire contract, cả 2 bên import. Gốc = `car_status.py` (~45 field) + `state_version`. Chuẩn hoá enum (`'day'/'night'` lowercase theo workbook) và field name (`speed` không `speed_kmh`) |
+| D5 | T3 SLM | **Hoãn** — sau khi T1/T2 đạt metric trên golden dataset |
+| D6 | UI | **Hoãn sang pha 2** (scale + UI) |
 
 ---
 
@@ -232,13 +232,14 @@ Mục tiêu: **1 câu lệnh chạy hết `text → guardrail(HTTP) → agent �
 
 ## 8. Việc đã làm trong branch này
 
-- [x] `git checkout main`, `pull` (up to date), xoá nhánh phụ local (`fix/vivi-agent-safety-findings`, `datalexander/agent-completion`, `vivi-agent/scafford`), tạo `feat/guardrail-agent-integration`.
+- [x] Git: về main, pull, xoá nhánh phụ local + **remote** (`datalexander/agent-completion`, `vivi-agent/scafford` — đã merge hết), tạo `feat/guardrail-agent-integration`. Repo = `main` + branch làm việc.
 - [x] Viết audit này.
-- [ ] Import `vf_guardrails/` vào repo (loại `.git/`, `.idea/`, cache, `golden_dataset_review.*` trùng).
-- [ ] (PM) Chốt D1–D6.
-- [ ] Pha 0: diff rule + sửa bug fail-open.
+- [x] Import `vf_guardrails/` vào repo (commit `cbfea6f`; loại `.git/`/`.idea/`/cache/`golden_dataset_review.*`; gitignore `model/` + fixture 3MB).
+- [x] **PM chốt D1–D6** (§5.5).
+- [x] **Pha 0 — rule diff:** [PHASE0_RULE_DIFF.md](PHASE0_RULE_DIFF.md). Kết luận: `safety_rules.yaml` bỏ, parse `condition` canonical trực tiếp.
+- [x] **Pha 0 — sửa bug fail-open** `vf_guardrails/src/guardrail.py` (commit riêng).
+- [ ] **Pha 1** — walking skeleton: HTTP service v1 (action + query), GuardrailDecision, permit ALLOW, 1 E2E test agent↔guardrail thật. Gate: AC-9 + AC-10 xanh qua HTTP.
 
-### Việc git còn treo (cần PM xác nhận)
-- Xoá **remote** branch `origin/datalexander/agent-completion`, `origin/vivi-agent/scafford` (đã merge hết vào main) — cần OK vì là mutation trên GitHub.
-- Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng.
-- `reports/` + `reports.zip` (báo cáo Sprint 2) đang untracked — commit vào repo hay để ngoài?
+### Việc git còn treo
+- Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng (`git worktree remove`).
+- `reports/` + `reports.zip` (báo cáo Sprint 2) — PM chọn để **untracked, quyết sau**.
