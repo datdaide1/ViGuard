@@ -1,6 +1,6 @@
 # Phase 1' metrics — intent classifier + pipeline vs golden dataset
 
-> `vf_guardrails/evals/run_classifier.py` · 2026-09-06 21:40 · 2313 rows
+> `vf_guardrails/evals/run_classifier.py` · 2026-09-06 22:05 · 2313 rows
 > classifier tiers active: **T1 only (T2 model not loaded)**
 
 ## Headline
@@ -11,7 +11,7 @@
 | macro-F1 (per intent) | 0.658 |
 | INTENT_UNKNOWN rate | 855/2313 = 37.0% |
 | **pipeline outcome accuracy** (classified intent → engine) | **1365/2313 = 59.0%** |
-| classifier latency p50 / p95 / p99 | 0.01 / 0.01 / 0.02 ms |
+| classifier latency p50 / p95 / p99 | 0.01 / 0.02 / 0.02 ms |
 
 ## Per-intent recall (worst 20)
 
@@ -21,8 +21,8 @@
 | `ad_driverseat_pos` | 0% | 43 |
 | `get_gear` | 2% | 51 |
 | `get_door_lock_status` | 2% | 40 |
-| `turnon_turnsignal_right` | 5% | 40 |
 | `turnon_turnsignal_left` | 5% | 40 |
+| `turnon_turnsignal_right` | 5% | 40 |
 | `get_avh_status` | 15% | 40 |
 | `turnoff_turnsignal_right` | 15% | 20 |
 | `turnoff_turnsignal_left` | 20% | 20 |
@@ -162,21 +162,5 @@
 | GOLD-R025-013 | `switch_drivemode_sport` | `INTENT_UNKNOWN` | Sport, chuyển qua liền cho tui. |
 
 ---
-
-## Đọc kết quả (thêm tay)
-
-**T1-only baseline: intent accuracy 58.1%, INTENT_UNKNOWN 37%, pipeline outcome 59.0%.** Latency T1 ≈ 0.01 ms.
-
-### Chẩn đoán
-- **Kiểu lỗi áp đảo = `INTENT_UNKNOWN`** (T1 không khớp được action+entity). Gần như toàn bộ các intent recall thấp đều rơi vào UNKNOWN, không phải nhầm sang intent khác.
-- Golden dataset cố tình khó: giọng Trung Bộ nặng ("răng/rứa/mô/ni/nớ"), câu nhiễu, distractor. T1 khớp keyword tất định không xử được diễn đạt biến thể.
-- Vài confusion thật (không phải UNKNOWN): `get_door_lock_status → lock_doors` (39), `unlock_doors → lock_doors` (29) — keyword "khóa"/"cửa" đè nhau. Đây là lỗi thiết kế keyword T1, sửa được bằng entity đặc thù hơn.
-- `restore_driverseat_pos` 0%, `ad_driverseat_pos` 0% — thiếu keyword / không tách được khỏi nhau.
-
-### Kết luận
-Constraint engine đã 100% (METRICS_PHASE1.md) → **toàn bộ khoảng cách end-to-end nằm ở intent classification.** T1 gánh được ~58%; phần còn lại cần:
-1. **T2 (PhoBERT semantic)** — đóng đúng khoảng UNKNOWN 37%. **Đang bị chặn môi trường:** `onnxruntime` DLL lỗi (đã reinstall `onnxruntime==1.19.2` trong session này — có side-effect làm lệch `protobuf` cho streamlit/weaviate), `pyvi` đang cài, `model/model.onnx` cần `py -3 setup_model.py` (tải từ HuggingFace). Nên chạy trong venv sạch.
-2. **Tinh chỉnh keyword T1** — bổ sung biến thể phương ngữ + entity đặc thù để giảm confusion `lock_doors`. Việc này cần người bản ngữ (Đạt).
-3. 8 intent vừa thêm keyword (`AD_WIPER_MAX`, `lock_doors`, `switch_drivemode_eco/normal`, `turnon/off_hazardlight`, `turnoff_turnsignal_left/right`) là seed — **cần Đạt review**.
-
-> Con số T1+T2 sẽ được đo lại (`run_classifier.py` tự bật T2 khi `model/model.onnx` có mặt) và ghi đè báo cáo này.
+> Số liệu tự sinh (file này bị ghi đè mỗi lần chạy). Diễn giải + việc
+> tiếp theo: `docs/guardrail-integration/STATUS.md`.

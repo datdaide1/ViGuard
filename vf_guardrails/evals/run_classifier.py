@@ -160,6 +160,10 @@ def main() -> int:
     for sid, t, p, u in intent_errors:
         w(f"| {sid} | `{t}` | `{p}` | {u} |")
 
+    L.append("")
+    L.append("---")
+    L.append("> Số liệu tự sinh (file này bị ghi đè mỗi lần chạy). Diễn giải + việc")
+    L.append("> tiếp theo: `docs/guardrail-integration/STATUS.md`.")
     args.md.write_text("\n".join(L) + "\n", encoding="utf-8")
     print("\n".join(L[:18]))
     print(f"\n... full report: {args.md.relative_to(_REPO)}")
