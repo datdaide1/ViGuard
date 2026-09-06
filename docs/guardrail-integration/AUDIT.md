@@ -1,5 +1,9 @@
 # Guardrail ↔ Agent — Audit tích hợp & Plan rebuild
 
+> 👉 **Session mới đọc [`STATUS.md`](STATUS.md) trước** — đó là bản tổng quan
+> tiến độ + việc tiếp theo. File này là audit kỹ thuật chi tiết (bảng giữ/sửa/
+> xây, roadmap §6, quyết định §5.5).
+
 **Ngày:** 2026-09-06
 **Nhánh:** `feat/guardrail-agent-integration`
 **Tác giả:** Đạt (với Claude Code)

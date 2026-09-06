@@ -9,11 +9,12 @@ Mục tiêu của pilot là biến một nguyên tắc kiến trúc thành bằn
 đường bị chặn không được gọi actuator; đường được cho phép phải truy vết được từ
 câu lệnh, intent, state snapshot và rule đã áp dụng.
 
-> **Trạng thái hiện tại:** repository đang trong giai đoạn triển khai theo task.
-> Hai contract nền tảng Guardrail–Agent và Agent–UI đã được merge; runtime
-> classifier, constraint engine, vehicle simulator, actuator và web UI chưa hoàn
-> thiện. Đây chưa phải ứng dụng điều khiển xe và không phải bằng chứng policy đã
-> được chứng nhận cho xe thật.
+> **Trạng thái hiện tại (2026-09): đang tích hợp Guardrail↔Agent trên nhánh
+> `feat/guardrail-agent-integration`.** Đọc **`docs/guardrail-integration/STATUS.md`**
+> để nắm tiến độ, quyết định và việc tiếp theo. Tóm tắt: agent ✅ xong; constraint
+> engine mới ✅ 100% trên golden dataset; intent classifier + HTTP layer đang làm.
+> Đây chưa phải ứng dụng điều khiển xe và không phải bằng chứng policy đã được
+> chứng nhận cho xe thật.
 
 ## Luồng sản phẩm
 
