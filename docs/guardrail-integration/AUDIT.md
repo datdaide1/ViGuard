@@ -247,7 +247,9 @@ Mục tiêu: **guardrail phân giải + đánh giá đúng 109 rule, đo đượ
 - [x] **Pha 0 — sửa bug fail-open** `vf_guardrails/src/guardrail.py` (commit riêng).
 - [x] **Pha 1′ — decision core** (`vf_guardrails/policy/`: `conditions.py`, `rules.py`, `state.py`, `engine.py`) + oracle test + harness `evals/run_golden.py`.
   → **[METRICS_PHASE1.md](METRICS_PHASE1.md): constraint engine 2313/2313 = 100% trên golden dataset, latency p99 0.14 ms.** 15 test pass.
-- [ ] **Pha 1′ (còn lại)** — T1 mở rộng 53 intent + T2 setup PhoBERT + `run_classifier.py` (intent accuracy) + pipeline gộp; rồi xoá `src/safety_engine.py` + `config/safety_rules.yaml`.
+- [x] **Pha 1′ — T1 baseline** ([METRICS_PHASE1_CLASSIFIER.md](METRICS_PHASE1_CLASSIFIER.md)): T1-only 58.1% intent / 59% pipeline / 37% UNKNOWN. T2 (PhoBERT) chặn môi trường (`E:\anaconda3` hỏng `torch`/`onnxruntime`).
+- [x] **Pha 1′ — chốt phương pháp đo**: CV trên golden pool bị leakage (pool sinh theo khuôn, nhiều câu gần trùng). Cần **frozen independent test set** trước khi đo T2 → [FROZEN_TESTSET_SPEC.md](FROZEN_TESTSET_SPEC.md) (bản hướng dẫn tự chứa cho agent gen, ~530 dòng). T1 58.1% vẫn hợp lệ (T1 không train).
+- [ ] **Pha 1′ (còn lại)** — (PM) gen frozen test set từ SPEC → tôi viết adapter cho `run_classifier.py` + đo T1 trên frozen → quyết T2 (TF-IDF vs PhoBERT trong venv) → xoá `src/safety_engine.py` + `config/safety_rules.yaml`.
 - [ ] **Pha 2′** — HTTP service v1, permit, CONFIRM lifecycle, Monitor wiring, swap MockGuardrail.
 
 ### Việc git còn treo
