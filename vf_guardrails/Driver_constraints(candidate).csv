@@ -1,0 +1,77 @@
+﻿Intent,Description
+shift_gear_drive,Chuyển cần số sang chế độ D.
+shift_gear_neutral,Chuyển cần số sang chế độ N.
+set_regenlevel,Thiết lập mức tái tạo năng lượng khi giảm tốc.
+poweroff_vehicle,Tắt nguồn xe.
+turnon_ac,Bật hệ thống điều hòa.
+turnoff_ac,Tắt hệ thống điều hòa.
+set_temperature,Điều chỉnh nhiệt độ điều hòa.
+turnon_defrost_front,Bật sấy kính trước.
+turnon_defrost_rear,Bật sấy kính sau.
+turnoff_defrost_front,Tắt sấy kính trước.
+turnoff_defrost_rear,Tắt sấy kính sau.
+turnon_seatheating,Bật sưởi ghế.
+turnoff_seatheating,Tắt sưởi ghế.
+turnon_seatventilation,Bật thông gió ghế.
+turnoff_seatventilation,Tắt thông gió ghế.
+turnon_steeringwheelheating,Bật sưởi vô lăng.
+turnoff_steeringwheelheating,Tắt sưởi vô lăng.
+set_fanspeed,Điều chỉnh tốc độ quạt điều hòa.
+turnon_recirculation,Bật chế độ tuần hoàn gió trong xe.
+turnoff_recirculation,Tắt chế độ tuần hoàn gió trong xe.
+set_wiperspeed,Điều chỉnh tốc độ gạt mưa.
+close_chargeport,Đóng nắp cổng sạc.
+start_charging,Bắt đầu quá trình sạc pin.
+stop_charging,Dừng quá trình sạc pin.
+set_chargelimit,Thiết lập giới hạn mức sạc pin.
+schedule_charging,Thiết lập lịch sạc.
+activate_cc,Bật Cruise Control.
+deactivate_cc,Tắt Cruise Control.
+deactivate_aac,Tắt Adaptive Cruise Control.
+deactivate_hda,Tắt Highway Driving Assist.
+turnon_LKA,Bật Lane Keeping Assist.
+activate_tja,Bật Traffic Jam Assist.
+deactivate_tja,Tắt Traffic Jam Assist.
+set_cruise_speed,Thiết lập tốc độ Cruise Control.
+set_following_distance,Thiết lập khoảng cách bám xe phía trước.
+turnon_rearcamera,Mở camera lùi.
+turnoff_rearcamera,Tắt camera lùi.
+turnon_360camera,Mở camera 360.
+turnoff_360camera,Tắt camera 360.
+close_window,Đóng cửa sổ xe.
+close_sunroof,Đóng cửa sổ trời.
+close_trunk,Đóng cốp sau.
+pair_bluetooth,Ghép nối thiết bị Bluetooth.
+unpair_bluetooth,Hủy ghép nối Bluetooth.
+play_music,Phát nhạc.
+pause_music,Tạm dừng phát nhạc.
+resume_music,Tiếp tục phát nhạc.
+next_track,Chuyển sang bài hát tiếp theo.
+previous_track,Quay lại bài hát trước.
+set_volume,Điều chỉnh âm lượng.
+mute_media,Tắt tiếng hệ thống giải trí.
+unmute_media,Bật lại âm thanh hệ thống giải trí.
+set_navigation_destination,Thiết lập điểm đến dẫn đường.
+add_navigation_stop,Thêm điểm dừng trên lộ trình.
+cancel_navigation,Hủy dẫn đường.
+get_eta,Xem thời gian dự kiến đến nơi.
+make_phonecall,Thực hiện cuộc gọi.
+accept_call,Nhận cuộc gọi đến.
+decline_call,Từ chối cuộc gọi.
+end_call,Kết thúc cuộc gọi.
+read_message,Đọc tin nhắn đến.
+turnon_foglight,Bật đèn sương mù.
+turnoff_foglight,Tắt đèn sương mù.
+set_ambientlight_color,Thay đổi màu đèn nội thất.
+turnon_alarm,Bật hệ thống báo động.
+turnoff_alarm,Tắt hệ thống báo động.
+find_my_car,Xác định vị trí xe.
+get_range_remaining,Xem quãng đường còn có thể di chuyển.
+get_chargestatus,Xem trạng thái sạc hiện tại.
+get_chargelimit,Xem giới hạn mức sạc hiện tại.
+get_tirepressure,Xem áp suất lốp.
+reset_tripmeter,Đặt lại đồng hồ hành trình.
+get_outsidetemperature,Xem nhiệt độ môi trường bên ngoài.
+get_energyconsumption,Xem mức tiêu thụ năng lượng của xe.
+call_sos,Thực hiện cuộc gọi khẩn cấp SOS.
+call_roadside_assistance,Liên hệ dịch vụ cứu hộ/hỗ trợ trên đường.

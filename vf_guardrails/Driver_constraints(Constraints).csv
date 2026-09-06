@@ -1,0 +1,111 @@
+rule_id,intent,condition,check_mode,outcome
+R001,open_door,( gear == 'P' ) AND ( speed < 3 ),gate,ALLOW
+R002,open_door,NOT ( ( gear == 'P' ) AND ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R003,open_trunk,( speed < 3 ),gate,ALLOW
+R004,open_trunk,NOT ( ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R005,open_chargeport,( speed < 3 ) AND rain_sensor == False,gate,ALLOW
+R006,open_chargeport,( speed < 3 ) AND rain_sensor == True,gate,CONFIRM
+R007,open_chargeport,( speed < 3 ) AND rain_sensor is None,gate,ALLOW
+R008,open_chargeport,NOT ( ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R009,turnoff_highbeam,ambient_light == 'night',gate,CONFIRM
+R010,turnoff_highbeam,ambient_light == 'day',gate,ALLOW
+R011,turnon_highbeam,ambient_light == 'day',gate,CONFIRM
+R012,turnon_highbeam,ambient_light == 'night',gate,ALLOW
+R013,turnoff_lowbeam,ambient_light == 'night',gate,CONFIRM
+R014,turnoff_lowbeam,ambient_light == 'day',gate,ALLOW
+R015,turnon_lowbeam,ambient_light == 'day',gate,CONFIRM
+R016,turnon_lowbeam,ambient_light == 'night',gate,ALLOW
+R017,lock_doors,TRUE,gate,ALLOW
+R018,unlock_doors,speed < 10,gate,ALLOW
+R019,unlock_doors,NOT ( speed < 10 ),gate,BLOCK_UNSAFE
+R020,OPEN_BONNET,( gear == 'P' ) AND ( speed < 3 ),gate,ALLOW
+R021,OPEN_BONNET,NOT ( ( gear == 'P' ) AND ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R022,AD_WIPER_MAX,rain_sensor == True,gate,ALLOW
+R023,AD_WIPER_MAX,rain_sensor == False,gate,CONFIRM
+R024,switch_drivemode_sport,battery_pct >= 25,gate,ALLOW
+R025,switch_drivemode_sport,battery_pct < 25,gate,CONFIRM
+R026,switch_drivemode_eco,TRUE,gate,ALLOW
+R027,switch_drivemode_normal,TRUE,gate,ALLOW
+R028,activate_creepmode,avh == False,gate,ALLOW
+R029,activate_creepmode,NOT ( avh == False ),gate,BLOCK_UNAVAILABLE
+R030,turnoff_LKA,TRUE,gate,CONFIRM
+R031,activate_campmode,( ( speed < 3 ) AND gear == 'P' AND epb == True ) AND ( battery_pct > 25 ),gate,ALLOW
+R032,activate_campmode,NOT ( ( ( speed < 3 ) AND gear == 'P' AND epb == True ) AND ( battery_pct > 25 ) ),gate,BLOCK_UNAVAILABLE
+R033,activate_campmode,battery_pct < 15,monitor,BLOCK_UNAVAILABLE
+R034,activate_campmode,( camp_mode_active == True OR pet_mode_active == True OR valet_mode_active == True ),gate,BLOCK_UNAVAILABLE
+R035,activate_petmode,( gear == 'P' ) AND ( battery_pct > 25 ),gate,ALLOW
+R036,activate_petmode,NOT ( ( gear == 'P' ) AND ( battery_pct > 25 ) ),gate,BLOCK_UNAVAILABLE
+R037,activate_petmode,battery_pct < 25,monitor,BLOCK_UNAVAILABLE
+R038,activate_petmode,( camp_mode_active == True OR pet_mode_active == True OR valet_mode_active == True ),gate,BLOCK_UNAVAILABLE
+R039,activate_valetmode,profile != 'GUEST',gate,ALLOW
+R040,activate_valetmode,NOT ( profile != 'GUEST' ),gate,BLOCK_UNAVAILABLE
+R041,activate_valetmode,( camp_mode_active == True OR pet_mode_active == True OR valet_mode_active == True ),gate,BLOCK_UNAVAILABLE
+R042,SHIFT_GEAR_REVERSE,( speed = 0 ) AND gear != 'D',gate,ALLOW
+R043,SHIFT_GEAR_REVERSE,NOT ( ( speed < 3 ) AND gear != 'D' ),gate,BLOCK_UNSAFE
+R044,ad_steeringwheel,( speed = 0 ),gate,ALLOW
+R045,ad_steeringwheel,NOT ( ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R046,activate_autopark,speed < 15,gate,ALLOW
+R047,activate_autopark,NOT ( speed < 15 ),gate,BLOCK_UNAVAILABLE
+R048,activate_autopark,autopark_state == 'ACTIVE' AND NOT ( speed < 15 ),monitor,BLOCK_UNSAFE
+R049,fold_backseat,( gear == 'P' ) AND ( speed < 3 ),gate,ALLOW
+R050,fold_backseat,NOT ( ( gear == 'P' ) AND ( speed < 3 ) ),gate,CONFIRM
+R051,open_sunroof,speed > 80,gate,BLOCK_UNSAFE
+R052,open_sunroof,rain_sensor = True AND speed <= 80,gate,CONFIRM
+R053,open_sunroof,speed <= 80 AND NOT ( rain_sensor == True ),gate,CONFIRM
+R054,ad_driverseat_angle,( speed < 3 ),gate,ALLOW
+R055,ad_driverseat_angle,NOT ( ( speed < 3 ) ) AND target_angle <= 110,gate,ALLOW
+R056,ad_driverseat_angle,NOT ( ( speed < 3 ) ) AND target_angle > 110,gate,BLOCK_UNSAFE
+R057,ad_driverseat_pos,( speed < 3 ),gate,ALLOW
+R058,ad_driverseat_pos,NOT ( ( speed < 3 ) ),gate,BLOCK_UNSAFE
+R059,open_window,speed <= 80 AND NOT ( rain_sensor == True ),gate,CONFIRM
+R060,open_window,speed > 80,gate,BLOCK_UNSAFE
+R061,open_window,rain_sensor = True AND speed <= 80,gate,CONFIRM
+R062,restore_driverseat_pos,( speed < 3 ),gate,ALLOW
+R063,restore_driverseat_pos,NOT ( ( speed < 3 ) ) AND target_angle < 110,gate,CONFIRM
+R064,restore_driverseat_pos,NOT ( ( speed < 3 ) ) AND target_angle >= 110,gate,BLOCK_UNSAFE
+R065,activate_epb,( gear == 'P' ),gate,ALLOW
+R066,activate_epb,NOT ( ( gear == 'P' ) ),gate,BLOCK_UNAVAILABLE
+R067,deactivate_hud,TRUE,gate,CONFIRM
+R068,activate_aac,( 20 < speed < 150 ),gate,ALLOW
+R069,activate_aac,NOT ( ( 20 < speed < 150 ) ),gate,BLOCK_UNAVAILABLE
+R070,activate_aac,( acc_state == 'ACTIVE' ) AND speed == 0,monitor,ALLOW
+R071,activate_hda,( acc_state == 'ACTIVE' ) AND ( 0 < speed < 150 ) AND gear != 'R',gate,ALLOW
+R072,activate_hda,NOT ( ( acc_state == 'ACTIVE' ) AND ( 0 < speed < 150 ) AND gear != 'R' ),gate,BLOCK_UNAVAILABLE
+R073,activate_hda,duration_seconds(hand_on_steeringwheel == False) > 15,monitor,BLOCK_UNSAFE
+R074,shift_gear_park,( speed < 3 ),gate,ALLOW
+R075,shift_gear_park,NOT ( ( speed < 3 ) ),gate,BLOCK_UNAVAILABLE
+R076,fold_mirrors,speed < 16,gate,ALLOW
+R077,fold_mirrors,NOT ( speed < 16 ),gate,BLOCK_UNAVAILABLE
+R078,activate_ahb,fog_light == False,gate,ALLOW
+R079,activate_ahb,NOT ( fog_light == False ),gate,BLOCK_UNAVAILABLE
+R080,turnon_turnsignal_right,hazard_light == False,gate,ALLOW
+R081,turnon_turnsignal_right,NOT ( hazard_light == False ),gate,BLOCK_UNAVAILABLE
+R082,turnon_turnsignal_left,hazard_light == False,gate,ALLOW
+R083,turnon_turnsignal_left,NOT ( hazard_light == False ),gate,BLOCK_UNAVAILABLE
+R084,turnoff_turnsignal_right,TRUE,gate,ALLOW
+R085,turnoff_turnsignal_left,TRUE,gate,ALLOW
+R086,turnon_hazardlight,TRUE,gate,ALLOW
+R087,turnoff_hazardlight,TRUE,gate,ALLOW
+R088,turnon_corneringlight,lowbeam_mode == 'On' AND fog_light == False AND speed <= 40,gate,ALLOW
+R089,turnon_corneringlight,NOT ( lowbeam_mode == 'On' AND fog_light == False AND speed <= 40 ),gate,BLOCK_UNAVAILABLE
+R090,turnon_interiorlight,( speed < 3 ),gate,ALLOW
+R091,turnon_interiorlight,NOT ( ( speed < 3 ) ),gate,CONFIRM
+R092,activate_tcs,esc == True,gate,ALLOW
+R093,activate_tcs,NOT ( esc == True ),gate,BLOCK_UNAVAILABLE
+R094,deactivate_esc,TRUE,gate,NOT_VOICE_ACTIONABLE
+R095,activate_avh,gear != 'P',gate,ALLOW
+R096,activate_avh,NOT ( gear != 'P' ),gate,BLOCK_UNAVAILABLE
+R097,open_noti_center,profile != 'GUEST' AND profile != 'VALET',gate,ALLOW
+R098,open_noti_center,NOT ( profile != 'GUEST' AND profile != 'VALET' ),gate,BLOCK_UNAVAILABLE
+R099,get_current_speed,speed is not None,gate,ANSWER
+R100,get_battery_pct,battery_pct is not None,gate,ANSWER
+R101,get_battery_pct,NOT ( battery_pct is not None ),gate,UNKNOWN
+R102,get_gear,gear is not None,gate,ANSWER
+R103,get_gear,NOT ( gear is not None ),gate,UNKNOWN
+R104,get_door_lock_status,door_lock_state is not None,gate,ANSWER
+R105,get_door_lock_status,NOT ( door_lock_state is not None ),gate,UNKNOWN
+R106,get_avh_status,avh is not None,gate,ANSWER
+R107,get_avh_status,NOT ( avh is not None ),gate,UNKNOWN
+R108,explain_feature,kb_has_feature(feature_id) == True,gate,ANSWER
+R109,explain_feature,kb_has_feature(feature_id) == False,gate,UNKNOWN
+,,,,

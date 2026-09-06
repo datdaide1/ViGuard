@@ -1,0 +1,244 @@
+# Guardrail ↔ Agent — Audit tích hợp & Plan rebuild
+
+**Ngày:** 2026-09-06
+**Nhánh:** `feat/guardrail-agent-integration`
+**Tác giả:** Đạt (với Claude Code)
+**Mục tiêu tài liệu:** đối chiếu contract mà ViVi Agent (`vivi-agent/`) được xây theo với hiện trạng code guardrail của Long (`vf_guardrails/`, sibling repo, import vào branch này), ra bảng **giữ / sửa / xây mới / quyết định** từng thành phần kèm ước lượng effort. Đây là plan để hoàn thiện pipeline `text → Guardrail → Agent`.
+
+---
+
+## 0. Nguồn đối chiếu
+
+| Nguồn | Vai trò |
+|---|---|
+| `specs/prd/PRD_Guardrail_FINAL.md` | Yêu cầu chức năng (FR-01…FR-14), invariant (BR-01…BR-12), acceptance criteria, success metrics |
+| `specs/architecture/Architecture_Guardrail_FINAL.md` | Component boundary, API |
+| `vivi-agent/src/vivi_agent/authorization/contract.py` | **Contract v1.0.0** — validator fail-closed cho envelope Guardrail↔Agent (đây là "hợp đồng cứng") |
+| `vivi-agent/src/vivi_agent/integrations/viguard/client.py` | HTTP client agent dùng để gọi guardrail |
+| `vivi-agent/src/vivi_agent/integrations/viguard/wire/examples.json` | Ví dụ payload đúng cho 7 outcome + error + confirm + monitor |
+| `vf_guardrails/` | Code guardrail của Long (import 2026-09-06 từ `E:/V-GUARDRAIL/vf_guardrails` @ `7fb7074`) |
+
+---
+
+## 1. Verdict
+
+Long **không làm sai hướng** — lớp phân loại + đánh giá điều kiện + rule format + state model đều đúng tinh thần PRD và **giữ lại được**. Nhưng code dừng lại **trước lớp contract-conformance**: nó là một thư viện Python `process(text, state) -> {intent, action, response}` với ~50% policy được mã hoá, **không phải** một service HTTP nói đúng protocol v1 mà agent chờ.
+
+**Khối lượng thực tế của "nối guardrail + agent": ~25–40 ngày-người** (solo + AI assist), chia 4 pha ở §6. Không phải "2 ngày viết adapter".
+
+**1 bug an toàn phải sửa ngay:** guardrail hiện **fail-OPEN** — intent không khớp rule nào → trả `ALLOW` (`vf_guardrails/src/guardrail.py:60-63`). Vi phạm BR-02, BR-09, FR-07. Xem §4.
+
+---
+
+## 2. Contract v1 — agent chờ gì từ guardrail
+
+Agent gọi guardrail qua **HTTP JSON POST**, 4 endpoint:
+
+| Endpoint | Khi nào | Input | Output |
+|---|---|---|---|
+| `POST /v1/evaluate/action` | intent state-changing | `ActionProposal` | `GuardrailDecision` (+ `permit` nếu ALLOW) hoặc `GuardrailError` |
+| `POST /v1/evaluate/query` | intent hỏi state/knowledge | payload query | `GuardrailDecision` (ANSWER/UNKNOWN) |
+| `POST /v1/confirmations/confirm` | user xác nhận sau CONFIRM | `{request_id, confirmation_id, session_id}` | `GuardrailDecision` mới (đánh giá lại trên state mới) |
+| `POST /v1/monitor/evaluate` | tick monitor cho active action | `{request_id, active_action_id, intent}` | `GuardrailDecision` |
+
+### `GuardrailDecision` — field bắt buộc (contract.py `_DECISION_REQUIRED`)
+
+```
+contract_version="1.0.0", kind="decision", request_id, proposal_id,
+intent, outcome, rule_id, state_version (int), policy_checksum ("sha256:<64hex>"),
+reason_code, relevant_state (object)
+```
+Optional: `answer`, `confirmation`, `permit`. **Field lạ = fail closed.**
+
+### `ActionPermit` — CHỈ khi `outcome == ALLOW`, và bắt buộc khi ALLOW
+
+```
+permit_id, proposal_digest ("sha256:…"), intent, rule_id, state_version,
+policy_checksum, issued_at (tz-aware ISO), expires_at (> issued_at), single_use=true
+```
+- `proposal_digest` = sha256 của projection `{arguments, contract_version, proposal_id, session_id, source_turn_id, tool}` (đã sort key, `client.py` verify permit bound đúng proposal).
+- `intent / rule_id / state_version / policy_checksum` trong permit **phải bằng** giá trị trong decision.
+- Outcome ≠ ALLOW mà kèm `permit` → `PERMIT_FORBIDDEN`, fail closed.
+
+### `GuardrailError` (kind="error")
+
+```
+contract_version, kind="error", request_id, error{code, message, retryable, details?}
+```
+Typed error là **lỗi tích hợp, không phải outcome policy**. Không được chứa `permit`.
+
+### Semantics agent enforce sẵn (không cần guardrail lo, nhưng guardrail phải tương thích)
+
+- ALLOW không permit hợp lệ → agent tự chặn thực thi.
+- `proposal_id` trả về ≠ `proposal_id` gửi đi → `PROPOSAL_MISMATCH`.
+- timeout/không kết nối → `GUARDRAIL_UNAVAILABLE`, `execution_allowed=False`.
+
+---
+
+## 3. Hiện trạng `vf_guardrails/` — đo được
+
+| Thành phần | File | Ghi nhận |
+|---|---|---|
+| T1 intent classifier | `src/intent_classifier.py` `_classify_level1` | Aho-Corasick, khớp **action + entity đồng thời**, score theo tổng độ dài keyword. Hợp lý. |
+| T2 semantic fallback | `src/intent_classifier.py` `_classify_level2` | PhoBERT ONNX + cosine similarity với anchor, threshold 0.65. **Hiện tắt** — `model/model.onnx` không có trong folder (chỉ có tokenizer). Cần `setup_model.py`. Không có margin-check vs nhãn nhì. |
+| T3 SLM fallback | — | **Không có.** |
+| Constraint engine | `src/safety_engine.py` | `evaluate_condition` hỗ trợ `== != > < >= <=` + logic AND/OR, **không dùng `eval()`** ✅. Index rule theo `intent` ✅. |
+| Rule store | `config/safety_rules.yaml` | **52 policy** (ids R002…R102, khớp đánh số workbook). Actions: 24 `BLOCK_UNAVAILABLE`, 15 `BLOCK_UNSAFE`, 12 `CONFIRM`, 1 `NOT_VOICE_ACTIONABLE`. **0 ALLOW, 0 ANSWER, 0 monitor, không có field `check_mode`.** |
+| Keyword catalog | `config/intent_keywords.json` | `{intent: {actions[], entities[], anchors[]}}`. |
+| Vehicle state | `car_status.py` | pydantic `VehicleState`, ~45 field (gear/speed/doors/seats/ADAS/lights/modes/env). **Không versioned.** |
+| Decision result | `src/models.py` `GuardrailResult` | `{intent, action, response, reason, latency_ms}`. |
+| Orchestrator | `src/guardrail.py` | `process()`: T1→T2 → `SafetyEngine.evaluate` → **fallthrough ALLOW** + **hardcode câu trả lời ANSWER** cho ~6 intent. |
+| Agent (của Long) | `src/agent.py` (66KB) | Agent riêng, 67 OpenAI tool, mock-mode. **Trùng vai với `vivi-agent/`.** |
+| Sim | `app_sim.py` (CLI), `simulator/` (`index.html`+`app.js`+`css`) | Sim tự chứa, gắn với model 2-outcome đơn giản. |
+| Benchmark | `tests/run_benchmark.py`, `data/vinfast_test_data.json` (3MB) | Harness đo latency. |
+| Model | `model/` (tokenizer PhoBERT, ~2MB, **thiếu `.onnx`**) | |
+
+**Không tồn tại:** HTTP server, ActionProposal ingestion, permit, `policy_checksum`, `state_version`, typed-error envelope, Monitor Engine, trace/event theo PRD §16, policy loader đọc `.xlsx` thật.
+
+---
+
+## 4. Bug an toàn — fail-OPEN (ưu tiên P0, sửa trước mọi thứ)
+
+`vf_guardrails/src/guardrail.py`:
+
+```python
+else:
+    action = "ALLOW"
+    reason = "NO_SAFETY_VIOLATION"
+    response = "Yêu cầu hợp lệ và an toàn. Đang gửi lệnh thực thi..."
+```
+
+Khi (a) intent không phân loại được, hoặc (b) không rule nào match, engine trả **ALLOW**.
+
+- **PRD BR-02:** "Lỗi phân loại không được đánh giá constraint hoặc gọi actuator."
+- **PRD BR-09:** "Policy invalid làm toàn hệ thống fail closed."
+- **PRD FR-07:** "Không match hoặc multi-match ngoài thiết kế phải **fail closed** và không gọi actuator."
+- **PRD §7.3:** text không map được vào catalog = lỗi phân loại → yêu cầu diễn đạt lại, **không phải outcome**.
+
+**Đúng phải là:**
+- Không phân loại được intent → `GuardrailError` (vd `code=INTENT_UNRESOLVED`), KHÔNG đánh giá constraint.
+- Phân loại được nhưng 0 rule gate match → cần quyết định thiết kế: outcome mặc định theo workbook (nhiều intent action có rule `ALLOW` tường minh trong `Driver_constraints.xlsx`) — **phải mã hoá rule ALLOW đó**, không suy ra ALLOW bằng fallthrough.
+- Multi-match mâu thuẫn → `GuardrailError` / `UNKNOWN`, fail closed.
+
+---
+
+## 5. Bảng giữ / sửa / xây mới / quyết định
+
+### 5.1. GIỮ — Long làm đúng, tái dùng gần như trực tiếp
+
+| # | Thành phần | Điều kiện tái dùng | Effort điều chỉnh |
+|---|---|---|---|
+| K1 | T1 Aho-Corasick (`_classify_level1`) + `intent_keywords.json` | Bổ sung keyword để phủ đủ 53 intent; giữ scoring | 1–2 d |
+| K2 | T2 PhoBERT ONNX semantic approach (`_classify_level2`, `_get_embedding`) | Wire model (`setup_model.py`), thêm **margin vs nhãn nhì** (FR-03), calib threshold trên golden dataset | 1–2 d |
+| K3 | `SafetyEngine.evaluate_condition` (operator an toàn, no-`eval`) | Giữ nguyên; thêm operator nếu workbook cần (`in`, range) | 0.5 d |
+| K4 | YAML rule schema (`intent` + `target_state` + `logic` + `enforcement`) | Giữ làm **policy format**; bổ sung `check_mode`, `rule_id` chuẩn, `outcome` đủ 7 loại | — (dùng ở B7) |
+| K5 | Nội dung 52 rule đã mã hoá (điều kiện, ngưỡng, `speed_kmh>=3`…) | **Đối chiếu từng dòng** với `golden-dataset/driver-constraints/data/rules.json` trước khi tin | 1–2 d |
+| K6 | `VehicleState` field catalog (~45 field) | Giữ danh mục field; bọc trong lớp versioned (xem F4) | 0.5 d |
+| K7 | `tests/run_benchmark.py` + `data/vinfast_test_data.json` | Harness đo latency §15 PRD | 0.5 d |
+
+### 5.2. SỬA — cần thiết nhưng sai/thiếu
+
+| # | Thành phần | Vấn đề | Hướng sửa | Effort |
+|---|---|---|---|---|
+| F1 | `guardrail.py` fallthrough → ALLOW | **Fail-open** (§4) | Fail-closed: classification error → typed error; 0-match → outcome theo workbook, không suy ra | 1–2 d |
+| F2 | `GuardrailResult` model | Thiếu `rule_id`, `state_version`, `policy_checksum`, `reason_code`, `relevant_state`, `permit`; field `response` sai ranh giới | Thay bằng `GuardrailDecision` đúng contract (§2) | 1–2 d |
+| F3 | Guardrail tự sinh `response` (kể cả hardcode ANSWER) | PRD §5.2: agent sinh text hướng người dùng. Contract cho phép field `answer` optional → cần **chốt ranh giới** (xem D2) | Bỏ text sinh sẵn; nếu giữ ANSWER thì trả `answer={grounded, facts}` như `examples.json` | 1–2 d |
+| F4 | `VehicleState` không versioned | FR-05: mỗi mutation tăng `state_version`, mỗi decision dùng immutable snapshot | Bọc store versioned (tham chiếu `vivi-agent` `vehicle/` VehicleStateMachine để đồng bộ schema) | 1–2 d |
+| F5 | T2 threshold-only | FR-03 yêu cầu confidence **và** margin | Thêm margin check + tính khoảng cách nhãn 1–2 | (gộp K2) |
+| F6 | `safety_rules.yaml` thiếu ~57 rule + monitor + ALLOW/ANSWER | Chỉ có 52/109, toàn rule "chặn" | Mã hoá nốt từ workbook (xem B7) | (xem B7) |
+
+### 5.3. XÂY MỚI — không tồn tại, phải xây đúng contract
+
+| # | Thành phần | Yêu cầu nguồn | Effort |
+|---|---|---|---|
+| B1 | HTTP service 4 endpoint (`/v1/evaluate/action`, `/v1/evaluate/query`, `/v1/confirmations/confirm`, `/v1/monitor/evaluate`) | contract, `client.py` | 3–5 d |
+| B2 | Ingest `ActionProposal` + `validate_action_proposal` + tính `proposal_digest` | `contract.py` | 1 d |
+| B3 | Phát hành `ActionPermit` (digest-bound, `single_use`, `issued_at`/`expires_at`, khớp field decision) | `contract.py` `_PERMIT_REQUIRED` | 2–3 d |
+| B4 | `policy_checksum` — hash tất định workbook đã nạp (`sha256:<64hex>`) | FR-06, User story policy owner | 0.5 d |
+| B5 | Typed-error envelope (`kind=error`), phân biệt rõ với outcome | contract, BR-01/BR-02 | 1 d |
+| B6 | Monitor Engine + monitor session lifecycle + **5 monitor rule** | FR-13, PRD §7.1 (104 gate / 5 monitor) | 3–4 d |
+| B7 | Policy loader đọc `Driver_constraints.xlsx` thật, validate 109 rule / 53 intent / 104 gate / 5 monitor, **fail closed nếu thiếu**; sinh YAML từ workbook (hoặc dùng thẳng) | FR-06, AC 1/12 | 2–4 d |
+| B8 | Trace/event theo PRD §16 (`command_received` … `command_completed`, mỗi event có `session_id`, `request_id`, checksum) | FR-14 | 2–3 d |
+| B9 | T3 SLM fallback (whitelist 53 intent, không tạo action/outcome) — **có thể hoãn (P1-ish)** | FR-03, G-08 | 2–3 d |
+| B10 | E2E harness thật: thay `MockGuardrail` bằng service thật trong test agent | AC 5–19 | 2–3 d |
+
+### 5.4. BỎ — hoặc chỉ giữ làm tham khảo
+
+| # | Thành phần | Lý do |
+|---|---|---|
+| X1 | `vf_guardrails/src/agent.py` (66KB) | `vivi-agent/` (934 test, contract-driven) là canonical. Giữ tạm để tham khảo tool catalog rồi xoá. |
+| X2 | `vf_guardrails/app_sim.py` | Thay bằng tích hợp thật |
+| X3 | Hardcode câu ANSWER trong `guardrail.py` | Sai ranh giới (F3) |
+| X4 | `golden_dataset_review.json` / `.csv` trong `vf_guardrails/` | Trùng `golden-dataset/driver-constraints/` của Đạt — không import |
+
+### 5.5. QUYẾT ĐỊNH — cần PM chốt trước khi code
+
+| # | Quyết định | Bối cảnh | Khuyến nghị |
+|---|---|---|---|
+| D1 | **Layout repo:** giữ `vf_guardrails/` tách, nói chuyện qua HTTP contract; hay gộp vào `vivi-agent/` monorepo | Contract v1 vốn thiết kế cho 2 service. Tách → guardrail test độc lập trên golden dataset. Gộp → ít overhead cho solo | **Giữ tách**, `vf_guardrails/` là service, `vivi-agent/` là service, `docs/guardrail-integration/` là seam. Có `docker-compose`/runner boot cả hai |
+| D2 | **Ai sinh text ANSWER:** guardrail trả `answer={grounded, facts}` (contract cho phép) hay agent tự soạn từ `relevant_state` | PRD §5.2 nói agent; contract cho phép field `answer` | Guardrail trả **facts có cấu trúc** trong `answer`, agent verbalize. Không để guardrail trả câu tiếng Việt hoàn chỉnh |
+| D3 | **Source of truth 109 rule:** `golden-dataset/.../data/rules.json` (Đạt) hay `vf_guardrails/config/safety_rules.yaml` (Long) | Đang có 2 bản mã hoá cùng workbook | `Driver_constraints.xlsx` là gốc → B7 sinh ra 1 bản YAML runtime duy nhất; `rules.json` của golden-dataset dùng cho test |
+| D4 | **VehicleState schema:** hợp nhất `car_status.py` (Long) với `vivi-agent/vehicle/` | Field name có thể lệch (`speed_kmh` vs `speed`) | Chốt 1 schema, đặt trong contract wire, cả 2 bên import |
+| D5 | **T3 SLM:** làm ngay hay hoãn | PRD coi T3 optional, demo phải chạy được không cần mạng | Hoãn sau khi T1/T2 đạt metric trên golden dataset |
+| D6 | **UI:** seed từ `vf_guardrails/simulator/` hay xây mới | Thuộc pha 2 (scale + UI), chưa quyết bây giờ | Để pha 2 |
+
+---
+
+## 6. Trình tự đề xuất (4 pha)
+
+### Pha 0 — Chốt & chuẩn bị (≈2–3 d)
+- PM chốt D1–D4.
+- Import `vf_guardrails/` vào repo (đã làm trên branch này).
+- Đối chiếu `safety_rules.yaml` (52) vs `rules.json` (109) — bảng diff (K5).
+- **Sửa bug fail-open (F1)** như thay đổi đứng một mình đầu tiên.
+
+### Pha 1 — Contract layer / walking skeleton (≈8–12 d)
+Mục tiêu: **1 câu lệnh chạy hết `text → guardrail(HTTP) → agent → mock actuator → trace`**, chỉ ALLOW + BLOCK_UNSAFE, VF8.
+- B1 (HTTP 4 endpoint, tối thiểu action + query), B2, B4, B5.
+- F2 (GuardrailDecision), F4 (state_version), B3 (permit cho ALLOW).
+- B10 tối thiểu: 1 E2E test agent↔guardrail thật thay mock.
+- **Gate:** AC-9 (`open_door` + parked → ALLOW + actuator 1 lần) và AC-10 (đang chạy → BLOCK_UNSAFE + 0 actuator) chạy xanh qua HTTP thật.
+
+### Pha 2 — Đủ 7 outcome + confirm + monitor (≈10–14 d)
+- B7 (policy loader 109 rule, fail-closed), F6 (mã hoá nốt rule).
+- CONFIRM lifecycle: `/v1/confirmations/confirm` + re-evaluate (FR-10, AC 14–16).
+- B6 Monitor Engine + 5 monitor rule (FR-13, AC-19).
+- F3 + D2 (ANSWER path).
+- K1/K2/F5: T1 phủ 53 intent, T2 wire model + calib.
+- **Gate:** 7/7 outcome routing test xanh; confirmation state-machine test xanh; 5/5 monitor rule có scenario.
+
+### Pha 3 — Đo & siết trên golden dataset (≈6–10 d)
+- Chạy T1/T2 + constraint engine trên `golden-dataset/driver-constraints/` (2.313 dòng).
+- Đo: accuracy, F1, false-negative rate, false-positive rate theo intent + toàn hệ; latency T1/T2/gate theo §15 PRD (T1 ≤5ms p99, T2 ≤20ms p99, gate ≤5ms p99, fast-path ≤25ms p99).
+- B8 trace đầy đủ §16.
+- Tinh chỉnh threshold/margin/rule theo kết quả đo.
+- **Gate:** báo cáo metrics per-intent; 0 block-path actuator violation; determinism 100%.
+
+> Pha "scale (multi-agent/multi-vehicle) + UI" nằm **ngoài** tài liệu này — brainstorm riêng sau khi Pha 3 xong.
+
+---
+
+## 7. Rủi ro
+
+| Rủi ro | Ảnh hưởng | Giảm thiểu |
+|---|---|---|
+| `safety_rules.yaml` (52) lệch nội dung với workbook/`rules.json` | Metrics Pha 3 dựa trên policy sai | Diff từng dòng ở Pha 0; B7 sinh YAML từ `.xlsx` |
+| Schema `VehicleState` 2 bên lệch tên field | Rule không đọc được state → fail-closed nhầm | D4 chốt schema chung, đặt trong wire contract |
+| T2 model không hội tụ / thiếu `.onnx` | T2 chết, dồn hết về T1 (kém recall paraphrase) | K2 sớm ở Pha 2; có đường T1-only tất định làm fallback |
+| Solo dev, 25–40 ngày-người | Trượt lịch nếu ước lượng lạc quan | Gate theo pha; walking skeleton (Pha 1) cho tín hiệu sớm |
+| `agent.py` của Long bị vô tình dùng làm spine | Chia đôi effort agent | Xoá X1 ngay sau khi tham khảo xong |
+
+---
+
+## 8. Việc đã làm trong branch này
+
+- [x] `git checkout main`, `pull` (up to date), xoá nhánh phụ local (`fix/vivi-agent-safety-findings`, `datalexander/agent-completion`, `vivi-agent/scafford`), tạo `feat/guardrail-agent-integration`.
+- [x] Viết audit này.
+- [ ] Import `vf_guardrails/` vào repo (loại `.git/`, `.idea/`, cache, `golden_dataset_review.*` trùng).
+- [ ] (PM) Chốt D1–D6.
+- [ ] Pha 0: diff rule + sửa bug fail-open.
+
+### Việc git còn treo (cần PM xác nhận)
+- Xoá **remote** branch `origin/datalexander/agent-completion`, `origin/vivi-agent/scafford` (đã merge hết vào main) — cần OK vì là mutation trên GitHub.
+- Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng.
+- `reports/` + `reports.zip` (báo cáo Sprint 2) đang untracked — commit vào repo hay để ngoài?

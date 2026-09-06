@@ -1,0 +1,598 @@
+version: "1.0"
+domain: "vinfast_automotive_safety"
+
+policies:
+  - id: R002
+    intent: open_door
+    description: "Chặn mở cửa khi xe không đỗ số P hoặc tốc độ >= 3"
+    target_state:
+      gear: { operator: "!=", value: "P" }
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: OPEN_DOOR_UNSAFE
+      message_template: "Không thể mở cửa khi xe đang di chuyển hoặc cần số không ở vị trí P."
+
+  - id: R004
+    intent: open_trunk
+    description: "Chặn mở cốp khi tốc độ >= 3"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: OPEN_TRUNK_UNSAFE
+      message_template: "Xe đang chạy với tốc độ {speed_kmh} km/h. Không thể mở cốp sau vì lý do an toàn."
+
+  - id: R006
+    intent: open_chargeport
+    description: "Cảnh báo mở cổng sạc khi trời mưa"
+    target_state:
+      speed_kmh: { operator: "<", value: 3.0 }
+      rain_sensor: { operator: "==", value: true }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: CHARGEPORT_RAIN_WARNING
+      message_template: "Trời đang mưa. Bạn có chắc chắn muốn mở cổng sạc ngoài trời không?"
+
+  - id: R008
+    intent: open_chargeport
+    description: "Chặn mở cổng sạc khi xe chạy"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: CHARGEPORT_UNSAFE
+      message_template: "Không thể mở cổng sạc khi xe đang di chuyển."
+
+  - id: R009
+    intent: turnoff_highbeam
+    description: "Xác nhận tắt đèn pha khi trời tối"
+    target_state:
+      ambient_light: { operator: "==", value: "NIGHT" }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: NIGHT_LIGHT_CONFIRM
+      message_template: "Trời đang tối. Bạn có chắc chắn muốn tắt đèn pha không?"
+
+  - id: R011
+    intent: turnon_highbeam
+    description: "Xác nhận bật đèn pha khi trời sáng"
+    target_state:
+      ambient_light: { operator: "==", value: "DAY" }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: DAY_LIGHT_CONFIRM
+      message_template: "Trời đang sáng. Bạn có chắc chắn muốn bật đèn pha không?"
+
+  - id: R013
+    intent: turnoff_lowbeam
+    description: "Xác nhận tắt đèn cốt khi trời tối"
+    target_state:
+      ambient_light: { operator: "==", value: "NIGHT" }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: NIGHT_LIGHT_CONFIRM
+      message_template: "Trời đang tối. Bạn có chắc chắn muốn tắt đèn cốt không?"
+
+  - id: R015
+    intent: turnon_lowbeam
+    description: "Xác nhận bật đèn cốt khi trời sáng"
+    target_state:
+      ambient_light: { operator: "==", value: "DAY" }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: DAY_LIGHT_CONFIRM
+      message_template: "Trời đang sáng. Bạn có chắc chắn muốn bật đèn cốt không?"
+
+  - id: R019
+    intent: unlock_doors
+    description: "Chặn mở khóa cửa khi xe chạy nhanh >= 10"
+    target_state:
+      speed_kmh: { operator: ">=", value: 10.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: UNLOCK_DOORS_UNSAFE
+      message_template: "Xe đang di chuyển nhanh ({speed_kmh} km/h). Không thể mở khóa tất cả các cửa."
+
+  - id: R021
+    intent: OPEN_BONNET
+    description: "Chặn mở nắp capo khi xe không đỗ số P hoặc tốc độ >= 3"
+    target_state:
+      gear: { operator: "!=", value: "P" }
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: OPEN_BONNET_UNSAFE
+      message_template: "Không thể mở nắp capo khi xe đang chạy hoặc cần số không ở vị trí P."
+
+  - id: R025
+    intent: switch_drivemode_sport
+    description: "Xác nhận chuyển chế độ lái thể thao khi pin yếu"
+    target_state:
+      battery_level: { operator: "<", value: 25.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: SPORT_MODE_LOW_BATTERY
+      message_template: "Dung lượng pin còn lại dưới 25% ({battery_level}%). Chuyển sang chế độ SPORT có thể làm cạn pin nhanh hơn. Bạn có chắc chắn không?"
+
+  - id: R029
+    intent: activate_creepmode
+    description: "Chặn bật chế độ Creep khi Auto Hold đang hoạt động"
+    target_state:
+      avh: { operator: "==", value: true }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: CREEP_MODE_CONFLICT
+      message_template: "Không thể kích hoạt chế độ Creep khi hệ thống giữ xe tự động AVH đang bật."
+
+  - id: R030
+    intent: turnoff_LKA
+    description: "Yêu cầu xác nhận khi tắt Lane Keeping Assist"
+    target_state:
+      speed_kmh: { operator: ">=", value: 0.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: LKA_OFF_WARNING
+      message_template: "Tắt tính năng hỗ trợ giữ làn đường LKA sẽ làm giảm tính năng an toàn chủ động. Bạn có chắc chắn không?"
+
+  - id: R032
+    intent: activate_campmode
+    description: "Chặn kích hoạt Camp Mode khi không đủ điều kiện an toàn"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      gear: { operator: "!=", value: "P" }
+      epb: { operator: "!=", value: true }
+      battery_level: { operator: "<=", value: 25.0 }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: CAMP_MODE_UNAVAILABLE
+      message_template: "Không thể kích hoạt Camp Mode. Yêu cầu: Xe đỗ, vị trí số P, bật phanh tay điện tử EPB và dung lượng pin trên 25%."
+
+  - id: R033
+    intent: activate_campmode
+    description: "Chặn Camp Mode khi pin dưới 15%"
+    target_state:
+      battery_level: { operator: "<", value: 15.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: CAMP_MODE_BATTERY_LOW
+      message_template: "Dung lượng pin quá thấp ({battery_level}%). Không thể bật Camp Mode."
+
+  - id: R034
+    intent: activate_campmode
+    description: "Chặn Camp Mode nếu chế độ đặc biệt khác đang bật"
+    target_state:
+      pet_mode_active: { operator: "==", value: true }
+      valet_mode_active: { operator: "==", value: true }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: SPECIAL_MODE_CONFLICT
+      message_template: "Không thể kích hoạt Camp Mode khi đang bật chế độ Pet Mode hoặc Valet Mode."
+
+  - id: R036
+    intent: activate_petmode
+    description: "Chặn Pet Mode khi xe không đỗ số P hoặc pin <= 25%"
+    target_state:
+      gear: { operator: "!=", value: "P" }
+      battery_level: { operator: "<=", value: 25.0 }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: PET_MODE_UNAVAILABLE
+      message_template: "Chế độ Pet Mode chỉ hoạt động khi xe đang đỗ số P và dung lượng pin trên 25%."
+
+  - id: R038
+    intent: activate_petmode
+    description: "Chặn Pet Mode nếu chế độ đặc biệt khác đang bật"
+    target_state:
+      camp_mode_active: { operator: "==", value: true }
+      valet_mode_active: { operator: "==", value: true }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: SPECIAL_MODE_CONFLICT
+      message_template: "Không thể kích hoạt Pet Mode khi đang bật chế độ Camp Mode hoặc Valet Mode."
+
+  - id: R040
+    intent: activate_valetmode
+    description: "Chặn Valet Mode nếu tài khoản là GUEST"
+    target_state:
+      profile: { operator: "==", value: "GUEST" }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: VALET_MODE_GUEST_DENIED
+      message_template: "Tài khoản khách (GUEST) không được phép kích hoạt chế độ đỗ xe Valet Mode."
+
+  - id: R041
+    intent: activate_valetmode
+    description: "Chặn Valet Mode nếu chế độ đặc biệt khác đang bật"
+    target_state:
+      camp_mode_active: { operator: "==", value: true }
+      pet_mode_active: { operator: "==", value: true }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: SPECIAL_MODE_CONFLICT
+      message_template: "Không thể kích hoạt Valet Mode khi đang bật chế độ Camp Mode hoặc Pet Mode."
+
+  - id: R043
+    intent: SHIFT_GEAR_REVERSE
+    description: "Chặn chuyển số lùi khi xe đang chạy nhanh >= 3 hoặc từ số D"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      gear: { operator: "==", value: "D" }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: REVERSE_GEAR_UNSAFE
+      message_template: "Không thể chuyển sang số lùi R khi xe đang di chuyển với tốc độ {speed_kmh} km/h hoặc đang ở số D."
+
+  - id: R045
+    intent: ad_steeringwheel
+    description: "Chặn chỉnh vô lăng khi xe chạy"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: STEERING_ADJUST_UNSAFE
+      message_template: "Không thể điều chỉnh vô lăng khi xe đang di chuyển."
+
+  - id: R047
+    intent: activate_autopark
+    description: "Chặn tự động đỗ xe khi xe chạy >= 15"
+    target_state:
+      speed_kmh: { operator: ">=", value: 15.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: AUTOPARK_SPEED_HIGH
+      message_template: "Tốc độ xe hiện tại quá cao ({speed_kmh} km/h). Không thể bật tính năng tự động đỗ xe Autopark."
+
+  - id: R050
+    intent: fold_backseat
+    description: "Xác nhận gập hàng ghế sau khi xe không đỗ"
+    target_state:
+      gear: { operator: "!=", value: "P" }
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: OR
+    enforcement:
+      action: CONFIRM
+      reason: FOLD_SEAT_CONFIRM
+      message_template: "Xe đang di chuyển hoặc không ở số P. Bạn có chắc chắn muốn gập hàng ghế sau không?"
+
+  - id: R051
+    intent: open_sunroof
+    description: "Chặn mở cửa sổ trời khi tốc độ > 80"
+    target_state:
+      speed_kmh: { operator: ">", value: 80.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: SUNROOF_SPEED_HIGH
+      message_template: "Tốc độ xe quá cao ({speed_kmh} km/h). Việc mở cửa sổ trời có thể gây mất an toàn."
+
+  - id: R052
+    intent: open_sunroof
+    description: "Xác nhận mở cửa sổ trời khi trời mưa"
+    target_state:
+      rain_sensor: { operator: "==", value: true }
+      speed_kmh: { operator: "<=", value: 80.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: SUNROOF_RAIN_WARNING
+      message_template: "Cảm biến báo trời đang mưa. Bạn có chắc chắn muốn mở cửa sổ trời không?"
+
+  - id: R056
+    intent: ad_driverseat_angle
+    description: "Chặn chỉnh ghế lái ngả quá 110 độ khi xe chạy"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      driver_seat_angle_deg: { operator: ">", value: 110.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: SEAT_ANGLE_UNSAFE
+      message_template: "Xe đang di chuyển ({speed_kmh} km/h). Góc ngả ghế lái tối đa cho phép là 110° để đảm bảo an toàn."
+
+  - id: R058
+    intent: ad_driverseat_pos
+    description: "Chặn chỉnh vị trí ghế lái khi xe chạy"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: SEAT_POS_UNSAFE
+      message_template: "Không thể điều chỉnh vị trí ghế lái khi xe đang di chuyển."
+
+  - id: R060
+    intent: open_window
+    description: "Chặn mở cửa sổ kính khi xe chạy > 80"
+    target_state:
+      speed_kmh: { operator: ">", value: 80.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: WINDOW_SPEED_HIGH
+      message_template: "Tốc độ xe quá cao ({speed_kmh} km/h). Không thể mở cửa sổ kính."
+
+  - id: R061
+    intent: open_window
+    description: "Xác nhận mở cửa sổ khi trời mưa"
+    target_state:
+      rain_sensor: { operator: "==", value: true }
+      speed_kmh: { operator: "<=", value: 80.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: WINDOW_RAIN_WARNING
+      message_template: "Trời đang mưa. Bạn có chắc chắn muốn hạ kính cửa sổ không?"
+
+  - id: R064
+    intent: restore_driverseat_pos
+    description: "Chặn khôi phục vị trí ghế lái ngả >= 110 độ khi xe chạy"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      driver_seat_angle_deg: { operator: ">=", value: 110.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: RESTORE_SEAT_UNSAFE
+      message_template: "Xe đang di chuyển. Không thể khôi phục vị trí ghế lái ngả quá 110°."
+
+  - id: R066
+    intent: activate_epb
+    description: "Chặn kích hoạt phanh tay điện tử EPB khi không ở số P"
+    target_state:
+      gear: { operator: "!=", value: "P" }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: EPB_GEAR_CONFLICT
+      message_template: "Chỉ có thể kích hoạt phanh tay điện tử EPB khi cần số đang ở vị trí P."
+
+  - id: R067
+    intent: deactivate_hud
+    description: "Xác nhận tắt hiển thị kính lái HUD"
+    target_state:
+      speed_kmh: { operator: ">=", value: 0.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: HUD_OFF_CONFIRM
+      message_template: "Bạn có chắc chắn muốn tắt màn hình hiển thị kính lái HUD không?"
+
+  - id: R069_1
+    intent: activate_aac
+    description: "Chặn kích hoạt AAC khi tốc độ <= 20 km/h"
+    target_state:
+      speed_kmh: { operator: "<=", value: 20.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: AAC_SPEED_LOW
+      message_template: "Tốc độ xe quá thấp ({speed_kmh} km/h). Tính năng Adaptive Cruise Control yêu cầu tối thiểu 20 km/h."
+
+  - id: R069_2
+    intent: activate_aac
+    description: "Chặn kích hoạt AAC khi tốc độ >= 150 km/h"
+    target_state:
+      speed_kmh: { operator: ">=", value: 150.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: AAC_SPEED_HIGH
+      message_template: "Tốc độ xe quá cao ({speed_kmh} km/h). Tính năng Adaptive Cruise Control chỉ hỗ trợ tối đa 150 km/h."
+
+  - id: R072_1
+    intent: activate_hda
+    description: "Chặn kích hoạt HDA khi ACC chưa kích hoạt hoặc xe lùi"
+    target_state:
+      acc_state: { operator: "!=", value: "ACTIVE" }
+      gear: { operator: "==", value: "R" }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: HDA_REQUIREMENTS_UNMET
+      message_template: "Không thể kích hoạt HDA. Hỗ trợ lái cao tốc yêu cầu Adaptive Cruise Control (ACC) đang hoạt động và xe không đi số lùi."
+
+  - id: R073
+    intent: activate_hda
+    description: "Chặn HDA khi buông tay khỏi vô lăng quá 15 giây"
+    target_state:
+      hands_on_steering_wheel: { operator: "==", value: false }
+      hands_off_duration_seconds: { operator: ">", value: 15.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: STEERING_HANDS_OFF
+      message_template: "Cảnh báo khẩn cấp: Đã buông tay khỏi vô lăng quá 15 giây. Hệ thống hỗ trợ lái cao tốc HDA sẽ bị ngắt vì lý do an toàn."
+
+  - id: R075
+    intent: shift_gear_park
+    description: "Chặn vào số P khi tốc độ >= 3"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: PARK_GEAR_UNSAFE
+      message_template: "Không thể chuyển sang số P khi xe đang chạy với tốc độ {speed_kmh} km/h."
+
+  - id: R077
+    intent: fold_mirrors
+    description: "Chặn gập gương khi xe chạy nhanh >= 16"
+    target_state:
+      speed_kmh: { operator: ">=", value: 16.0 }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: FOLD_MIRRORS_SPEED_HIGH
+      message_template: "Xe đang di chuyển nhanh ({speed_kmh} km/h). Không thể gập gương chiếu hậu."
+
+  - id: R079
+    intent: activate_ahb
+    description: "Chặn bật pha tự động AHB khi bật đèn sương mù"
+    target_state:
+      fog_light: { operator: "==", value: true }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: AHB_FOG_LIGHT_CONFLICT
+      message_template: "Không thể bật đèn pha tự động AHB khi đèn sương mù đang hoạt động."
+
+  - id: R081
+    intent: turnon_turnsignal_right
+    description: "Chặn xi nhan phải khi đèn khẩn cấp đang bật"
+    target_state:
+      hazard_light: { operator: "==", value: true }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: TURNSIGNAL_HAZARD_CONFLICT
+      message_template: "Không thể kích hoạt đèn xi nhan khi đèn cảnh báo nguy hiểm hazard đang hoạt động."
+
+  - id: R083
+    intent: turnon_turnsignal_left
+    description: "Chặn xi nhan trái khi đèn khẩn cấp đang bật"
+    target_state:
+      hazard_light: { operator: "==", value: true }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: TURNSIGNAL_HAZARD_CONFLICT
+      message_template: "Không thể kích hoạt đèn xi nhan khi đèn cảnh báo nguy hiểm hazard đang hoạt động."
+
+  - id: R089
+    intent: turnon_corneringlight
+    description: "Chặn bật đèn hỗ trợ vào góc cua"
+    target_state:
+      lowbeam_mode: { operator: "!=", value: "On" }
+      fog_light: { operator: "==", value: true }
+      speed_kmh: { operator: ">", value: 40.0 }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: CORNERING_LIGHT_CONDITIONS_UNMET
+      message_template: "Không thể kích hoạt đèn góc cua. Điều kiện cần: Đèn cốt (lowbeam) đang bật, đèn sương mù tắt và tốc độ <= 40 km/h."
+
+  - id: R091
+    intent: turnon_interiorlight
+    description: "Xác nhận bật đèn trần nội thất khi xe di chuyển"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+    logic: AND
+    enforcement:
+      action: CONFIRM
+      reason: INTERIOR_LIGHT_MOVING
+      message_template: "Xe đang di chuyển. Việc bật đèn trần nội thất có thể gây lóa mắt tài xế. Bạn có chắc muốn bật?"
+
+  - id: R093
+    intent: activate_tcs
+    description: "Chặn kích hoạt TCS khi tắt ESC"
+    target_state:
+      esc: { operator: "==", value: false }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: TCS_ESC_CONFLICT
+      message_template: "Không thể kích hoạt hệ thống kiểm soát bám đường TCS khi hệ thống cân bằng điện tử ESC đang bị tắt."
+
+  - id: R094
+    intent: deactivate_esc
+    description: "Chặn tắt ESC bằng giọng nói"
+    target_state:
+      speed_kmh: { operator: ">=", value: 0.0 }
+    logic: AND
+    enforcement:
+      action: NOT_VOICE_ACTIONABLE
+      reason: ESC_VOICE_DISABLE_DENIED
+      message_template: "Vì lý do an toàn nghiêm ngặt, hệ thống cân bằng điện tử ESC không được phép vô hiệu hóa bằng giọng nói."
+
+  - id: R096
+    intent: activate_avh
+    description: "Chặn kích hoạt AVH khi xe đang đỗ số P"
+    target_state:
+      gear: { operator: "==", value: "P" }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: AVH_GEAR_CONFLICT
+      message_template: "Không thể kích hoạt tính năng giữ xe tự động AVH khi cần số đang ở vị trí P."
+
+  - id: R098_1
+    intent: open_noti_center
+    description: "Chặn mở trung tâm thông báo khi tài khoản là GUEST"
+    target_state:
+      profile: { operator: "==", value: "GUEST" }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: NOTI_CENTER_GUEST_DENIED
+      message_template: "Tài khoản khách (GUEST) không được phép truy cập trung tâm thông báo riêng tư."
+
+  - id: R098_2
+    intent: open_noti_center
+    description: "Chặn mở trung tâm thông báo khi tài khoản là VALET"
+    target_state:
+      profile: { operator: "==", value: "VALET" }
+    logic: AND
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: NOTI_CENTER_VALET_DENIED
+      message_template: "Tài khoản đỗ xe (VALET) không được phép truy cập trung tâm thông báo riêng tư."
+
+  - id: R100
+    intent: poweroff_vehicle
+    description: "Chặn tắt nguồn xe khi xe đang chạy hoặc cần số không ở vị trí P"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      gear: { operator: "!=", value: "P" }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: POWEROFF_UNSAFE
+      message_template: "Không thể tắt nguồn xe khi xe đang di chuyển hoặc cần số không ở vị trí P."
+
+  - id: R101
+    intent: start_charging
+    description: "Chặn bắt đầu sạc khi xe đang di chuyển hoặc cần số không ở vị trí P"
+    target_state:
+      speed_kmh: { operator: ">=", value: 3.0 }
+      gear: { operator: "!=", value: "P" }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNSAFE
+      reason: CHARGING_UNSAFE
+      message_template: "Không thể bắt đầu sạc pin khi xe đang di chuyển hoặc cần số không ở vị trí P."
+
+  - id: R102
+    intent: activate_cc
+    description: "Chặn kích hoạt Cruise Control khi tốc độ < 30 hoặc số khác D"
+    target_state:
+      speed_kmh: { operator: "<", value: 30.0 }
+      gear: { operator: "!=", value: "D" }
+    logic: OR
+    enforcement:
+      action: BLOCK_UNAVAILABLE
+      reason: CC_UNAVAILABLE
+      message_template: "Cruise Control chỉ có thể kích hoạt khi xe đang chạy ở số D và tốc độ tối thiểu 30 km/h."
