@@ -730,5 +730,156 @@
       "giải thích tính năng của xe",
       "chế độ này hoạt động thế nào"
     ]
+  },
+  "AD_WIPER_MAX": {
+    "actions": [
+      "bật",
+      "tăng",
+      "gạt",
+      "cho",
+      "chỉnh"
+    ],
+    "entities": [
+      "gạt mưa",
+      "gạt nước",
+      "cần gạt",
+      "cần gạt mưa",
+      "cần gạt nước",
+      "cần gạt"
+    ],
+    "anchors": [
+      "gạt mưa nhanh nhất",
+      "tăng tốc độ gạt nước tối đa",
+      "bật gạt mưa lên mức cao nhất"
+    ]
+  },
+  "lock_doors": {
+    "actions": [
+      "khóa",
+      "khoá",
+      "chốt"
+    ],
+    "entities": [
+      "cửa",
+      "cửa xe",
+      "các cửa",
+      "tất cả cửa",
+      "toàn bộ cửa"
+    ],
+    "anchors": [
+      "khóa tất cả các cửa xe",
+      "chốt cửa xe lại"
+    ]
+  },
+  "switch_drivemode_eco": {
+    "actions": [
+      "chuyển",
+      "bật",
+      "sang",
+      "về",
+      "đổi"
+    ],
+    "entities": [
+      "chế độ eco",
+      "chế độ tiết kiệm",
+      "eco mode",
+      "chế độ tiết kiệm điện",
+      "chế độ eco"
+    ],
+    "anchors": [
+      "chuyển sang chế độ eco",
+      "về chế độ tiết kiệm điện"
+    ]
+  },
+  "switch_drivemode_normal": {
+    "actions": [
+      "chuyển",
+      "bật",
+      "sang",
+      "về",
+      "đổi"
+    ],
+    "entities": [
+      "chế độ thường",
+      "chế độ bình thường",
+      "normal mode",
+      "chế độ normal",
+      "chế độ tiêu chuẩn"
+    ],
+    "anchors": [
+      "chuyển về chế độ thường",
+      "đổi sang chế độ bình thường"
+    ]
+  },
+  "turnon_hazardlight": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "đèn khẩn cấp",
+      "đèn hazard",
+      "đèn ưu tiên",
+      "hazard",
+      "đèn cảnh báo nguy hiểm",
+      "đèn double"
+    ],
+    "anchors": [
+      "bật đèn khẩn cấp",
+      "mở đèn cảnh báo nguy hiểm"
+    ]
+  },
+  "turnoff_hazardlight": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "đèn khẩn cấp",
+      "đèn hazard",
+      "đèn ưu tiên",
+      "hazard",
+      "đèn cảnh báo nguy hiểm",
+      "đèn double"
+    ],
+    "anchors": [
+      "tắt đèn khẩn cấp",
+      "ngắt đèn cảnh báo nguy hiểm"
+    ]
+  },
+  "turnoff_turnsignal_left": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "xi nhan trái",
+      "nháy trái",
+      "đèn xi nhan trái",
+      "đèn báo rẽ trái"
+    ],
+    "anchors": [
+      "tắt đèn xi nhan bên trái",
+      "ngắt xi nhan trái"
+    ]
+  },
+  "turnoff_turnsignal_right": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "xi nhan phải",
+      "nháy phải",
+      "đèn xi nhan phải",
+      "đèn báo rẽ phải"
+    ],
+    "anchors": [
+      "tắt đèn xi nhan bên phải",
+      "ngắt xi nhan phải"
+    ]
   }
 }
