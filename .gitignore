@@ -30,3 +30,6 @@ golden-dataset/
 .codex-tmp/
 release/
 vivi-agent.zip
+
+# Python venvs
+.venv*/

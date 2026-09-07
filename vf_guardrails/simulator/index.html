@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VinFast EV Interactive Simulator & AI Guardrail Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-[#0f172a] text-slate-100 font-['Inter'] min-h-screen flex flex-col">
+
+    <!-- Header Section -->
+    <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <!-- VinFast Blue V Logo Representation -->
+            <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center font-['Outfit'] font-black text-white text-xl shadow-lg shadow-sky-500/30">V</div>
+            <div>
+                <h1 class="font-['Outfit'] font-bold text-lg tracking-wide text-white">VINFAST EV SIMULATOR</h1>
+                <p class="text-xs text-slate-400 font-medium">Context-Aware AI Guardrail Engine (Local Demo)</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-slate-800/50 border border-slate-700/30 px-3 py-1.5 rounded-full text-xs font-semibold text-sky-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>SYSTEM ACTIVE</span>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Component 1: Visual Car Viewport (Full width top on mobile, 2/3 width on desktop) -->
+        <section class="lg:col-span-3 bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 relative overflow-hidden shadow-xl backdrop-blur-sm flex flex-col justify-between min-h-[360px]">
+            <!-- Visual Car Viewport Header -->
+            <div class="flex items-center justify-between mb-4 z-10">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                    <h2 class="font-['Outfit'] font-bold text-sm tracking-wide text-slate-300">VISUAL EV VIEWPORT</h2>
+                </div>
+                <!-- Telemetry Quick Badges -->
+                <div class="flex items-center space-x-3 text-xs">
+                    <div class="bg-slate-850 border border-slate-750 px-3 py-1 rounded-lg flex items-center space-x-2 font-mono">
+                        <span class="text-slate-400">SPEED:</span>
+                        <span id="badgeSpeed" class="text-white font-bold">0</span> <span class="text-slate-500 text-[10px]">km/h</span>
+                    </div>
+                    <div class="bg-slate-850 border border-slate-750 px-3 py-1 rounded-lg flex items-center space-x-2 font-mono">
+                        <span class="text-slate-400">TRUNK:</span>
+                        <span id="badgeTrunk" class="text-rose-400 font-bold">CLOSED</span>
+                    </div>
+                    <div class="bg-slate-850 border border-slate-750 px-3 py-1 rounded-lg flex items-center space-x-2 font-mono">
+                        <span class="text-slate-400">LIGHTS:</span>
+                        <span id="badgeLights" class="text-slate-400 font-bold">OFF</span>
+                    </div>
+                    <div class="bg-slate-850 border border-slate-750 px-3 py-1 rounded-lg flex items-center space-x-2 font-mono">
+                        <span class="text-slate-400">SEAT:</span>
+                        <span id="badgeSeat" class="text-sky-400 font-bold">95</span><span class="text-slate-500 text-[10px]">°</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SVG Car Silhouette Area -->
+            <div class="flex-1 flex items-center justify-center min-h-[220px] relative">
+                <svg id="carSvg" viewBox="0 0 600 300" class="w-full max-w-[650px] h-auto drop-shadow-[0_10px_20px_rgba(56,189,248,0.05)]">
+                    <defs>
+                        <!-- Glow effect for headlights -->
+                        <linearGradient id="beamGradient" x1="1" y1="0.5" x2="0" y2="0.5">
+                            <stop offset="0%" stop-color="rgba(253, 224, 71, 0.55)" />
+                            <stop offset="100%" stop-color="rgba(253, 224, 71, 0.0)" />
+                        </linearGradient>
+                        <!-- Metallic body paint gradient -->
+                        <linearGradient id="bodyGradient" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#1e293b" />
+                            <stop offset="100%" stop-color="#0f172a" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Background Road Grid Line -->
+                    <line x1="20" y1="240" x2="580" y2="240" stroke="#334155" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 10" />
+
+                    <!-- Headlight Beam (Controlled dynamically via opacity) -->
+                    <polygon id="headlightBeam" points="98,172 10,120 10,230" fill="url(#beamGradient)" class="opacity-0 transition-opacity duration-300" />
+
+                    <!-- Car Body Main Silhouette -->
+                    <path d="M 100,170 
+                             L 100,205 
+                             L 165,205 
+                             A 36,36 0 0,1 235,205 
+                             L 385,205 
+                             A 36,36 0 0,1 455,205 
+                             L 490,205 
+                             L 500,185 
+                             L 485,135 
+                             L 380,95 
+                             L 260,95 
+                             L 165,150 Z" 
+                          fill="url(#bodyGradient)" stroke="#38bdf8" stroke-width="2.5" stroke-linejoin="round" />
+
+                    <!-- Windows Representation -->
+                    <polygon points="265,105 375,105 440,125 370,148 265,148" fill="#1e293b" stroke="#475569" stroke-width="1.5" opacity="0.9" />
+                    <polygon points="175,150 250,150 250,108 175,150" fill="#1e293b" stroke="#475569" stroke-width="1.5" opacity="0.9" />
+
+                    <!-- Wheel Arches (Visual depth) -->
+                    <path d="M 165,205 A 36,36 0 0,1 235,205" fill="none" stroke="#0f172a" stroke-width="8" />
+                    <path d="M 385,205 A 36,36 0 0,1 455,205" fill="none" stroke="#0f172a" stroke-width="8" />
+
+                    <!-- Wheels -->
+                    <!-- Rear Wheel -->
+                    <g id="rearWheel" class="transition-transform duration-100">
+                        <circle cx="200" cy="210" r="28" fill="#020617" stroke="#475569" stroke-width="5" />
+                        <circle cx="200" cy="210" r="10" fill="#334155" />
+                        <!-- Spokes for rotation visibility -->
+                        <line x1="200" y1="182" x2="200" y2="238" stroke="#38bdf8" stroke-width="2" />
+                        <line x1="172" y1="210" x2="228" y2="210" stroke="#38bdf8" stroke-width="2" />
+                    </g>
+                    <!-- Front Wheel -->
+                    <g id="frontWheel" class="transition-transform duration-100">
+                        <circle cx="420" cy="210" r="28" fill="#020617" stroke="#475569" stroke-width="5" />
+                        <circle cx="420" cy="210" r="10" fill="#334155" />
+                        <!-- Spokes for rotation visibility -->
+                        <line x1="420" y1="182" x2="420" y2="238" stroke="#38bdf8" stroke-width="2" />
+                        <line x1="392" y1="210" x2="448" y2="210" stroke="#38bdf8" stroke-width="2" />
+                    </g>
+
+                    <!-- Dynamic Trunk Door (Pivot point at top: 450,115) -->
+                    <g id="trunkDoorContainer">
+                        <path id="trunkDoor" d="M 450,115 L 485,135 L 500,185 L 490,205" 
+                              fill="none" stroke="#f43f5e" stroke-width="4.5" stroke-linecap="round" />
+                    </g>
+
+                    <!-- Dynamic Driver Seat (Hinge at seat bottom: 275,188) -->
+                    <!-- Seat Bottom (Fixed) -->
+                    <line x1="270" y1="188" x2="305" y2="188" stroke="#475569" stroke-width="5.5" stroke-linecap="round" />
+                    <!-- Seat Back (Pivots dynamically) -->
+                    <line id="driverSeatBack" x1="275" y1="188" x2="265" y2="138" stroke="#06b6d4" stroke-width="5.5" stroke-linecap="round" />
+
+                    <!-- VinFast Signature Front V Grill Accent -->
+                    <path d="M 100,185 L 105,190 L 100,195" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+                </svg>
+            </div>
+        </section>
+
+        <!-- Left Column: Component 2 - Telemetry Control Panel -->
+        <section class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 flex flex-col justify-between shadow-lg backdrop-blur-sm">
+            <div>
+                <div class="flex items-center space-x-2 mb-6">
+                    <!-- Icon representation -->
+                    <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    <h2 class="font-['Outfit'] font-bold text-sm tracking-wide text-slate-300">TELEMETRY PANEL</h2>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Speed Controller -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="speedSlider" class="text-slate-400 font-semibold tracking-wide">TỐC ĐỘ XE (SPEED)</label>
+                            <span class="font-mono font-bold text-sky-400 text-sm"><span id="speedValue">0</span> km/h</span>
+                        </div>
+                        <input id="speedSlider" type="range" min="0" max="120" value="0" 
+                               class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500 transition-all focus:outline-none">
+                        <div class="flex justify-between text-[10px] text-slate-500 font-bold px-1">
+                            <span>0 km/h (Đỗ xe)</span>
+                            <span>60 km/h</span>
+                            <span>120 km/h</span>
+                        </div>
+                    </div>
+
+                    <!-- Ambient Light Controller -->
+                    <div class="space-y-2">
+                        <label for="ambientSelect" class="block text-xs text-slate-400 font-semibold tracking-wide">ÁNH SÁNG MÔI TRƯỜNG (LIGHT)</label>
+                        <select id="ambientSelect" class="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 transition-all font-medium">
+                            <option value="DAY">DAY (Ban ngày - Sáng)</option>
+                            <option value="NIGHT">NIGHT (Ban đêm - Tối)</option>
+                        </select>
+                    </div>
+
+                    <!-- Seat Angle Controller -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="seatSlider" class="text-slate-400 font-semibold tracking-wide">GÓC GHẾ LÁI (SEAT ANGLE)</label>
+                            <span class="font-mono font-bold text-cyan-400 text-sm"><span id="seatValue">95</span>°</span>
+                        </div>
+                        <input id="seatSlider" type="range" min="90" max="130" value="95" 
+                               class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 transition-all focus:outline-none">
+                        <div class="flex justify-between text-[10px] text-slate-500 font-bold px-1">
+                            <span>90° (Đứng)</span>
+                            <span>110° (Hạn mức khi chạy)</span>
+                            <span>130° (Ngả tối đa)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-800/50 text-[11px] text-slate-500 font-medium">
+                * Kéo thay đổi các thông số trên để giả lập điều kiện hoạt động của xe điện trước khi phát lệnh giọng nói.
+            </div>
+        </section>
+
+        <!-- Right Column: Component 3 & 4 - Command & Output -->
+        <section class="lg:col-span-2 space-y-6 flex flex-col justify-between">
+            <!-- Command Input Box -->
+            <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 shadow-lg backdrop-blur-sm flex-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        <h2 class="font-['Outfit'] font-bold text-sm tracking-wide text-slate-300">VOICE COMMAND GATEWAY</h2>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label for="queryInput" class="block text-xs text-slate-400 font-semibold tracking-wide">NHẬP CÂU THOẠI CỦA TÀI XẾ</label>
+                            <input id="queryInput" type="text" placeholder="Ví dụ: mở cốp sau xe điện, tắt đèn pha, ngả ghế..." 
+                                   class="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 transition-all font-medium">
+                        </div>
+
+                        <!-- Sample commands helper chips -->
+                        <div class="space-y-1.5">
+                            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Gợi ý câu lệnh mẫu:</span>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="setSampleQuery('Trời nóng quá mở cốp sau ra giúp tôi với')" class="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/30 hover:border-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300 transition-all">"Mở cốp sau..."</button>
+                                <button onclick="setSampleQuery('Tối rồi tắt đèn pha đi')" class="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/30 hover:border-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300 transition-all">"Tối rồi tắt đèn pha đi"</button>
+                                <button onclick="setSampleQuery('Ngả ghế lái 120 độ cho tôi')" class="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/30 hover:border-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300 transition-all">"Ngả ghế lái 120 độ"</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <button id="btnExecute" class="w-full bg-sky-500 hover:bg-sky-400 active:scale-[0.99] text-white font-['Outfit'] font-bold text-sm tracking-wider py-3.5 rounded-xl shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 focus:outline-none transition-all flex items-center justify-center space-x-2">
+                        <span>PHÁT LỆNH GIỌNG NÓI</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Component 4: Status Output Banner / Results -->
+            <div id="resultCard" class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 shadow-lg backdrop-blur-sm flex-1 flex flex-col justify-between min-h-[160px] transition-all duration-300">
+                <div class="flex items-center space-x-2 mb-4">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h2 class="font-['Outfit'] font-bold text-sm tracking-wide text-slate-300">GUARDRAIL ENGINE EVALUATION</h2>
+                </div>
+
+                <!-- Default Waiting State -->
+                <div id="waitingState" class="flex-1 flex flex-col items-center justify-center text-center py-4">
+                    <div class="w-8 h-8 rounded-full border-2 border-slate-700 border-t-sky-500 animate-spin mb-2"></div>
+                    <p class="text-xs text-slate-400 font-medium">Đang chờ lệnh thoại từ cabin...</p>
+                </div>
+
+                <!-- Result Content Banner (Hidden initially) -->
+                <div id="resultContent" class="hidden flex-1 flex flex-col justify-between space-y-4">
+                    <!-- Status Banner -->
+                    <div id="statusBanner" class="px-4 py-2.5 rounded-xl flex items-center space-x-2.5 text-sm font-bold tracking-wide">
+                        <span id="statusIcon" class="text-lg">🟢</span>
+                        <span id="statusText">GUARDRAIL PASS</span>
+                    </div>
+
+                    <!-- Details of evaluation -->
+                    <div class="grid grid-cols-2 gap-4 text-xs font-medium">
+                        <div class="bg-slate-850/50 border border-slate-800 px-3.5 py-2.5 rounded-xl">
+                            <span class="text-slate-500 block text-[10px] font-bold uppercase tracking-wider mb-0.5">Detected Intent</span>
+                            <span id="resultIntent" class="text-white font-mono font-bold">INTENT_OPEN_TRUNK</span>
+                        </div>
+                        <div class="bg-slate-850/50 border border-slate-800 px-3.5 py-2.5 rounded-xl">
+                            <span class="text-slate-500 block text-[10px] font-bold uppercase tracking-wider mb-0.5">Execution Latency</span>
+                            <span id="resultLatency" class="text-emerald-400 font-mono font-bold">0.024 ms</span>
+                        </div>
+                    </div>
+
+                    <!-- System response text -->
+                    <div class="bg-slate-850/30 border border-slate-800/80 px-4 py-3 rounded-xl">
+                        <span class="text-slate-500 block text-[10px] font-bold uppercase tracking-wider mb-1">Response Message</span>
+                        <p id="resultResponse" class="text-sm font-medium leading-relaxed text-slate-200">Xe đang chạy với tốc độ 25 km/h. Không thể mở cốp sau vì lý do an toàn.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-850 py-4 text-center text-xs text-slate-500 font-medium mt-6 bg-slate-900/20">
+        VinFast Cyber-Physical Embedded Simulator Demo &bull; 2026
+    </footer>
+
+    <!-- Local logic JS -->
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,885 @@
+{
+  "open_door": {
+    "actions": [
+      "mở",
+      "bật"
+    ],
+    "entities": [
+      "cửa xe",
+      "cửa lái",
+      "cửa phụ",
+      "cửa"
+    ],
+    "anchors": [
+      "mở cửa xe",
+      "mở cửa lái ra"
+    ]
+  },
+  "open_trunk": {
+    "actions": [
+      "mở",
+      "bật",
+      "giúp mở"
+    ],
+    "entities": [
+      "cốp",
+      "cốp sau",
+      "frunk",
+      "khoang hành lý",
+      "cốp xe",
+      "khoang chứa đồ",
+      "khoang chứa đồ sau"
+    ],
+    "anchors": [
+      "mở cốp sau ra",
+      "mở khoang hành lý phía sau",
+      "tôi muốn mở cốp"
+    ]
+  },
+  "open_chargeport": {
+    "actions": [
+      "mở",
+      "bật"
+    ],
+    "entities": [
+      "nắp sạc",
+      "cổng sạc",
+      "nắp cổng sạc",
+      "sạc xe",
+      "cổng sạc pin",
+      "cổng sạc xe điện",
+      "hộc sạc",
+      "nắp hộc sạc",
+      "nắp bên hông xe",
+      "nắp bên sườn xe",
+      "nắp cạnh xe",
+      "nắp sườn xe"
+    ],
+    "anchors": [
+      "mở nắp cổng sạc",
+      "bật cổng sạc xe điện",
+      "mở nắp bên hông xe",
+      "mở nắp bên sườn xe",
+      "mở nắp cạnh xe"
+    ]
+  },
+  "turnoff_highbeam": {
+    "actions": [
+      "tắt",
+      "tắt đi"
+    ],
+    "entities": [
+      "đèn pha",
+      "đèn chiếu xa",
+      "đèn xe",
+      "đèn chiếu sáng",
+      "đèn"
+    ],
+    "anchors": [
+      "tắt đèn pha",
+      "tắt đèn chiếu xa đi"
+    ]
+  },
+  "turnon_highbeam": {
+    "actions": [
+      "bật",
+      "bật đi",
+      "mở"
+    ],
+    "entities": [
+      "đèn pha",
+      "đèn chiếu xa"
+    ],
+    "anchors": [
+      "bật đèn pha",
+      "mở đèn chiếu xa"
+    ]
+  },
+  "turnoff_lowbeam": {
+    "actions": [
+      "tắt",
+      "tắt đi"
+    ],
+    "entities": [
+      "đèn cốt",
+      "đèn chiếu gần"
+    ],
+    "anchors": [
+      "tắt đèn cốt",
+      "tắt đèn chiếu gần"
+    ]
+  },
+  "turnon_lowbeam": {
+    "actions": [
+      "bật",
+      "bật đi",
+      "mở"
+    ],
+    "entities": [
+      "đèn cốt",
+      "đèn chiếu gần"
+    ],
+    "anchors": [
+      "bật đèn cốt",
+      "mở đèn chiếu gần"
+    ]
+  },
+  "unlock_doors": {
+    "actions": [
+      "mở khóa",
+      "mở",
+      "unlock"
+    ],
+    "entities": [
+      "cửa",
+      "cửa xe",
+      "khóa xe",
+      "tất cả cửa",
+      "chốt cửa",
+      "khoá an toàn",
+      "khoá cửa xe",
+      "khoá trẻ em"
+    ],
+    "anchors": [
+      "mở khóa tất cả cửa",
+      "mở khóa xe cho tôi"
+    ]
+  },
+  "OPEN_BONNET": {
+    "actions": [
+      "mở",
+      "bật"
+    ],
+    "entities": [
+      "capo",
+      "nắp capo",
+      "nắp máy",
+      "khoang máy",
+      "nắp máy"
+    ],
+    "anchors": [
+      "mở nắp capo",
+      "bật capo xe"
+    ]
+  },
+  "switch_drivemode_sport": {
+    "actions": [
+      "chuyển",
+      "bật",
+      "sang"
+    ],
+    "entities": [
+      "chế độ thể thao",
+      "chế độ sport",
+      "sport mode"
+    ],
+    "anchors": [
+      "chuyển sang chế độ sport",
+      "bật chế độ thể thao"
+    ]
+  },
+  "activate_creepmode": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "chế độ creep",
+      "creep mode",
+      "bò trườn"
+    ],
+    "anchors": [
+      "bật chế độ creep mode",
+      "kích hoạt chế độ creep"
+    ]
+  },
+  "turnoff_LKA": {
+    "actions": [
+      "tắt",
+      "vô hiệu hóa"
+    ],
+    "entities": [
+      "hỗ trợ giữ làn",
+      "lka",
+      "lane keeping assist"
+    ],
+    "anchors": [
+      "tắt hỗ trợ giữ làn đường LKA",
+      "tắt LKA"
+    ]
+  },
+  "activate_campmode": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "chế độ cắm trại",
+      "camp mode",
+      "campmode"
+    ],
+    "anchors": [
+      "bật chế độ cắm trại",
+      "kích hoạt camp mode"
+    ]
+  },
+  "activate_petmode": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "chế độ thú cưng",
+      "pet mode",
+      "petmode"
+    ],
+    "anchors": [
+      "bật chế độ thú cưng",
+      "kích hoạt pet mode"
+    ]
+  },
+  "activate_valetmode": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "chế độ đỗ xe",
+      "valet mode",
+      "valetmode"
+    ],
+    "anchors": [
+      "bật chế độ valet",
+      "kích hoạt valet mode"
+    ]
+  },
+  "SHIFT_GEAR_REVERSE": {
+    "actions": [
+      "vào",
+      "chuyển",
+      "sang",
+      "về",
+      "cài"
+    ],
+    "entities": [
+      "số lùi",
+      "số r",
+      "gear r"
+    ],
+    "anchors": [
+      "vào số lùi r",
+      "chuyển sang số r"
+    ]
+  },
+  "ad_steeringwheel": {
+    "actions": [
+      "chỉnh",
+      "điều chỉnh",
+      "nâng",
+      "hạ"
+    ],
+    "entities": [
+      "vô lăng",
+      "tay lái"
+    ],
+    "anchors": [
+      "điều chỉnh vô lăng",
+      "chỉnh lại tay lái"
+    ]
+  },
+  "activate_autopark": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "tự động đỗ xe",
+      "autopark",
+      "đỗ xe tự động"
+    ],
+    "anchors": [
+      "bật tính năng tự động đỗ xe",
+      "kích hoạt autopark"
+    ]
+  },
+  "fold_backseat": {
+    "actions": [
+      "gập",
+      "hạ"
+    ],
+    "entities": [
+      "hàng ghế sau",
+      "ghế sau"
+    ],
+    "anchors": [
+      "gập hàng ghế sau",
+      "hạ ghế sau"
+    ]
+  },
+  "open_sunroof": {
+    "actions": [
+      "mở",
+      "bật",
+      "kéo"
+    ],
+    "entities": [
+      "cửa sổ trời",
+      "sunroof"
+    ],
+    "anchors": [
+      "mở cửa sổ trời",
+      "bật cửa sổ trời"
+    ]
+  },
+  "ad_driverseat_angle": {
+    "actions": [
+      "ngả",
+      "nghiêng",
+      "hạ",
+      "chỉnh"
+    ],
+    "entities": [
+      "ghế lái",
+      "ghế tài"
+    ],
+    "anchors": [
+      "hạ ghế lái xuống thấp",
+      "ngả ghế tài xế ra sau",
+      "chỉnh lại góc nghiêng ghế lái"
+    ]
+  },
+  "ad_driverseat_pos": {
+    "actions": [
+      "chỉnh",
+      "dịch",
+      "lùi",
+      "tiến"
+    ],
+    "entities": [
+      "vị trí ghế lái",
+      "khoảng cách ghế lái"
+    ],
+    "anchors": [
+      "điều chỉnh vị trí ghế lái",
+      "dịch ghế lái ra xa"
+    ]
+  },
+  "open_window": {
+    "actions": [
+      "mở",
+      "hạ",
+      "kéo"
+    ],
+    "entities": [
+      "kính cửa sổ",
+      "cửa sổ kính",
+      "kính xe"
+    ],
+    "anchors": [
+      "hạ kính cửa sổ xuống",
+      "mở cửa sổ kính"
+    ]
+  },
+  "restore_driverseat_pos": {
+    "actions": [
+      "khôi phục",
+      "về lại"
+    ],
+    "entities": [
+      "vị trí ghế lái cũ",
+      "vị trí ghế cũ",
+      "nhớ ghế lái"
+    ],
+    "anchors": [
+      "khôi phục vị trí ghế lái cũ",
+      "về lại vị trí ghế lái đã lưu"
+    ]
+  },
+  "activate_epb": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "phanh tay điện tử",
+      "epb",
+      "phanh điện tử"
+    ],
+    "anchors": [
+      "kích hoạt phanh tay điện tử epb",
+      "bật phanh tay điện tử"
+    ]
+  },
+  "deactivate_hud": {
+    "actions": [
+      "tắt",
+      "vô hiệu hóa"
+    ],
+    "entities": [
+      "kính lái hud",
+      "hud",
+      "màn hình hud"
+    ],
+    "anchors": [
+      "tắt màn hình hiển thị kính lái HUD",
+      "tắt HUD"
+    ]
+  },
+  "activate_aac": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "cruise control",
+      "aac",
+      "kiểm soát hành trình"
+    ],
+    "anchors": [
+      "bật kiểm soát hành trình thích ứng aac",
+      "kích hoạt cruise control"
+    ]
+  },
+  "activate_hda": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "hỗ trợ lái cao tốc",
+      "hda",
+      "highway assist"
+    ],
+    "anchors": [
+      "bật hỗ trợ lái cao tốc HDA",
+      "kích hoạt HDA"
+    ]
+  },
+  "shift_gear_park": {
+    "actions": [
+      "vào",
+      "chuyển",
+      "sang"
+    ],
+    "entities": [
+      "số đỗ",
+      "số p",
+      "gear p"
+    ],
+    "anchors": [
+      "vào số đỗ p",
+      "chuyển sang số p"
+    ]
+  },
+  "fold_mirrors": {
+    "actions": [
+      "gập",
+      "xếp"
+    ],
+    "entities": [
+      "gương",
+      "gương chiếu hậu",
+      "gương xe"
+    ],
+    "anchors": [
+      "gập gương chiếu hậu lại",
+      "gập gương xe"
+    ]
+  },
+  "activate_ahb": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "pha tự động",
+      "ahb",
+      "auto highbeam"
+    ],
+    "anchors": [
+      "kích hoạt pha tự động AHB",
+      "bật auto highbeam"
+    ]
+  },
+  "turnon_turnsignal_right": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "xi nhan phải",
+      "nháy phải"
+    ],
+    "anchors": [
+      "bật đèn xi nhan bên phải",
+      "mở xi nhan phải"
+    ]
+  },
+  "turnon_turnsignal_left": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "xi nhan trái",
+      "nháy trái"
+    ],
+    "anchors": [
+      "bật đèn xi nhan bên trái",
+      "mở xi nhan trái"
+    ]
+  },
+  "turnon_corneringlight": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "đèn góc cua",
+      "đèn cua",
+      "cornering light"
+    ],
+    "anchors": [
+      "bật đèn hỗ trợ vào góc cua",
+      "bật cornering light"
+    ]
+  },
+  "turnon_interiorlight": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "đèn trần",
+      "đèn nội thất",
+      "đèn cabin"
+    ],
+    "anchors": [
+      "bật đèn trần nội thất",
+      "mở đèn cabin"
+    ]
+  },
+  "activate_tcs": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "kiểm soát bám đường",
+      "tcs",
+      "traction control"
+    ],
+    "anchors": [
+      "bật kiểm soát bám đường TCS",
+      "kích hoạt TCS"
+    ]
+  },
+  "deactivate_esc": {
+    "actions": [
+      "tắt",
+      "vô hiệu hóa"
+    ],
+    "entities": [
+      "cân bằng điện tử",
+      "esc",
+      "cân bằng lực"
+    ],
+    "anchors": [
+      "tắt hệ thống cân bằng điện tử ESC",
+      "vô hiệu hóa ESC"
+    ]
+  },
+  "activate_avh": {
+    "actions": [
+      "bật",
+      "kích hoạt"
+    ],
+    "entities": [
+      "giữ xe tự động",
+      "avh",
+      "auto hold"
+    ],
+    "anchors": [
+      "bật giữ xe tự động AVH",
+      "kích hoạt auto hold"
+    ]
+  },
+  "open_noti_center": {
+    "actions": [
+      "mở",
+      "xem"
+    ],
+    "entities": [
+      "trung tâm thông báo",
+      "thông báo xe",
+      "noti center"
+    ],
+    "anchors": [
+      "mở trung tâm thông báo",
+      "xem thông báo xe"
+    ]
+  },
+  "get_current_speed": {
+    "actions": [
+      "hỏi",
+      "xem",
+      "kiểm tra",
+      "cho biết",
+      "đọc"
+    ],
+    "entities": [
+      "tốc độ",
+      "tốc độ xe",
+      "vận tốc",
+      "chạy bao nhiêu"
+    ],
+    "anchors": [
+      "xe đang chạy tốc độ bao nhiêu",
+      "tốc độ hiện tại của xe",
+      "xem vận tốc xe"
+    ]
+  },
+  "get_battery_pct": {
+    "actions": [
+      "hỏi",
+      "xem",
+      "kiểm tra",
+      "cho biết",
+      "còn bao nhiêu"
+    ],
+    "entities": [
+      "pin",
+      "dung lượng pin",
+      "phần trăm pin",
+      "battery"
+    ],
+    "anchors": [
+      "pin còn bao nhiêu phần trăm",
+      "xem dung lượng pin xe",
+      "dung lượng pin hiện tại"
+    ]
+  },
+  "get_gear": {
+    "actions": [
+      "hỏi",
+      "xem",
+      "kiểm tra",
+      "cho biết"
+    ],
+    "entities": [
+      "cần số",
+      "vị trí số",
+      "số xe",
+      "đang đi số nào"
+    ],
+    "anchors": [
+      "xe đang đi số nào",
+      "kiểm tra vị trí cần số",
+      "xem đang ở số nào"
+    ]
+  },
+  "get_door_lock_status": {
+    "actions": [
+      "hỏi",
+      "xem",
+      "kiểm tra",
+      "cho biết"
+    ],
+    "entities": [
+      "khóa cửa",
+      "trạng thái khóa cửa",
+      "cửa khóa chưa"
+    ],
+    "anchors": [
+      "cửa xe đã khóa chưa",
+      "kiểm tra trạng thái khóa cửa",
+      "cửa đang khóa hay mở"
+    ]
+  },
+  "get_avh_status": {
+    "actions": [
+      "hỏi",
+      "xem",
+      "kiểm tra",
+      "cho biết"
+    ],
+    "entities": [
+      "auto hold",
+      "avh",
+      "giữ xe tự động"
+    ],
+    "anchors": [
+      "hệ thống auto hold đang bật hay tắt",
+      "kiểm tra trạng thái avh",
+      "giữ xe tự động avh có bật không"
+    ]
+  },
+  "explain_feature": {
+    "actions": [
+      "giải thích",
+      "hỏi",
+      "tìm hiểu",
+      "cho biết"
+    ],
+    "entities": [
+      "tính năng",
+      "chế độ",
+      "chức năng"
+    ],
+    "anchors": [
+      "giải thích tính năng của xe",
+      "chế độ này hoạt động thế nào"
+    ]
+  },
+  "AD_WIPER_MAX": {
+    "actions": [
+      "bật",
+      "tăng",
+      "gạt",
+      "cho",
+      "chỉnh"
+    ],
+    "entities": [
+      "gạt mưa",
+      "gạt nước",
+      "cần gạt",
+      "cần gạt mưa",
+      "cần gạt nước",
+      "cần gạt"
+    ],
+    "anchors": [
+      "gạt mưa nhanh nhất",
+      "tăng tốc độ gạt nước tối đa",
+      "bật gạt mưa lên mức cao nhất"
+    ]
+  },
+  "lock_doors": {
+    "actions": [
+      "khóa",
+      "khoá",
+      "chốt"
+    ],
+    "entities": [
+      "cửa",
+      "cửa xe",
+      "các cửa",
+      "tất cả cửa",
+      "toàn bộ cửa"
+    ],
+    "anchors": [
+      "khóa tất cả các cửa xe",
+      "chốt cửa xe lại"
+    ]
+  },
+  "switch_drivemode_eco": {
+    "actions": [
+      "chuyển",
+      "bật",
+      "sang",
+      "về",
+      "đổi"
+    ],
+    "entities": [
+      "chế độ eco",
+      "chế độ tiết kiệm",
+      "eco mode",
+      "chế độ tiết kiệm điện",
+      "chế độ eco"
+    ],
+    "anchors": [
+      "chuyển sang chế độ eco",
+      "về chế độ tiết kiệm điện"
+    ]
+  },
+  "switch_drivemode_normal": {
+    "actions": [
+      "chuyển",
+      "bật",
+      "sang",
+      "về",
+      "đổi"
+    ],
+    "entities": [
+      "chế độ thường",
+      "chế độ bình thường",
+      "normal mode",
+      "chế độ normal",
+      "chế độ tiêu chuẩn"
+    ],
+    "anchors": [
+      "chuyển về chế độ thường",
+      "đổi sang chế độ bình thường"
+    ]
+  },
+  "turnon_hazardlight": {
+    "actions": [
+      "bật",
+      "mở"
+    ],
+    "entities": [
+      "đèn khẩn cấp",
+      "đèn hazard",
+      "đèn ưu tiên",
+      "hazard",
+      "đèn cảnh báo nguy hiểm",
+      "đèn double"
+    ],
+    "anchors": [
+      "bật đèn khẩn cấp",
+      "mở đèn cảnh báo nguy hiểm"
+    ]
+  },
+  "turnoff_hazardlight": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "đèn khẩn cấp",
+      "đèn hazard",
+      "đèn ưu tiên",
+      "hazard",
+      "đèn cảnh báo nguy hiểm",
+      "đèn double"
+    ],
+    "anchors": [
+      "tắt đèn khẩn cấp",
+      "ngắt đèn cảnh báo nguy hiểm"
+    ]
+  },
+  "turnoff_turnsignal_left": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "xi nhan trái",
+      "nháy trái",
+      "đèn xi nhan trái",
+      "đèn báo rẽ trái"
+    ],
+    "anchors": [
+      "tắt đèn xi nhan bên trái",
+      "ngắt xi nhan trái"
+    ]
+  },
+  "turnoff_turnsignal_right": {
+    "actions": [
+      "tắt",
+      "tắt đi",
+      "ngắt"
+    ],
+    "entities": [
+      "xi nhan phải",
+      "nháy phải",
+      "đèn xi nhan phải",
+      "đèn báo rẽ phải"
+    ],
+    "anchors": [
+      "tắt đèn xi nhan bên phải",
+      "ngắt xi nhan phải"
+    ]
+  }
+}
