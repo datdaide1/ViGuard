@@ -1,6 +1,6 @@
 # ViGuard — Guardrail↔Agent Integration · STATUS (đọc file này trước)
 
-**Cập nhật:** 2026-09-07 (**Pha 2′ xong — cả 4 tăng**)
+**Cập nhật:** 2026-09-07 (**Pha 1′ + 2′ đã MERGE vào `guardrail-integration`**)
 **Người thực thi:** Đạt (solo). Long, Công đã rời dự án.
 
 > Đây là bản tổng quan cho **session/chat mới**. Đọc xong file này là nắm được:
@@ -9,20 +9,16 @@
 ### Nhánh (2026-09-07)
 
 ```
-main  (sạch — chưa có gì của guardrail)
-└── guardrail-integration      ← nhánh tích lũy, đích của mọi PR guardrail
-      ▲  PR #48 (OPEN): Pha 1′   github.com/datdaide1/ViGuard/pull/48
+main  (d9d4746 — chưa có gì của guardrail)
+└── guardrail-integration  (a8b3a7f)  ← nhánh tích lũy. Pha 1′ + 2′ ĐÃ VÀO.
+      │     PR #48 (Pha 1′) + PR #49 (Pha 2′) — MERGED, nhánh phụ đã xoá.
       │
-    feat/guardrail-agent-integration  (28c2d91)  ← Pha 1′, đứng yên
-      │
-      ▲  PR #49 (OPEN, stack lên #48): Pha 2′   github.com/datdaide1/ViGuard/pull/49
-      │
-      └── feat/guardrail-phase2-http  ← Pha 2′ XONG. Pha 3′ tiếp trên nhánh này (hoặc nhánh mới).
+      └── feat/guardrail-phase3  ← ĐANG Ở ĐÂY. Pha 3′.
 ```
 
-**Session mới:** `git checkout feat/guardrail-phase2-http`. Pha 2′ đã xong + đã
-push + PR #49. Thứ tự merge: #48 → `guardrail-integration`, rồi #49 (rebase base
-sang `guardrail-integration` nếu cần), rồi `guardrail-integration` → `main`.
+**Session mới:** `git checkout feat/guardrail-phase3` (nhánh từ `guardrail-integration`).
+Pha 1′ + 2′ đã merge. Còn lại: Pha 3′ → PR → `guardrail-integration`, rồi
+`guardrail-integration` → `main` (bước cuối, chưa làm).
 
 ---
 
@@ -66,7 +62,7 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
 | **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá. Trong PR #48. |
 | **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | ✅ **XONG (4/4 tăng).** `service/` đầy đủ; 45 test mới; gate AC-9/10/14–16/19 xanh qua adapter REAL. `run_both.py` chạy. |
-| **3′** | End-to-end demo polish + trace/event (PRD §16) + query fact-shaping + gộp PR | ⬜ chưa bắt đầu (`run_both.py` skeleton đã có) |
+| **3′** | End-to-end demo polish + trace/event (PRD §16) + query fact-shaping (P2-D3) | 🔨 **bắt đầu** trên `feat/guardrail-phase3` (`run_both.py` skeleton đã có) |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
 Ước lượng còn lại: ~15–22 dev-days (đã sập từ 25–40 nhờ engine dựng sẵn từ golden-dataset tooling).
@@ -220,7 +216,7 @@ fact-shaping (P2-D3), gộp PR. Xem `AUDIT.md` §6.
 
 | Cần biết | Đọc |
 |---|---|
-| **Pha 2′ — plan + trạng thái từng tăng** | **`docs/guardrail-integration/PHASE2_PLAN.md`** |
+| Pha 2′ — plan + báo cáo | `docs/guardrail-integration/PHASE2_PLAN.md` · `PHASE2_REPORT.md` |
 | **Pha 2′ — báo cáo hoàn thành** | **`docs/guardrail-integration/PHASE2_REPORT.md`** |
 | HTTP contract layer (code) | `vf_guardrails/service/` — `app.py` (core), `http.py`, `tool_map.py`, `state_store.py`, `confirmations.py`, `active_actions.py`, `envelope.py` |
 | Demo E2E 2 service | `run_both.py` (repo root) |
@@ -333,8 +329,9 @@ PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
 ## 9. Việc git còn treo
 
-- **PR #48** (`feat/guardrail-agent-integration` → `guardrail-integration`): Pha 1′, OPEN.
-- **PR #49** (`feat/guardrail-phase2-http` → `feat/guardrail-agent-integration`): Pha 2′, OPEN, **stack lên #48**. Đã push. Merge #48 trước, rồi #49; hoặc rebase #49 sang thẳng `guardrail-integration` sau khi #48 vào. Cuối: `guardrail-integration` → `main`.
+- **PR #48** (Pha 1′) + **PR #49** (Pha 2′): **MERGED** vào `guardrail-integration` (a8b3a7f). Nhánh `feat/guardrail-agent-integration` + `feat/guardrail-phase2-http` đã xoá (local + remote).
+- Nhánh hiện tại: **`feat/guardrail-phase3`** (từ `guardrail-integration`). Sau Pha 3′ → PR → `guardrail-integration`.
+- **Bước cuối (chưa làm):** `guardrail-integration` → `main`.
 - venv `.venv-phobert/` (~6 GB, gitignored) — chỉ để re-run PhoBERT, xoá được.
 - `reports/` + `reports.zip` (báo cáo Sprint 2) — **cố ý để untracked**, PM quyết sau.
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` — dọn nếu không dùng: `git worktree remove`.
