@@ -17,20 +17,22 @@ from typing import Any
 from policy import Decision, PolicyEngine, RuleSet, VehicleState
 
 from .active_actions import MONITORED_INTENTS, ActiveActionRegistry
+from .answer_facts import request_params_for, shape_answer
 from .confirmations import ConfirmationSessionMismatch, PendingConfirmationStore
 from .envelope import (
-    CONTRACT_VERSION,
     WireError,
     confirmation_block,
     decision_envelope,
     error_envelope,
     monitor_decision_envelope,
     monitor_request_digest,
+    query_decision_envelope,
     require_contract_version,
     validate_action_proposal,
 )
 from .state_store import VehicleStateStore, validate_wire_vehicle_state
 from .tool_map import DEFAULT_MAPPER, EXPLAIN_INTENTS, QUERY_INTENTS, ToolMapper, ToolMappingError
+from .trace import TraceRecorder
 
 _FAIL_CLOSED_STATUS = 422
 _ACTION_ROUTE = "/v1/evaluate/action"
@@ -48,14 +50,23 @@ class GuardrailService:
         mapper: ToolMapper | None = None,
         confirmations: PendingConfirmationStore | None = None,
         active_actions: ActiveActionRegistry | None = None,
+        trace: TraceRecorder | None = None,
     ) -> None:
         self.store = store or VehicleStateStore()
         self.engine = engine or PolicyEngine(RuleSet.load())
         self.mapper = mapper or DEFAULT_MAPPER
         self.confirmations = confirmations or PendingConfirmationStore()
         self.active_actions = active_actions or ActiveActionRegistry()
+        self.trace = trace or TraceRecorder(policy_checksum=self.engine.policy_checksum)
 
-    def _evaluate(self, intent: str, state: VehicleState, *, check_mode: str) -> Decision:
+    def _evaluate(
+        self,
+        intent: str,
+        state: VehicleState,
+        *,
+        check_mode: str,
+        request_params: dict[str, Any] | None = None,
+    ) -> Decision:
         """``PolicyEngine.evaluate`` with a belt-and-braces fail-closed guard.
 
         The engine already fails closed for every *known* failure mode; this
@@ -64,25 +75,57 @@ class GuardrailService:
         """
 
         try:
-            return self.engine.evaluate(intent, state, check_mode=check_mode)
+            return self.engine.evaluate(
+                intent, state, check_mode=check_mode, request_params=request_params
+            )
         except Exception as exc:  # noqa: BLE001 - deliberately fail closed on anything
             return Decision(
                 intent=intent, check_mode=check_mode, outcome=None, rule_id=None,
                 reason_code="ENGINE_EVAL_ERROR", error=f"{type(exc).__name__}: {exc}",
             )
 
+    def _trace_evaluation(self, request_id: str, decision: Decision, state_version: int) -> None:
+        self.trace.record(
+            request_id,
+            "constraint_evaluated",
+            stage="policy_engine",
+            intent=decision.intent,
+            check_mode=decision.check_mode,
+            outcome=decision.outcome,
+            rule_id=decision.rule_id,
+            reason_code=decision.reason_code,
+            state_version=state_version,
+            relevant_state=dict(decision.relevant_state),
+            fail_closed=decision.is_fail_closed,
+        )
+
     # ------------------------------------------------------------------ routing
     def handle(self, path: str, payload: Any) -> tuple[int, dict[str, Any]]:
         if not isinstance(payload, dict):
             return 400, error_envelope("unknown", "INVALID_JSON", "request body must be a JSON object")
         request_id = _as_id(payload.get("request_id")) or _as_id(payload.get("proposal_id")) or "unknown"
+        session_id = _as_id(payload.get("session_id")) or "-"
+        self.trace.begin(request_id, session_id, path)
+        try:
+            status, body = self._dispatch(path, payload, request_id)
+        except Exception:  # noqa: BLE001 - never let a bug escape as a bare 500
+            status, body = 500, error_envelope(request_id, "GUARDRAIL_INTERNAL_ERROR", "internal error")
+        self.trace.end(
+            request_id,
+            status=status,
+            outcome=body.get("outcome") if body.get("kind") == "decision" else None,
+            error_code=body.get("error", {}).get("code") if body.get("kind") == "error" else None,
+        )
+        return status, body
+
+    def _dispatch(self, path: str, payload: dict[str, Any], request_id: str) -> tuple[int, dict[str, Any]]:
         try:
             require_contract_version(payload)
         except WireError as exc:
             return 409, error_envelope(request_id, exc.code, str(exc))
 
         if path == _ACTION_ROUTE:
-            return self._evaluate_action(payload)
+            return self._evaluate_action(payload, request_id)
         if path == _QUERY_ROUTE:
             return self._evaluate_query(payload, request_id)
         if path == _CONFIRM_ROUTE:
@@ -92,7 +135,9 @@ class GuardrailService:
         return 404, error_envelope(request_id, "ROUTE_NOT_FOUND", path)
 
     # ------------------------------------------------------------------ action
-    def _evaluate_action(self, proposal: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    def _evaluate_action(
+        self, proposal: dict[str, Any], request_id: str
+    ) -> tuple[int, dict[str, Any]]:
         proposal_id = _as_id(proposal.get("proposal_id")) or "unknown"
         try:
             validate_action_proposal(proposal)
@@ -103,10 +148,19 @@ class GuardrailService:
         try:
             intent = self.mapper.resolve(proposal["tool"], proposal["arguments"])
         except ToolMappingError as exc:
+            self.trace.record(request_id, "mapping_failed", stage="tool_map",
+                              tool=proposal.get("tool"), error_code=exc.code)
             return _FAIL_CLOSED_STATUS, error_envelope(proposal_id, exc.code, str(exc))
+        self.trace.record(request_id, "tool_mapped", stage="tool_map",
+                          tool=proposal["tool"], intent=intent)
 
+        arguments = proposal["arguments"]
         state, state_version = self.store.snapshot()
-        decision = self._evaluate(intent, state, check_mode="gate")
+        decision = self._evaluate(
+            intent, state, check_mode="gate",
+            request_params=request_params_for(intent, arguments),
+        )
+        self._trace_evaluation(request_id, decision, state_version)
 
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
@@ -115,6 +169,9 @@ class GuardrailService:
 
         if decision.outcome == "CONFIRM":
             record = self.confirmations.create(proposal, decision.intent, decision.rule_id or "")
+            self.trace.record(request_id, "confirmation_requested", stage="confirmation",
+                              confirmation_id=record.confirmation_id, intent=decision.intent,
+                              expires_at=record.expires_at.isoformat())
             body = decision_envelope(
                 request_id=None,
                 proposal=proposal,
@@ -131,6 +188,9 @@ class GuardrailService:
             )
             return 200, body
 
+        answer = shape_answer(
+            decision.intent, decision.outcome, state, arguments, decision.relevant_state
+        )
         try:
             body = decision_envelope(
                 request_id=None,
@@ -142,6 +202,7 @@ class GuardrailService:
                 policy_checksum=self.engine.policy_checksum,
                 reason_code=decision.reason_code,
                 relevant_state=decision.relevant_state,
+                answer=answer,
             )
         except WireError as exc:
             return _FAIL_CLOSED_STATUS, error_envelope(proposal_id, exc.code, str(exc))
@@ -179,6 +240,10 @@ class GuardrailService:
         # must never carry the original permit forward.
         state, state_version = self.store.snapshot()
         decision = self._evaluate(record.intent, state, check_mode="gate")
+        self._trace_evaluation(request_id, decision, state_version)
+        self.trace.record(request_id, "confirmation_resolved", stage="confirmation",
+                          confirmation_id=confirmation_id, intent=record.intent,
+                          reevaluated_outcome=decision.outcome)
 
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
@@ -208,6 +273,9 @@ class GuardrailService:
         if decision.outcome == "CONFIRM":
             # A *different* confirmation rule now applies -> a new pending token.
             fresh = self.confirmations.create(record.proposal, record.intent, decision.rule_id or "")
+            self.trace.record(request_id, "confirmation_requested", stage="confirmation",
+                              confirmation_id=fresh.confirmation_id, intent=record.intent,
+                              expires_at=fresh.expires_at.isoformat())
             body = decision_envelope(
                 request_id=request_id,
                 proposal=record.proposal,
@@ -266,6 +334,10 @@ class GuardrailService:
 
         decision = self._evaluate(intent, state, check_mode="monitor")
         digest = monitor_request_digest(payload)
+        self._trace_evaluation(request_id, decision, state_version if state_version >= 0 else 0)
+        self.trace.record(request_id, "monitor_evaluated", stage="monitor",
+                          active_action_id=active_action_id, intent=intent,
+                          monitor_outcome=decision.outcome, rule_id=decision.rule_id)
 
         if decision.is_fail_closed:
             code = (
@@ -301,7 +373,12 @@ class GuardrailService:
 
     # ------------------------------------------------------------------ query
     def _evaluate_query(self, payload: dict[str, Any], request_id: str) -> tuple[int, dict[str, Any]]:
-        """Minimal query path (2'.1). Full ANSWER fact-shaping lands in 2'.2 (P2-D3)."""
+        """Read-only query path: map -> gate -> ANSWER/UNKNOWN + structured facts (P2-D3).
+
+        (The current AgentOrchestrator routes query intents through the action
+        endpoint; this endpoint stays contract-complete for the Gateway path and
+        for parity with the Agent's ``evaluate_query`` client.)
+        """
 
         tool = payload.get("tool")
         arguments = payload.get("arguments")
@@ -312,33 +389,42 @@ class GuardrailService:
         try:
             intent = self.mapper.resolve(tool, arguments)
         except ToolMappingError as exc:
+            self.trace.record(request_id, "mapping_failed", stage="tool_map", tool=tool, error_code=exc.code)
             return _FAIL_CLOSED_STATUS, error_envelope(request_id, exc.code, str(exc))
         if intent not in QUERY_INTENTS | EXPLAIN_INTENTS:
             return _FAIL_CLOSED_STATUS, error_envelope(
                 request_id, "NOT_A_QUERY_INTENT", f"{intent!r} is not a read-only query"
             )
+        self.trace.record(request_id, "tool_mapped", stage="tool_map", tool=tool, intent=intent)
 
         state, state_version = self.store.snapshot()
-        decision = self._evaluate(intent, state, check_mode="gate")
+        decision = self._evaluate(
+            intent, state, check_mode="gate",
+            request_params=request_params_for(intent, arguments),
+        )
+        self._trace_evaluation(request_id, decision, state_version)
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
                 request_id, decision.reason_code, decision.error or "policy fail-closed"
             )
-        body = {
-            "contract_version": CONTRACT_VERSION,
-            "kind": "decision",
-            "request_id": request_id if request_id != "unknown" else "req-query",
-            "proposal_id": _as_id(payload.get("proposal_id")) or "query",
-            "intent": decision.intent,
-            "outcome": decision.outcome,
-            "rule_id": decision.rule_id or "",
-            "state_version": state_version,
-            "policy_checksum": self.engine.policy_checksum,
-            "reason_code": decision.reason_code.split(" ", 1)[0],
-            "relevant_state": decision.relevant_state,
-        }
-        if decision.outcome == "ANSWER":
-            body["answer"] = {"grounded": True, "facts": dict(decision.relevant_state)}
+        answer = shape_answer(
+            decision.intent, decision.outcome, state, arguments, decision.relevant_state
+        )
+        try:
+            body = query_decision_envelope(
+                request_id=request_id if request_id != "unknown" else "",
+                proposal_id=_as_id(payload.get("proposal_id")) or "query",
+                intent=decision.intent,
+                outcome=decision.outcome or "UNKNOWN",
+                rule_id=decision.rule_id or "Q000",
+                state_version=state_version,
+                policy_checksum=self.engine.policy_checksum,
+                reason_code=decision.reason_code,
+                relevant_state=decision.relevant_state,
+                answer=answer,
+            )
+        except WireError as exc:
+            return _FAIL_CLOSED_STATUS, error_envelope(request_id, exc.code, str(exc))
         return 200, body
 
 

@@ -9,12 +9,14 @@ Mục tiêu của pilot là biến một nguyên tắc kiến trúc thành bằn
 đường bị chặn không được gọi actuator; đường được cho phép phải truy vết được từ
 câu lệnh, intent, state snapshot và rule đã áp dụng.
 
-> **Trạng thái hiện tại (2026-09): đang tích hợp Guardrail↔Agent trên nhánh
-> `feat/guardrail-agent-integration`.** Đọc **`docs/guardrail-integration/STATUS.md`**
-> để nắm tiến độ, quyết định và việc tiếp theo. Tóm tắt: agent ✅ xong; constraint
-> engine mới ✅ 100% trên golden dataset; intent classifier + HTTP layer đang làm.
-> Đây chưa phải ứng dụng điều khiển xe và không phải bằng chứng policy đã được
-> chứng nhận cho xe thật.
+> **Trạng thái hiện tại (2026-09): Pha 1′ + 2′ đã merge vào `guardrail-integration`;
+> Pha 3′ (demo + trace + query) đang trên `feat/guardrail-phase3`.** Đọc
+> **`docs/guardrail-integration/STATUS.md`** để nắm tiến độ. Tóm tắt: agent ✅;
+> constraint engine ✅ 100% golden; T2 TF-IDF ✅ 88.3% frozen; HTTP contract layer
+> `vf_guardrails/service/` ✅ (action + confirm + monitor + query + trace).
+> Demo 2 service end-to-end: **`py -3 run_both.py`**. Báo cáo phủ: `py -3 vf_guardrails/evals/run_coverage.py`.
+> Đây là **MÔ PHỎNG** — chưa phải ứng dụng điều khiển xe, không phải bằng chứng
+> policy đã được chứng nhận cho xe thật, không có xác nhận an toàn của OEM.
 
 ## Luồng sản phẩm
 
