@@ -21,6 +21,8 @@ import time
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
+
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "vf_guardrails"))
 
@@ -152,6 +154,34 @@ def main() -> int:
 
         ok, okp, tp, okh, th = _acc(frozen, cascade)
         w(f"| {name} | **{ok/n:.1%}** | {okp/tp:.1%} | {okh/th:.1%} |")
+
+    # in-distribution ceiling: group-by-rule_id CV on the golden pool.
+    # Grouping keeps all ~20 near-duplicate utterances of a rule in one fold,
+    # removing the worst leakage; still optimistic vs the frozen set.
+    w("")
+    w("## Context — golden-pool CV, group-by-rule_id (PESSIMISTIC bound)")
+    w("")
+    w("Holding out a whole rule's ~20 near-duplicate utterances removes the worst")
+    w("leakage, but for the many single-rule intents it also removes the *entire*")
+    w("intent from training → those fold rows score 0. So this is a lower bound,")
+    w("not the real number. The **frozen set (above) is the number to trust.**")
+    w("")
+    try:
+        from sklearn.model_selection import GroupKFold
+
+        groups = [r["rule_id"] for r in train]
+        bc = fitted[best_name][0]
+        accs = []
+        for tr_idx, te_idx in GroupKFold(n_splits=5).split(X, y, groups):
+            m = TfidfIntentClassifier(estimator=bc.estimator, char_ngram=bc.char_ngram,
+                                      word_ngram=bc.word_ngram)
+            m.fit([X[i] for i in tr_idx], [y[i] for i in tr_idx])
+            m.config = T2Config(min_score=-9.9, min_margin=0.0)
+            accs.append(sum(m.predict(X[i]) == y[i] for i in te_idx) / len(te_idx))
+        w(f"- {best_name}: **{np.mean(accs):.1%}** (folds "
+          + ", ".join(f"{a:.0%}" for a in accs) + ")")
+    except Exception as exc:  # pragma: no cover
+        w(f"(skipped: {exc})")
 
     # confusions for the no-abstain standalone
     t2.config = _CONFIGS["no-abstain"]

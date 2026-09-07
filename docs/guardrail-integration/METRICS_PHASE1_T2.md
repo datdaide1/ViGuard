@@ -1,7 +1,7 @@
 # Phase 1' — TF-IDF T2 candidate (trained on golden pool, evaluated on FROZEN)
 
-> `vf_guardrails/evals/run_t2.py` · 2026-09-07 10:22
-> train: 2313 golden-pool rows · fit 0.4s · infer p50/p99 0.91/1.45 ms
+> `vf_guardrails/evals/run_t2.py` · 2026-09-07 10:37
+> train: 2313 golden-pool rows · fit 0.5s · infer p50/p99 0.91/1.36 ms
 > eval: 530 frozen rows (424 positive + 106 hard-negative)
 > working model = **SVC · char2-5 + word1-2**
 
@@ -17,8 +17,8 @@
 |---|---|---|---|---|
 | SVC · char3-5 + word1-2 | **87.9%** | 90.6% | 77.4% | 0.3 |
 | SVC · char3-5 only | **87.0%** | 90.1% | 74.5% | 0.2 |
-| SVC · char2-5 + word1-2 | **88.3%** | 91.0% | 77.4% | 0.4 |
-| LogReg · char3-5 + word1-2 | **87.4%** | 90.3% | 75.5% | 3.7 |
+| SVC · char2-5 + word1-2 | **88.3%** | 91.0% | 77.4% | 0.5 |
+| LogReg · char3-5 + word1-2 | **87.4%** | 90.3% | 75.5% | 3.3 |
 
 ## TF-IDF T2 standalone (frozen)
 
@@ -37,6 +37,15 @@
 | margin>=0.2 | **83.4%** | 86.6% | 70.8% |
 | margin>=0.4 | **80.9%** | 84.7% | 66.0% |
 | score>=0 & margin>=0.3 | **78.3%** | 81.1% | 67.0% |
+
+## Context — golden-pool CV, group-by-rule_id (PESSIMISTIC bound)
+
+Holding out a whole rule's ~20 near-duplicate utterances removes the worst
+leakage, but for the many single-rule intents it also removes the *entire*
+intent from training → those fold rows score 0. So this is a lower bound,
+not the real number. The **frozen set (above) is the number to trust.**
+
+- SVC · char2-5 + word1-2: **77.6%** (folds 73%, 81%, 90%, 79%, 65%)
 
 ## TF-IDF T2 (no-abstain) top confusions on frozen
 
