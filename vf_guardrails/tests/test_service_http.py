@@ -111,13 +111,14 @@ def test_unknown_route_is_404(server):
     assert body["error"]["code"] == "ROUTE_NOT_FOUND"
 
 
-def test_confirm_and_monitor_routes_are_not_yet_implemented(server):
-    for path in ("/v1/confirmations/confirm", "/v1/monitor/evaluate"):
-        status, body = _post(
-            server, path, {"contract_version": "1.0.0", "request_id": "r1"}
-        )
-        assert status == 501
-        assert body["kind"] == "error"
+def test_confirm_and_monitor_routes_reject_missing_fields(server):
+    for path, code in (
+        ("/v1/confirmations/confirm", "INVALID_CONFIRMATION"),
+        ("/v1/monitor/evaluate", "INVALID_MONITOR_REQUEST"),
+    ):
+        status, body = _post(server, path, {"contract_version": "1.0.0", "request_id": "r1"})
+        assert status == 400
+        assert body["error"]["code"] == code
 
 
 def test_invalid_json_body_is_400(server):

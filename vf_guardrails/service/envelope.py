@@ -26,6 +26,7 @@ from typing import Any
 
 CONTRACT_VERSION = "1.0.0"
 PERMIT_TTL = timedelta(seconds=2)  # matches wire/examples.json
+CONFIRM_TTL = timedelta(seconds=30)  # matches wire/examples.json (10:00:00 -> 10:00:30)
 
 _OUTCOMES = frozenset(
     {
@@ -94,18 +95,7 @@ def validate_action_proposal(proposal: Mapping[str, Any]) -> None:
         _identifier(proposal[field], field, "INVALID_ACTION_PROPOSAL")
 
 
-def proposal_digest(proposal: Mapping[str, Any]) -> str:
-    """Faithful copy of contract v1 ``proposal_digest`` (byte-for-byte identical)."""
-
-    validate_action_proposal(proposal)
-    projection = {
-        "arguments": proposal["arguments"],
-        "contract_version": proposal["contract_version"],
-        "proposal_id": proposal["proposal_id"],
-        "session_id": proposal["session_id"],
-        "source_turn_id": proposal["source_turn_id"],
-        "tool": proposal["tool"],
-    }
+def _sha256_projection(projection: Mapping[str, Any]) -> str:
     canonical = json.dumps(
         projection,
         ensure_ascii=False,
@@ -116,13 +106,48 @@ def proposal_digest(proposal: Mapping[str, Any]) -> str:
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
 
 
+def proposal_digest(proposal: Mapping[str, Any]) -> str:
+    """Faithful copy of contract v1 ``proposal_digest`` (byte-for-byte identical)."""
+
+    validate_action_proposal(proposal)
+    return _sha256_projection(
+        {
+            "arguments": proposal["arguments"],
+            "contract_version": proposal["contract_version"],
+            "proposal_id": proposal["proposal_id"],
+            "session_id": proposal["session_id"],
+            "source_turn_id": proposal["source_turn_id"],
+            "tool": proposal["tool"],
+        }
+    )
+
+
+def monitor_request_digest(payload: Mapping[str, Any]) -> str:
+    """Bind a monitor decision to its request. Not part of contract v1's digest
+    spec (there is no proposal on the monitor path); it only has to be a valid
+    ``sha256:...`` string so the ALLOW-shaped "keep running" reply passes the
+    Agent's ``validate_guardrail_result``."""
+
+    return _sha256_projection(
+        {
+            "active_action_id": str(payload.get("active_action_id", "")),
+            "contract_version": CONTRACT_VERSION,
+            "intent": str(payload.get("intent", "")),
+            "request_id": str(payload.get("request_id", "")),
+        }
+    )
+
+
 # --- outbound builders -------------------------------------------------------
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _new_id(prefix: str) -> str:
+def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:16]}"
+
+
+_new_id = new_id  # backward-compatible alias for intra-module use
 
 
 def error_envelope(
@@ -172,8 +197,10 @@ def decision_envelope(
     reason_code: str,
     relevant_state: Mapping[str, Any],
     answer: Mapping[str, Any] | None = None,
+    confirmation: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a GuardrailDecision. Attaches a bound permit iff ``outcome == 'ALLOW'``."""
+    """Build a GuardrailDecision. Attaches a bound permit iff ``outcome == 'ALLOW'``;
+    a ``confirmation`` block iff ``outcome == 'CONFIRM'``."""
 
     if outcome not in _OUTCOMES:
         raise WireError("UNKNOWN_OUTCOME", f"unsupported outcome {outcome!r}")
@@ -197,6 +224,10 @@ def decision_envelope(
     }
     if outcome == "ANSWER" and answer is not None:
         decision["answer"] = dict(answer)
+    if outcome == "CONFIRM":
+        if not isinstance(confirmation, Mapping):
+            raise WireError("MALFORMED_GUARDRAIL_RESPONSE", "CONFIRM requires a confirmation block")
+        decision["confirmation"] = dict(confirmation)
     if outcome == "ALLOW":
         decision["permit"] = _permit(
             proposal=proposal,
@@ -205,6 +236,69 @@ def decision_envelope(
             state_version=int(state_version),
             policy_checksum=policy_checksum,
         )
+    return decision
+
+
+def confirmation_block(confirmation_id: str, proposal_id: str, expires_at: str) -> dict[str, Any]:
+    """The wire ``pendingConfirmation`` (schema: exactly these four fields)."""
+
+    return {
+        "confirmation_id": confirmation_id,
+        "proposal_id": proposal_id,
+        "expires_at": expires_at,
+        "single_use": True,
+    }
+
+
+def monitor_decision_envelope(
+    *,
+    request_id: str,
+    active_action_id: str,
+    intent: str,
+    outcome: str,
+    rule_id: str,
+    state_version: int,
+    policy_checksum: str,
+    reason_code: str,
+    relevant_state: Mapping[str, Any],
+    digest: str,
+) -> dict[str, Any]:
+    """Monitor-path decision.
+
+    The Agent's monitor adapter treats ``outcome == 'ALLOW'`` as "keep running"
+    and every other outcome as "stop". Contract v1 has no dedicated
+    monitor-continue signal, so "keep running" is expressed as an ALLOW carrying
+    a permit bound to ``digest`` (``monitor_request_digest``) -- the adapter does
+    not consume it, but ``validate_guardrail_result`` requires it. A stop is the
+    real blocking outcome + ``rule_id``, no permit.
+    """
+
+    decision: dict[str, Any] = {
+        "contract_version": CONTRACT_VERSION,
+        "kind": "decision",
+        "request_id": request_id or _new_id("req-mon"),
+        "proposal_id": active_action_id,  # correlation id on the monitor path
+        "intent": intent,
+        "outcome": outcome,
+        "rule_id": rule_id,
+        "state_version": int(state_version),
+        "policy_checksum": policy_checksum,
+        "reason_code": _reason_token(reason_code),
+        "relevant_state": dict(relevant_state),
+    }
+    if outcome == "ALLOW":
+        issued = _now()
+        decision["permit"] = {
+            "permit_id": _new_id("permit-mon"),
+            "proposal_digest": digest,
+            "intent": intent,
+            "rule_id": rule_id,
+            "state_version": int(state_version),
+            "policy_checksum": policy_checksum,
+            "issued_at": issued.isoformat(),
+            "expires_at": (issued + PERMIT_TTL).isoformat(),
+            "single_use": True,
+        }
     return decision
 
 
