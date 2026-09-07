@@ -1,11 +1,27 @@
 # ViGuard — Guardrail↔Agent Integration · STATUS (đọc file này trước)
 
-**Cập nhật:** 2026-09-06
-**Nhánh làm việc:** `feat/guardrail-agent-integration` (nhánh từ `main`)
+**Cập nhật:** 2026-09-07
 **Người thực thi:** Đạt (solo). Long, Công đã rời dự án.
 
 > Đây là bản tổng quan cho **session/chat mới**. Đọc xong file này là nắm được:
-> dự án đang ở đâu, đã quyết gì, làm gì tiếp. Chi tiết nằm ở các doc được link.
+> dự án đang ở đâu, đã quyết gì, làm gì tiếp. Chi tiết ở các doc được link.
+
+### Nhánh (2026-09-07)
+
+```
+main  (sạch — chưa có gì của guardrail)
+└── guardrail-integration      ← nhánh tích lũy, đích của mọi PR guardrail
+      ▲  PR #48 (OPEN, CHƯA MERGE): Pha 1′
+      │     github.com/datdaide1/ViGuard/pull/48
+      │
+    feat/guardrail-agent-integration  (28c2d91)  ← Pha 1′ đã xong, đứng yên
+      │
+      └── feat/guardrail-phase2-http  ← ĐANG Ở ĐÂY. Làm Pha 2′ trên nhánh này.
+```
+
+**Session mới:** `git checkout feat/guardrail-phase2-http`. Không merge PR #48
+(quyết định của PM — làm Pha 2′ trước, merge một lượt sau). Pha 2′ commit chồng
+lên nhánh này; PR sau này nhắm `guardrail-integration`.
 
 ---
 
@@ -47,8 +63,8 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 | Pha | Mục tiêu | Trạng thái |
 |---|---|---|
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
-| **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá |
-| **2′** | HTTP service v1 wrap engine + permit + CONFIRM + Monitor + swap MockGuardrail | ⬜ ← **TIẾP THEO** |
+| **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá. Trong PR #48. |
+| **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | 🔨 **PLAN CHỐT, chưa code.** Xem `PHASE2_PLAN.md` (5 quyết định P2-D1..D5 đã chốt, 4 tăng). Bắt đầu ở tăng **2′.1**. |
 | **3′** | End-to-end demo (`run_both.py`) + trace + polish | ⬜ chưa bắt đầu |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
@@ -157,12 +173,30 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 - Xoá: `src/safety_engine.py`, `src/guardrail.py`, `src/models.py`, `src/agent.py`, `config/safety_rules.yaml`, `app_sim.py`, `car_status.py`, `tests/run_benchmark.py` (chuyển sang `evals/run_benchmark.py`).
 - **Gate Pha 1′ ✅:** engine 100% (2313/2313), T2 88.3% frozen, e2e latency **p99 2.4 ms** (target ≤25 ms), 19 test pass, code cũ đã xoá.
 
-### Bước 4 — Pha 2′ (HTTP layer) ← TIẾP THEO — xem `AUDIT.md` §6
+### Bước 4 — Pha 2′ (HTTP contract layer) ← TIẾP THEO — **`PHASE2_PLAN.md`**
 
-**Pha 2′ tóm tắt:** wrap `Guardrail` vào HTTP service v1 (4 endpoint, `ActionProposal`
-+ `proposal_digest`, `ActionPermit` cho ALLOW, `policy_checksum` + `state_version`,
-typed error), CONFIRM lifecycle, Monitor engine, swap `MockGuardrail` → service thật
-trong E2E của `vivi-agent/`. Contract: `vivi-agent/src/vivi_agent/authorization/contract.py`.
+**Phát hiện quan trọng (PHASE2_PLAN.md §0):** có **2 đường phân giải intent**.
+Đường CON-01 (agent authorization — cái Pha 2′ làm) **KHÔNG dùng TF-IDF** —
+agent LLM chọn `tool`+`arguments`, guardrail map tất định `(tool,action,target,value)→intent`
+(gương với `vivi-agent/.../tools/mapping/mapper.py`). TF-IDF của Pha 1 phục vụ
+đường Gateway/Simulator (Pha 3′/UI). `PolicyEngine` dùng chung.
+
+**Bắt đầu ở tăng 2′.1:**
+- `vf_guardrails/service/tool_map.py` — copy `DEFAULT_MAPPING_RULES` + conformance test vs agent (P2-D1).
+- `vf_guardrails/service/state_store.py` — `VehicleStateStore` (state + `state_version`, snapshot bất biến, preset) (P2-D2).
+- `vf_guardrails/service/envelope.py` — `GuardrailDecision`/`GuardrailError`/`ActionPermit` đúng `guardrail-agent.schema.json`; `proposal_digest`.
+- `vf_guardrails/service/http.py` — `http.server` stdlib (P2-D4), `POST /v1/evaluate/action` + `/v1/evaluate/query`.
+- **Gate 2′.1:** `vivi-agent` `GuardrailClientAdapter(REAL)` gọi service thật; AC-9 (open_door parked→ALLOW+permit) + AC-10 (moving→BLOCK_UNSAFE, no permit) xanh qua HTTP.
+
+Tăng 2′.2 (CONFIRM), 2′.3 (Monitor — 5 rule đã nạp trong `policy/`), 2′.4 (E2E swap + `run_both.py`): xem `PHASE2_PLAN.md` §2.
+
+**Nguồn contract (đọc trước khi code):**
+- `vivi-agent/src/vivi_agent/authorization/contract.py` — validator fail-closed
+- `vivi-agent/src/vivi_agent/integrations/viguard/wire/guardrail-agent.schema.json` — JSON Schema
+- `vivi-agent/src/vivi_agent/integrations/viguard/wire/examples.json` — payload mẫu 7 outcome
+- `vivi-agent/src/vivi_agent/integrations/viguard/client.py` — client agent gọi (4 endpoint, retry)
+- `vivi-agent/src/vivi_agent/integrations/viguard/mock_server.py` — cái đang thay
+- `vivi-agent/src/vivi_agent/tools/mapping/mapper.py` — `DEFAULT_MAPPING_RULES` (nguồn tool→intent)
 
 ---
 
@@ -170,7 +204,8 @@ trong E2E của `vivi-agent/`. Contract: `vivi-agent/src/vivi_agent/authorizatio
 
 | Cần biết | Đọc |
 |---|---|
-| Báo cáo hoàn thành Pha 1′ | **`docs/guardrail-integration/PHASE1_REPORT.md`** |
+| **Plan Pha 2′ (đang làm)** | **`docs/guardrail-integration/PHASE2_PLAN.md`** |
+| Báo cáo hoàn thành Pha 1′ | `docs/guardrail-integration/PHASE1_REPORT.md` |
 | Tổng quan + roadmap + quyết định | `docs/guardrail-integration/AUDIT.md` |
 | Vì sao bỏ `safety_rules.yaml` | `docs/guardrail-integration/PHASE0_RULE_DIFF.md` |
 | Constraint engine đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1.md` |
@@ -248,9 +283,11 @@ PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
 ## 9. Việc git còn treo
 
-- Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng: `git worktree remove`.
+- **PR #48** (`feat/guardrail-agent-integration` → `guardrail-integration`): Pha 1′, OPEN, **cố ý chưa merge**. Merge sau khi Pha 2′ xong (hoặc sớm hơn nếu PM muốn).
+- Nhánh hiện tại làm việc: `feat/guardrail-phase2-http`. Sau Pha 2′ → PR → `guardrail-integration`. Cuối cùng: `guardrail-integration` → `main`.
+- venv `.venv-phobert/` (~6 GB, gitignored) — chỉ để re-run PhoBERT, xoá được.
 - `reports/` + `reports.zip` (báo cáo Sprint 2) — **cố ý để untracked**, PM quyết sau.
-- Nhánh phụ local + remote (`datalexander/agent-completion`, `vivi-agent/scafford`) — đã xoá hết. Repo = `main` + `feat/guardrail-agent-integration`.
+- Worktree cũ `.claude/worktrees/great-yalow-d7b474` — dọn nếu không dùng: `git worktree remove`.
 
 ---
 

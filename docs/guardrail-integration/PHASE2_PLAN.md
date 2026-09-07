@@ -26,15 +26,15 @@ workbook (đã verify).
 → **Pha 2′ = xây HTTP service cho đường CON-01.** TF-IDF của Pha 1 không nằm trên
 đường này; nó phục vụ Gateway/Simulator (Pha 3′ hoặc phần UI sau).
 
-## 1. Quyết định cần chốt
+## 1. Quyết định — ✅ ĐÃ CHỐT (PM: Đạt, 2026-09-07)
 
-| # | Quyết định | Đề xuất |
-|---|---|---|
-| P2-D1 | Bảng `tool→intent` ở guardrail: share code với agent / copy / file dữ liệu chung | **Copy `DEFAULT_MAPPING_RULES` sang `vf_guardrails/` + conformance test** so từng dòng với bản agent (theo D1: 2 service tách, không import chéo). Khi lệch → test đỏ. |
-| P2-D2 | Vehicle State ở guardrail (đường action) | Guardrail **sở hữu** state (Vehicle State Mock), `state_version` int tăng mỗi mutation, snapshot bất biến mỗi request. Agent KHÔNG gửi state trên đường action (contract `additionalProperties:false`). *(Đường monitor: agent có gửi `vehicle_state` snapshot — xử lý riêng.)* |
-| P2-D3 | `ANSWER` — D2 nói guardrail trả `answer={grounded, facts}` | Guardrail đọc state → build `facts` từ intent (`get_current_speed` → `{speed}`, …). Agent verbalize. |
-| P2-D4 | HTTP framework | **`http.server` stdlib** (như `mock_server.py`) — zero dep, đủ cho pilot local. Không thêm FastAPI/Flask. |
-| P2-D5 | Transport / deploy | 1 process, `127.0.0.1:<port>`, chạy bằng `python -m vf_guardrails.service`. `run_both.py` (Pha 3′) boot cả guardrail + agent. |
+| # | Chốt |
+|---|---|
+| **P2-D1** | Bảng `tool→intent`: **copy `DEFAULT_MAPPING_RULES` sang `vf_guardrails/` + conformance test** so từng dòng với bản agent (D1: 2 service tách, không import chéo). Lệch → test đỏ. |
+| **P2-D2** | Guardrail **sở hữu** Vehicle State Mock; `state_version` int tăng mỗi mutation; snapshot bất biến mỗi request. Agent KHÔNG gửi state trên đường action. *(Đường monitor: agent gửi `vehicle_state` snapshot — nhánh riêng.)* |
+| **P2-D3** | `ANSWER`: guardrail đọc state → `answer={grounded, facts}` theo intent; agent verbalize. |
+| **P2-D4** | HTTP = **`http.server` stdlib** (như `mock_server.py`). Zero dep. Không FastAPI/Flask. |
+| **P2-D5** | 1 process `127.0.0.1:<port>`, `python -m vf_guardrails.service`. `run_both.py` (Pha 3′) boot cả hai. |
 
 ## 2. Việc — chia 4 tăng
 
