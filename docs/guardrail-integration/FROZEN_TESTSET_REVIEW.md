@@ -45,7 +45,21 @@ tệ: `switch_drivemode_*`, `restore_driverseat_pos`, `get_door_lock_status→lo
 **Đây là bằng chứng frozen set đo đúng thứ cần đo, không bị thổi.** Sẵn sàng làm
 oracle cho T2.
 
-## 3. CẦN BẠN QUYẾT
+## 3. Quyết định (2026-09-07)
+
+- **3a → phương án A (regen).** Brief: [`FROZEN_TESTSET_REGEN_HARDNEG.md`](FROZEN_TESTSET_REGEN_HARDNEG.md).
+  Đạt đưa cho agent gen; kết quả `frozen_hardneg_v2.jsonl` (106 + 1 dòng thay
+  positive FROZEN-0294) → Claude merge vào `frozen_testset.jsonl` + re-validate.
+- **3b → sửa bằng script.** `vf_guardrails/evals/fix_frozen_metadata.py` đã chạy:
+  94 dòng `length_bucket` được tính lại từ số từ thực. Phân bổ sau khi sửa:
+  `dai 241 / vua 210 / ngan 79` — `ngan` tụt còn 15% (utterance vòng 1 thiên
+  dài); brief regen yêu cầu ≥30 hard-neg ≤6 từ để kéo lại. 1 near-dup xử lý
+  trong brief §7. Tỷ lệ viết tắt ~27%: chấp nhận ("k"="không" phổ biến), brief
+  siết ≤15% cho phần hard-neg mới.
+
+---
+
+## 3-cũ. (giữ để đối chiếu) Hai điểm đã nêu
 
 ### 3a. Hard negatives bị đóng khuôn (84–98%)
 

@@ -115,11 +115,11 @@ Cấu trúc PASS (53/53 intent, 8+2 mỗi intent, 0 dup, balance OK). Positive l
 chính xác. T1 trên frozen = **55.3%** (golden pool 58.1%) — số hơi thấp hơn +
 failure mode giống → frozen đo đúng, không bị thổi.
 
-**2 điểm chờ PM quyết** (FROZEN_TESTSET_REVIEW.md §3):
-- **3a:** hard negatives 84–98% đóng khuôn ("[X] chớ k phải [Y]"). Regen 106
-  hard-neg (khuyến nghị) hay giữ + caveat?
-- **3b:** metadata sai nhẹ (tỷ lệ viết tắt ~27% vs 15%, ~20 `length_bucket` sai)
-  — sửa bằng script, không regen.
+**Quyết định (2026-09-07):**
+- **3a → regen** 106 hard-negative (bị đóng khuôn "[X] chớ k phải [Y]").
+  Brief: `docs/guardrail-integration/FROZEN_TESTSET_REGEN_HARDNEG.md` → Đạt đưa
+  cho agent gen. Kết quả `frozen_hardneg_v2.jsonl` → Claude merge + re-validate.
+- **3b → xong.** `fix_frozen_metadata.py` đã sửa 94 `length_bucket`.
 
 **Môi trường T2:** `E:\anaconda3` hỏng `torch`/`onnxruntime` → PhoBERT không
 chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (TF-IDF sklearn — chạy được).
@@ -128,15 +128,14 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 
 ## 6. VIỆC TIẾP THEO (thứ tự — làm lần lượt, không song song)
 
-### Bước 1 — (Đạt) Gen frozen test set ✅ XONG
-- File ở `vf_guardrails/evals/data/`. Review: `FROZEN_TESTSET_REVIEW.md` — dùng được.
-- **Đang chờ PM quyết:** 3a (regen 106 hard-neg hay giữ + caveat), 3b (sửa metadata bằng script).
+### Bước 1 — Frozen test set: gen + review + fix ✅ / ⏳
+- ✅ Gen vòng 1 (`vf_guardrails/evals/data/frozen_testset.jsonl`), review (`FROZEN_TESTSET_REVIEW.md`), metadata fix 3b (`fix_frozen_metadata.py`).
+- ⏳ **(Đạt) Regen 106 hard-neg** từ `FROZEN_TESTSET_REGEN_HARDNEG.md` → `frozen_hardneg_v2.jsonl`.
 
-### Bước 2 — (Claude) Adapter + đo T1 trên frozen ← TIẾP THEO
-- (nếu 3a = regen) chờ hard-neg mới trước.
+### Bước 2 — (Claude) Merge hard-neg v2 + adapter + đo T1 ← TIẾP THEO
+- Merge `frozen_hardneg_v2.jsonl` (106 + FROZEN-0294) vào `frozen_testset.jsonl`; chạy `validate_frozen.py` + `fix_frozen_metadata.py --write`.
 - `run_classifier.py`: thêm `--dataset` + đọc format frozen; parse `state_hint` → `vehicle_state` → engine → `expected_outcome`.
-- Sửa metadata frozen (3b) bằng script.
-- Chạy → ghi `METRICS_PHASE1_FROZEN.md`. Con số T1 này là baseline thật. (T1 sơ bộ đã đo tay: **55.3%**.)
+- Chạy → ghi `METRICS_PHASE1_FROZEN.md`. Baseline T1 thật. (Đo tay vòng 1: **55.3%**.)
 
 ### Bước 3 — (Claude + Đạt) Quyết & làm T2
 - **Ưu tiên đề xuất: TF-IDF (char+word n-gram) + LinearSVC**, sklearn thuần
