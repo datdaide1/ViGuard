@@ -37,8 +37,8 @@ Pha 3′). `PolicyEngine` dùng chung, không sửa.
 | Route | Vào | Ra | Fail-closed |
 |---|---|---|---|
 | `POST /v1/evaluate/action` | `ActionProposal` | `ALLOW`+permit / `BLOCK_*` / `CONFIRM`+`confirmation` / `ANSWER` | version→409 · malformed→400 · unsupported-mapping / engine fail-closed→422 (typed error) |
-| `POST /v1/confirmations/confirm` | `{confirmation_id, session_id, request_id}` | re-eval **state mới**: `ALLOW`+permit mới (hoặc `CONFIRM` cùng rule) / `BLOCK_*` / `CONFIRM` rule khác→pending mới | unknown/expired/replay → `CONFIRMATION_NOT_ACTIVE` (409) |
-| `POST /v1/monitor/evaluate` | `{active_action_id, intent, vehicle_state?}` | no-trigger / monitor-`ALLOW` → `ALLOW`+permit tổng hợp ("keep running") · monitor block → outcome+`rule_id` (no permit) | non-monitored → `NOT_A_MONITORED_INTENT` · engine fail-closed → typed error → agent **fail-safe stop** |
+| `POST /v1/confirmations/confirm` | `{confirmation_id, session_id, request_id}` | re-eval **state mới**: `ALLOW`+permit mới (hoặc `CONFIRM` cùng rule) / `BLOCK_*` / `CONFIRM` rule khác→pending mới | unknown/expired/replay → `CONFIRMATION_NOT_ACTIVE` (409) · session ≠ session gốc → `CONFIRMATION_SESSION_MISMATCH` (403, **không tiêu token**) |
+| `POST /v1/monitor/evaluate` | `{active_action_id, intent, vehicle_state?}` | no-trigger / monitor-`ALLOW` → `ALLOW`+permit tổng hợp ("keep running") · monitor block → outcome+`rule_id` (no permit) | non-monitored → `NOT_A_MONITORED_INTENT` · `vehicle_state` sai kiểu/field lạ → `INVALID_VEHICLE_STATE` (400) · engine lỗi bất ngờ → `ENGINE_EVAL_ERROR` (422, fail-closed) → agent **fail-safe stop** |
 | `POST /v1/evaluate/query` | `{tool, arguments}` | 🟡 skeleton: `ANSWER`{grounded, facts thô từ `relevant_state`} | not-a-query-intent → 422 |
 
 ## 4. Bằng chứng (gate)
@@ -55,7 +55,7 @@ Pha 3′). `PolicyEngine` dùng chung, không sửa.
 | Monitor (2′.3) | pin thấp → camp-mode; no-trigger; monitor-`ALLOW` R070; agent-supplied state | đúng hết |
 | **E2E swap** (2′.4) | `AgentOrchestrator` thật ↔ service in-process, không mock | ALLOW (actuator 1×, state_version 1) · BLOCK (R002, 0×) · CONFIRM (`needs_confirmation`, 0×) |
 
-**Test:** 58/58 `vf_guardrails` · **940/940 `vivi-agent` (không regress, không sửa logic agent)** · 43 test contract vivi-agent xanh với service thật.
+**Test:** 61/61 `vf_guardrails` · **940/940 `vivi-agent` (không regress, không sửa logic agent)** · 43 test contract vivi-agent xanh với service thật.
 
 ## 5. Quyết định thực thi (khớp P2-D1..D5)
 

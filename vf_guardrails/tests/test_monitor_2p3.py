@@ -112,6 +112,24 @@ def test_explicit_monitor_allow_reads_as_keep_running(factory):
     assert result["rule_id"] == "R070"
 
 
+def test_wrong_typed_vehicle_state_field_is_a_typed_400_not_a_crash(factory):
+    _store, adapter = factory(VehicleState())
+    payload = _payload("hda-bad", "activate_hda")
+    payload["vehicle_state"] = {"speed": "fast"}  # wrong JSON type
+    result = adapter.evaluate_monitor(payload)
+    assert result["kind"] == "error"
+    assert result["error"]["code"] == "INVALID_VEHICLE_STATE"
+
+
+def test_unknown_vehicle_state_field_is_a_typed_400(factory):
+    _store, adapter = factory(VehicleState())
+    payload = _payload("hda-bad2", "activate_hda")
+    payload["vehicle_state"] = {"speeed": 10}
+    result = adapter.evaluate_monitor(payload)
+    assert result["kind"] == "error"
+    assert result["error"]["code"] == "INVALID_VEHICLE_STATE"
+
+
 def test_non_monitored_intent_is_typed_error(factory):
     _store, adapter = factory(VehicleState())
     result = adapter.evaluate_monitor(_payload("door-1", "open_door"))

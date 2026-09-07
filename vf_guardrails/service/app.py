@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from policy import PolicyEngine, RuleSet, VehicleState
+from policy import Decision, PolicyEngine, RuleSet, VehicleState
 
 from .active_actions import MONITORED_INTENTS, ActiveActionRegistry
-from .confirmations import PendingConfirmationStore
+from .confirmations import ConfirmationSessionMismatch, PendingConfirmationStore
 from .envelope import (
     CONTRACT_VERSION,
     WireError,
@@ -29,7 +29,7 @@ from .envelope import (
     require_contract_version,
     validate_action_proposal,
 )
-from .state_store import VehicleStateStore
+from .state_store import VehicleStateStore, validate_wire_vehicle_state
 from .tool_map import DEFAULT_MAPPER, EXPLAIN_INTENTS, QUERY_INTENTS, ToolMapper, ToolMappingError
 
 _FAIL_CLOSED_STATUS = 422
@@ -54,6 +54,22 @@ class GuardrailService:
         self.mapper = mapper or DEFAULT_MAPPER
         self.confirmations = confirmations or PendingConfirmationStore()
         self.active_actions = active_actions or ActiveActionRegistry()
+
+    def _evaluate(self, intent: str, state: VehicleState, *, check_mode: str) -> Decision:
+        """``PolicyEngine.evaluate`` with a belt-and-braces fail-closed guard.
+
+        The engine already fails closed for every *known* failure mode; this
+        only stops an unforeseen exception (e.g. a still-untyped value slipping
+        into a rule comparison) from escaping as a bare 500 / transport failure.
+        """
+
+        try:
+            return self.engine.evaluate(intent, state, check_mode=check_mode)
+        except Exception as exc:  # noqa: BLE001 - deliberately fail closed on anything
+            return Decision(
+                intent=intent, check_mode=check_mode, outcome=None, rule_id=None,
+                reason_code="ENGINE_EVAL_ERROR", error=f"{type(exc).__name__}: {exc}",
+            )
 
     # ------------------------------------------------------------------ routing
     def handle(self, path: str, payload: Any) -> tuple[int, dict[str, Any]]:
@@ -90,7 +106,7 @@ class GuardrailService:
             return _FAIL_CLOSED_STATUS, error_envelope(proposal_id, exc.code, str(exc))
 
         state, state_version = self.store.snapshot()
-        decision = self.engine.evaluate(intent, state, check_mode="gate")
+        decision = self._evaluate(intent, state, check_mode="gate")
 
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
@@ -144,7 +160,15 @@ class GuardrailService:
                 "confirm requires request_id, confirmation_id and session_id",
             )
 
-        record = self.confirmations.consume(confirmation_id)
+        try:
+            record = self.confirmations.consume(confirmation_id, session_id=session_id)
+        except ConfirmationSessionMismatch:
+            # Live token, wrong session: reject without consuming so the
+            # originating session can still confirm.
+            return 403, error_envelope(
+                request_id, "CONFIRMATION_SESSION_MISMATCH",
+                "Confirmation belongs to a different session",
+            )
         if record is None:
             return 409, error_envelope(
                 request_id, "CONFIRMATION_NOT_ACTIVE",
@@ -154,7 +178,7 @@ class GuardrailService:
         # PRD 8.4: re-evaluate against a FRESH state snapshot; a stale confirm
         # must never carry the original permit forward.
         state, state_version = self.store.snapshot()
-        decision = self.engine.evaluate(record.intent, state, check_mode="gate")
+        decision = self._evaluate(record.intent, state, check_mode="gate")
 
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
@@ -227,16 +251,20 @@ class GuardrailService:
             )
 
         vehicle_state = payload.get("vehicle_state")
-        if isinstance(vehicle_state, dict):
+        if vehicle_state is not None:
+            if not isinstance(vehicle_state, dict):
+                return 400, error_envelope(
+                    request_id, "INVALID_VEHICLE_STATE", "vehicle_state must be an object"
+                )
             try:
-                state = VehicleState.from_partial(vehicle_state)
+                state = validate_wire_vehicle_state(vehicle_state)
             except ValueError as exc:
                 return 400, error_envelope(request_id, "INVALID_VEHICLE_STATE", str(exc))
             state_version = -1  # agent-supplied snapshot: no Guardrail version
         else:
             state, state_version = self.store.snapshot()
 
-        decision = self.engine.evaluate(intent, state, check_mode="monitor")
+        decision = self._evaluate(intent, state, check_mode="monitor")
         digest = monitor_request_digest(payload)
 
         if decision.is_fail_closed:
@@ -291,7 +319,7 @@ class GuardrailService:
             )
 
         state, state_version = self.store.snapshot()
-        decision = self.engine.evaluate(intent, state, check_mode="gate")
+        decision = self._evaluate(intent, state, check_mode="gate")
         if decision.is_fail_closed:
             return _FAIL_CLOSED_STATUS, error_envelope(
                 request_id, decision.reason_code, decision.error or "policy fail-closed"

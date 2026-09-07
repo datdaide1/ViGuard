@@ -120,6 +120,22 @@ def test_unknown_confirmation_id_is_not_active(wired):
     assert result["error"]["code"] == "CONFIRMATION_NOT_ACTIVE"
 
 
+def test_confirm_from_a_different_session_is_rejected_without_burning_the_token(wired):
+    store, adapter = wired
+    confirm = adapter.evaluate(_proposal("p-il-x", *_INTERIOR_LIGHT))  # session_id demo-01
+    cid = confirm["confirmation"]["confirmation_id"]
+
+    stolen = adapter.confirm(cid, session_id="attacker-session", request_id="req-atk")
+    assert stolen["kind"] == "error"
+    assert stolen["error"]["code"] == "CONFIRMATION_SESSION_MISMATCH"
+    assert "permit" not in stolen
+
+    # the rightful session can still confirm -> token was not consumed
+    store.mutate(speed=0)
+    ok = adapter.confirm(cid, session_id="demo-01", request_id="req-ok")
+    assert ok["outcome"] == "ALLOW"
+
+
 def test_confirmation_manager_end_to_end_zero_pre_auth_execution(wired):
     store, adapter = wired
     proposal = _proposal("p-il-3", *_INTERIOR_LIGHT)

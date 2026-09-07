@@ -20,6 +20,44 @@ from typing import Any
 
 from policy import VehicleState
 
+# JSON-type expectations per VehicleState field, for validating an agent-supplied
+# ``vehicle_state`` snapshot off the wire (monitor path) before it reaches the
+# engine -- an int/float rule comparison against a string would otherwise raise
+# deep inside condition evaluation and escape as a transport failure.
+_BOOL_FIELDS = frozenset(
+    {"rain_sensor", "avh", "epb", "camp_mode_active", "pet_mode_active",
+     "valet_mode_active", "fog_light", "hazard_light", "esc"}
+)
+_NUMERIC_FIELDS = frozenset({"speed", "battery_pct", "hand_off_wheel_duration_seconds"})
+_STRING_FIELDS = frozenset(
+    {"gear", "ambient_light", "profile", "autopark_state", "acc_state",
+     "lowbeam_mode", "door_lock_state"}
+)
+_NULLABLE_FIELDS = frozenset({"rain_sensor", "avh", "battery_pct", "door_lock_state"})
+
+
+def validate_wire_vehicle_state(raw: dict[str, Any]) -> VehicleState:
+    """Type-check an agent-supplied snapshot, then complete it onto the defaults.
+
+    Raises ``ValueError`` (mapped to ``INVALID_VEHICLE_STATE`` by the HTTP layer)
+    on an unknown field or a value whose JSON type is wrong for that field.
+    """
+
+    for key, value in raw.items():
+        if key in _NULLABLE_FIELDS and value is None:
+            continue
+        if key in _BOOL_FIELDS:
+            if not isinstance(value, bool):
+                raise ValueError(f"vehicle_state.{key} must be a boolean")
+        elif key in _NUMERIC_FIELDS:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"vehicle_state.{key} must be a number")
+        elif key in _STRING_FIELDS:
+            if not isinstance(value, str):
+                raise ValueError(f"vehicle_state.{key} must be a string")
+        # unknown keys are rejected by VehicleState.from_partial below
+    return VehicleState.from_partial(raw)
+
 # Named starting situations. Each is a full snapshot completed onto the Phase 1
 # _STATE_DEFAULTS ("parked, safe, daytime, healthy").
 PRESETS: dict[str, dict[str, Any]] = {

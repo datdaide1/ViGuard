@@ -3,9 +3,11 @@
 **Nhánh:** `feat/guardrail-phase2-http` (từ tip Pha 1′) · PR sẽ nhắm `guardrail-integration`.
 
 > **TRẠNG THÁI 2026-09-07: Pha 2′ XONG cả 4 tăng (2′.1–2′.4).** `vf_guardrails/service/`
-> = HTTP contract layer đầy đủ (action + confirm + monitor + query-skeleton). 42 test mới
-> (39 vf_guardrails + 3 e2e vivi-agent); **58/58 vf_guardrails, 940/940 vivi-agent**, không
+> = HTTP contract layer đầy đủ (action + confirm + monitor + query-skeleton). 45 test mới
+> (42 vf_guardrails + 3 e2e vivi-agent); **61/61 vf_guardrails, 940/940 vivi-agent**, không
 > regress. Demo: `py -3 run_both.py`. Chi tiết dưới đây theo từng tăng.
+> *(2026-09-07, sau review Sourcery: thêm session-binding cho `/v1/confirmations/confirm` +
+> validate kiểu `vehicle_state` trên monitor path + guard fail-closed quanh engine — 3 test.)*
 
 ---
 
@@ -60,11 +62,11 @@ workbook (đã verify).
   `test_service_http.py` (14 — routing/409/400/422/404/healthz/state_store),
   `test_gate_2p1.py` (5 — **AC-9 + AC-10 qua `GuardrailClientAdapter(REAL)` thật**).
   `tests/conftest.py` mới (bootstrap cross-repo: path vivi-agent + shim `src`).
-- **45/45 vf_guardrails test pass; 43 vivi-agent guardrail-contract test pass (không regress).**
-  `proposal_digest` khớp byte-for-byte giá trị pin trong `examples.json`
+- `proposal_digest` khớp byte-for-byte giá trị pin trong `examples.json`
   (`sha256:19059c4c…`). Mọi decision qua `validate_guardrail_result` của agent.
-- **Status codes:** 200 decision · 409 version mismatch · 400 malformed proposal ·
-  422 fail-closed (unsupported mapping / engine fail-closed) · 404 route · 501 confirm+monitor (chưa làm).
+- **Status codes:** 200 decision · 409 version mismatch / `CONFIRMATION_NOT_ACTIVE` ·
+  403 `CONFIRMATION_SESSION_MISMATCH` · 400 malformed proposal / `INVALID_VEHICLE_STATE` ·
+  422 fail-closed (unsupported mapping / engine fail-closed) · 404 route.
 
 **Nợ / phát hiện còn mở sau Pha 2′:**
 - `turnon_LKA`: có dòng map (agent) nhưng KHÔNG có rule workbook → service trả typed
@@ -82,21 +84,22 @@ workbook (đã verify).
 - Action path: engine `CONFIRM` → tạo pending + `decision.confirmation={confirmation_id, proposal_id, expires_at, single_use}` (đúng schema, KHÔNG kèm `prompt`), không permit.
 - `POST /v1/confirmations/confirm` — `consume()` nguyên tử → đọc **snapshot state mới** → re-eval gate:
   `ALLOW` hoặc `CONFIRM` cùng `origin_rule_id` (PRD §3.2.7 dòng "match cùng rule → cho phép 1 lần") → `ALLOW` + permit mới; `CONFIRM` rule khác → pending mới; `BLOCK_*` → block, không permit.
-  Unknown / hết hạn / replay → `CONFIRMATION_NOT_ACTIVE` (409).
-- **Gate ✅:** `test_confirm_2p2.py` (6 test) qua `GuardrailClientAdapter(REAL)` + `ConfirmationManager` thật:
+  Unknown / hết hạn / replay → `CONFIRMATION_NOT_ACTIVE` (409). Session ≠ session của proposal gốc
+  → `CONFIRMATION_SESSION_MISMATCH` (403), **không tiêu token** (session đúng vẫn confirm được).
+- **Gate ✅:** `test_confirm_2p2.py` (7 test) qua `GuardrailClientAdapter(REAL)` + `ConfirmationManager` thật:
   AC-14 (CONFIRM không permit), AC-15 (`open_sunroof` rain→speed 120 giữa chừng → BLOCK_UNSAFE R051), AC-16 (confirm lần 2 → `CONFIRMATION_NOT_ACTIVE`), manager end-to-end (actuator đúng 1 lần, chỉ sau ALLOW mới).
 
 ### 2′.3 — Monitor engine — ✅ XONG (2026-09-07)
 - `service/active_actions.py` — `ActiveActionRegistry` + `MONITORED_INTENTS` (5, assert khớp workbook + agent manifest trong test). Đăng ký khi action-path `ALLOW` cho intent monitored; xoá khi monitor block.
-- `POST /v1/monitor/evaluate` → `engine.evaluate(intent, state, check_mode="monitor")`. State: `vehicle_state` trong payload (agent gửi snapshot) nếu có, không thì store snapshot.
+- `POST /v1/monitor/evaluate` → `engine.evaluate(intent, state, check_mode="monitor")`. State: `vehicle_state` trong payload (agent gửi snapshot) nếu có — **validate kiểu từng field** (`validate_wire_vehicle_state`), sai → `INVALID_VEHICLE_STATE` (400); không có thì store snapshot. Engine bọc `_evaluate()` fail-closed (`ENGINE_EVAL_ERROR`) phòng lỗi bất ngờ.
 - Map ra wire: `NO_MONITOR_TRIGGER` (outcome None) **hoặc** monitor `ALLOW` (R070) → wire `ALLOW` + permit tổng hợp (bind `monitor_request_digest`) = "cứ chạy tiếp" (adapter agent coi mọi thứ ≠ ALLOW là stop). Monitor block → outcome block + `rule_id`, không permit. Fail-closed → typed error → agent fail-safe stop.
-- **Gate ✅:** `test_monitor_2p3.py` (8 test): AC-19 (`activate_hda`, hands-off 20 s → BLOCK_UNSAFE R073), camp-mode pin thấp → BLOCK_UNAVAILABLE R033, no-trigger/monitor-ALLOW → "keep running", non-monitored → `NOT_A_MONITORED_INTENT`, agent-supplied `vehicle_state` được tôn trọng.
+- **Gate ✅:** `test_monitor_2p3.py` (10 test): AC-19 (`activate_hda`, hands-off 20 s → BLOCK_UNSAFE R073), camp-mode pin thấp → BLOCK_UNAVAILABLE R033, no-trigger/monitor-ALLOW → "keep running", non-monitored → `NOT_A_MONITORED_INTENT`, agent-supplied `vehicle_state` được tôn trọng, sai kiểu/field lạ → `INVALID_VEHICLE_STATE`.
 
 ### 2′.4 — E2E swap + demo — ✅ XONG (2026-09-07)
 - `vivi-agent/tests/e2e/vertical_slice/e2e-01/test_e2e_real_guardrail.py` (3 test, +1 file test — trong hạn mức "1 test REAL"): E2E-01 với `env.guardrail` = `GuardrailClientAdapter(REAL)` → service in-process. ALLOW (actuator 1×, state_version 1), BLOCK_UNSAFE (R002, actuator 0×), CONFIRM (`needs_confirmation`, actuator 0×). Digest binding + decision/intent correlation + CONFIRM handshake của orchestrator thật đều pass.
 - `run_both.py` (repo root) — boot service (thread) + `AgentOrchestrator` (adapter REAL), chạy 3 kịch bản ALLOW/BLOCK/CONFIRM, in turn status + rule_id + actuator hits.
 - Trace/event PRD §16: `AgentEventPipeline` có sẵn agent-side; wiring stream đầy đủ hoãn sang Pha 3′ (polish).
-- **Gate:** DoD guardrail+agent (PRD §20, trừ UI) — 58/58 vf_guardrails, 940/940 vivi-agent, không regress.
+- **Gate:** DoD guardrail+agent (PRD §20, trừ UI) — 61/61 vf_guardrails, 940/940 vivi-agent, không regress.
 
 ## 3. Không đụng tới ở Pha 2′
 

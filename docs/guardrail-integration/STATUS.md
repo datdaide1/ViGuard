@@ -65,7 +65,7 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 |---|---|---|
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
 | **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá. Trong PR #48. |
-| **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | ✅ **XONG (4/4 tăng).** `service/` đầy đủ; 42 test mới; gate AC-9/10/14–16/19 xanh qua adapter REAL. `run_both.py` chạy. |
+| **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | ✅ **XONG (4/4 tăng).** `service/` đầy đủ; 45 test mới; gate AC-9/10/14–16/19 xanh qua adapter REAL. `run_both.py` chạy. |
 | **3′** | End-to-end demo polish + trace/event (PRD §16) + query fact-shaping + gộp PR | ⬜ chưa bắt đầu (`run_both.py` skeleton đã có) |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
@@ -188,11 +188,11 @@ layer đầy đủ cho đường CON-01:
 | Route | Trạng thái |
 |---|---|
 | `POST /v1/evaluate/action` | ✅ map intent tất định → engine gate → decision + permit (chỉ ALLOW), digest-bound |
-| `POST /v1/confirmations/confirm` | ✅ `PendingConfirmationStore` single-use/TTL 30 s; re-eval trên **state mới**; replay → `CONFIRMATION_NOT_ACTIVE` |
+| `POST /v1/confirmations/confirm` | ✅ `PendingConfirmationStore` single-use/TTL 30 s; re-eval trên **state mới**; replay → `CONFIRMATION_NOT_ACTIVE`; session ≠ gốc → `CONFIRMATION_SESSION_MISMATCH` |
 | `POST /v1/monitor/evaluate` | ✅ 5 monitor rule; no-trigger/monitor-ALLOW → "keep running"; block → outcome+`rule_id`; fail-closed → typed error (agent fail-safe stop) |
 | `POST /v1/evaluate/query` | 🟡 skeleton (route + validate + ANSWER thô) — fact-shaping đầy đủ để Pha 3′ |
 
-- **42 test mới; 58/58 vf_guardrails, 940/940 vivi-agent, không regress.** Gate AC-9/AC-10
+- **45 test mới; 61/61 vf_guardrails, 940/940 vivi-agent, không regress.** Gate AC-9/AC-10
   (2′.1), AC 14–16 (2′.2), AC-19 (2′.3) xanh qua `GuardrailClientAdapter(REAL)` +
   `ConfirmationManager` thật. `proposal_digest` khớp byte-for-byte `examples.json`.
 - E2E swap: `vivi-agent/.../test_e2e_real_guardrail.py` (agent orchestrator thật ↔ service thật, không mock).
@@ -286,8 +286,8 @@ vf_guardrails/
     test_tool_map.py       11 — conformance row-by-row vs agent + coverage 53 intent
     test_service_http.py   ~15 — routing/status/state_store/query
     test_gate_2p1.py       5 — AC-9/AC-10 qua adapter REAL
-    test_confirm_2p2.py    6 — AC-14/15/16 + ConfirmationManager e2e
-    test_monitor_2p3.py    8 — AC-19 + monitor keep-running / typed-error
+    test_confirm_2p2.py    7 — AC-14/15/16 + session-mismatch + ConfirmationManager e2e
+    test_monitor_2p3.py    10 — AC-19 + keep-running + INVALID_VEHICLE_STATE
 run_both.py          (repo root) demo: service + agent, 3 kịch bản
 vivi-agent/tests/e2e/vertical_slice/e2e-01/test_e2e_real_guardrail.py  (mới, 3) — orchestrator thật ↔ service thật
 ```
