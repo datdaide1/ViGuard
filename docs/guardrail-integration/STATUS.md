@@ -101,41 +101,42 @@ qua nhiều lần chạy, tier distribution.
 
 ---
 
-## 5. ĐANG BỊ CHẶN — frozen independent test set (Đạt đang làm)
+## 5. Frozen independent test set — ĐÃ CÓ, đang review
 
-**Vì sao:** đo T2 (semantic classifier) trên golden pool bị **leakage** — pool
-sinh theo khuôn, nhiều câu gần trùng/intent → mọi train/test split đều rò rỉ,
-số bị thổi. Tập test độc lập (DATA-10 trong plan Sprint 2) **chưa bao giờ được
-build**. Đây mới là blocker thật, không phải T2 tech.
+**Vì sao cần:** đo T2 (trained classifier) trên golden pool bị **leakage** —
+pool sinh theo khuôn, nhiều câu gần trùng → mọi train/test split đều rò rỉ.
+Tập test độc lập (DATA-10) chưa bao giờ build.
 
-**Đang xử lý:** Đạt cầm `docs/guardrail-integration/FROZEN_TESTSET_SPEC.md`
-(bản tự chứa) đưa cho 1 agent khác gen ra ~530 dòng (utterance + intent +
-metadata + `state_hint` bằng lời), viết theo cách khác hẳn golden pool.
+**Trạng thái (2026-09-07):** file đã về: `vf_guardrails/evals/data/frozen_testset.jsonl`
+(530 dòng) + `frozen_testset_generation_notes.md`. Gen từ `FROZEN_TESTSET_SPEC.md`.
 
-**Khi file `frozen_testset.jsonl` + `generation_notes.md` về:**
-1. Viết adapter cho `run_classifier.py` đọc format frozen (hiện đọc format golden `dataset.jsonl`).
-2. Quy `state_hint` (lời) → `vehicle_state` (JSON) → chạy qua engine → `expected_outcome`.
-3. Chạy `run_classifier.py --dataset frozen` → **số T1 trung thực đầu tiên**.
-4. Review chất lượng frozen set (native-speaker check các cặp intent mơ hồ).
+**Review:** `docs/guardrail-integration/FROZEN_TESTSET_REVIEW.md` — **dùng được**.
+Cấu trúc PASS (53/53 intent, 8+2 mỗi intent, 0 dup, balance OK). Positive labels
+chính xác. T1 trên frozen = **55.3%** (golden pool 58.1%) — số hơi thấp hơn +
+failure mode giống → frozen đo đúng, không bị thổi.
 
-**Môi trường T2 cũng cần xử:** `E:\anaconda3` hỏng `torch` (`c10.dll` init failed)
-+ `onnxruntime` (đã reinstall `1.19.2` trong session — có side-effect lệch
-`protobuf` cho streamlit/weaviate). PhoBERT không chạy được ở đây. Nên dựng
-**venv sạch**, hoặc chọn hướng T2 nhẹ hơn (xem §6).
+**2 điểm chờ PM quyết** (FROZEN_TESTSET_REVIEW.md §3):
+- **3a:** hard negatives 84–98% đóng khuôn ("[X] chớ k phải [Y]"). Regen 106
+  hard-neg (khuyến nghị) hay giữ + caveat?
+- **3b:** metadata sai nhẹ (tỷ lệ viết tắt ~27% vs 15%, ~20 `length_bucket` sai)
+  — sửa bằng script, không regen.
+
+**Môi trường T2:** `E:\anaconda3` hỏng `torch`/`onnxruntime` → PhoBERT không
+chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (TF-IDF sklearn — chạy được).
 
 ---
 
 ## 6. VIỆC TIẾP THEO (thứ tự — làm lần lượt, không song song)
 
-### Bước 1 — (Đạt) Gen frozen test set
-- Đưa `FROZEN_TESTSET_SPEC.md` cho agent gen.
-- Nhận `frozen_testset.jsonl` + `generation_notes.md`, đặt vào
-  `golden-dataset/driver-constraints/frozen/` (hoặc `vf_guardrails/evals/data/`).
-- Đọc `generation_notes.md` §5 (cặp intent agent không chắc) → review tay.
+### Bước 1 — (Đạt) Gen frozen test set ✅ XONG
+- File ở `vf_guardrails/evals/data/`. Review: `FROZEN_TESTSET_REVIEW.md` — dùng được.
+- **Đang chờ PM quyết:** 3a (regen 106 hard-neg hay giữ + caveat), 3b (sửa metadata bằng script).
 
-### Bước 2 — (Claude) Adapter + đo T1 trên frozen
-- `run_classifier.py`: thêm `--dataset` + hàm đọc format frozen; `state_hint` → state → engine → outcome.
-- Chạy → ghi `METRICS_PHASE2_FROZEN.md`. Con số T1 này là baseline thật.
+### Bước 2 — (Claude) Adapter + đo T1 trên frozen ← TIẾP THEO
+- (nếu 3a = regen) chờ hard-neg mới trước.
+- `run_classifier.py`: thêm `--dataset` + đọc format frozen; parse `state_hint` → `vehicle_state` → engine → `expected_outcome`.
+- Sửa metadata frozen (3b) bằng script.
+- Chạy → ghi `METRICS_PHASE1_FROZEN.md`. Con số T1 này là baseline thật. (T1 sơ bộ đã đo tay: **55.3%**.)
 
 ### Bước 3 — (Claude + Đạt) Quyết & làm T2
 - **Ưu tiên đề xuất: TF-IDF (char+word n-gram) + LinearSVC**, sklearn thuần
@@ -164,6 +165,8 @@ metadata + `state_hint` bằng lời), viết theo cách khác hẳn golden pool
 | Constraint engine đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1.md` |
 | Classifier T1 đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1_CLASSIFIER.md` |
 | Spec tập test độc lập | `docs/guardrail-integration/FROZEN_TESTSET_SPEC.md` |
+| Review tập test độc lập (đã gen) | `docs/guardrail-integration/FROZEN_TESTSET_REVIEW.md` |
+| Tập test độc lập + notes | `vf_guardrails/evals/data/frozen_testset*.` |
 | Contract Guardrail↔Agent (cứng) | `vivi-agent/src/vivi_agent/authorization/contract.py` |
 | Wire protocol ví dụ | `vivi-agent/src/vivi_agent/integrations/viguard/wire/examples.json` |
 | Yêu cầu sản phẩm | `specs/prd/PRD_Guardrail_FINAL.md` |
