@@ -11,17 +11,18 @@
 ```
 main  (sạch — chưa có gì của guardrail)
 └── guardrail-integration      ← nhánh tích lũy, đích của mọi PR guardrail
-      ▲  PR #48 (OPEN, CHƯA MERGE): Pha 1′
-      │     github.com/datdaide1/ViGuard/pull/48
+      ▲  PR #48 (OPEN): Pha 1′   github.com/datdaide1/ViGuard/pull/48
       │
-    feat/guardrail-agent-integration  (28c2d91)  ← Pha 1′ đã xong, đứng yên
+    feat/guardrail-agent-integration  (28c2d91)  ← Pha 1′, đứng yên
       │
-      └── feat/guardrail-phase2-http  ← ĐANG Ở ĐÂY. Làm Pha 2′ trên nhánh này.
+      ▲  PR #49 (OPEN, stack lên #48): Pha 2′   github.com/datdaide1/ViGuard/pull/49
+      │
+      └── feat/guardrail-phase2-http  ← Pha 2′ XONG. Pha 3′ tiếp trên nhánh này (hoặc nhánh mới).
 ```
 
-**Session mới:** `git checkout feat/guardrail-phase2-http`. Không merge PR #48
-(quyết định của PM — làm Pha 2′ trước, merge một lượt sau). Pha 2′ commit chồng
-lên nhánh này; PR sau này nhắm `guardrail-integration`.
+**Session mới:** `git checkout feat/guardrail-phase2-http`. Pha 2′ đã xong + đã
+push + PR #49. Thứ tự merge: #48 → `guardrail-integration`, rồi #49 (rebase base
+sang `guardrail-integration` nếu cần), rồi `guardrail-integration` → `main`.
 
 ---
 
@@ -332,8 +333,8 @@ PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
 ## 9. Việc git còn treo
 
-- **PR #48** (`feat/guardrail-agent-integration` → `guardrail-integration`): Pha 1′, OPEN, **cố ý chưa merge**. Pha 2′ đã xong → PM có thể quyết gộp (PR #48 rồi PR Pha 2′, hoặc 1 PR gộp).
-- Nhánh hiện tại: `feat/guardrail-phase2-http` — Pha 2′ đã commit chồng, **local, CHƯA push, CHƯA PR**. Kế: PR → `guardrail-integration`. Cuối: `guardrail-integration` → `main`.
+- **PR #48** (`feat/guardrail-agent-integration` → `guardrail-integration`): Pha 1′, OPEN.
+- **PR #49** (`feat/guardrail-phase2-http` → `feat/guardrail-agent-integration`): Pha 2′, OPEN, **stack lên #48**. Đã push. Merge #48 trước, rồi #49; hoặc rebase #49 sang thẳng `guardrail-integration` sau khi #48 vào. Cuối: `guardrail-integration` → `main`.
 - venv `.venv-phobert/` (~6 GB, gitignored) — chỉ để re-run PhoBERT, xoá được.
 - `reports/` + `reports.zip` (báo cáo Sprint 2) — **cố ý để untracked**, PM quyết sau.
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` — dọn nếu không dùng: `git worktree remove`.
