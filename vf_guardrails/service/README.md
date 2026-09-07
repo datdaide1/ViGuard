@@ -48,7 +48,7 @@ py -3 run_both.py
 | `confirmations.py` | `PendingConfirmationStore` — id single-use, TTL 30 s, gắn session gốc. |
 | `active_actions.py` | `ActiveActionRegistry` + 5 `MONITORED_INTENTS`. |
 | `envelope.py` | Copy `proposal_digest` + `validate_action_proposal` (contract v1). Build decision/permit/error/confirmation/answer schema-exact. |
-| `trace.py` | `TraceRecorder` — event từng stage (`guardrail_started`…`guardrail_completed`) + latency, `policy_checksum` mỗi event, không log secret. JSONL sink tùy chọn. |
+| `trace.py` | `TraceRecorder` — event từng stage (`guardrail_started`…`guardrail_completed`), mỗi event có `stage_ms` + `since_start_ms` + `policy_checksum`, không log secret. JSONL sink tùy chọn. |
 | `app.py` | `GuardrailService.handle(path, payload) → (status, body)` — core không phụ thuộc transport. |
 | `http.py` / `__main__.py` | stdlib `ThreadingHTTPServer`, zero dep (P2-D4/D5). |
 

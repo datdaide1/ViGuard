@@ -2,9 +2,10 @@
 
 A trace is the demo's evidence: for one request it records which stage resolved
 the intent, which state version was read, which rule matched, which outcome went
-back, and the per-stage + end-to-end latency. It is a replay/audit aid, not a
-production log store -- kept in memory (last ``capacity`` requests) and,
-optionally, appended to a JSONL file.
+back, and the latency -- every event carries ``stage_ms`` (time since the
+previous event) and ``since_start_ms``, and the terminal event carries
+``end_to_end_ms``. It is a replay/audit aid, not a production log store -- kept
+in memory (last ``capacity`` requests) and, optionally, appended to a JSONL file.
 
 Decision D1 keeps this separate from the Agent's ``AgentEventPipeline``; the demo
 (``run_both.py``) merges the two streams by ``request_id``.
@@ -44,7 +45,7 @@ def _now_iso() -> str:
 
 
 class _RequestTrace:
-    __slots__ = ("request_id", "session_id", "route", "started_at", "_t0", "events")
+    __slots__ = ("request_id", "session_id", "route", "started_at", "_t0", "_last", "events")
 
     def __init__(self, request_id: str, session_id: str, route: str) -> None:
         self.request_id = request_id
@@ -52,10 +53,18 @@ class _RequestTrace:
         self.route = route
         self.started_at = _now_iso()
         self._t0 = time.perf_counter()
+        self._last = self._t0
         self.events: list[dict[str, Any]] = []
 
     def elapsed_ms(self) -> float:
         return round((time.perf_counter() - self._t0) * 1000.0, 3)
+
+    def split_ms(self) -> tuple[float, float]:
+        """(time since previous event, time since request start), in ms."""
+        now = time.perf_counter()
+        stage_ms = round((now - self._last) * 1000.0, 3)
+        self._last = now
+        return stage_ms, round((now - self._t0) * 1000.0, 3)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -91,12 +100,15 @@ class TraceRecorder:
             raise ValueError(f"unknown trace event_type: {event_type!r}")
         with self._lock:
             trace = self._traces.get(request_id)
+            stage_ms, since_start_ms = trace.split_ms() if trace is not None else (0.0, 0.0)
             event = {
                 "event_type": event_type,
                 "request_id": request_id,
                 "session_id": trace.session_id if trace else "unknown",
                 "timestamp": _now_iso(),
                 "stage": stage,
+                "stage_ms": stage_ms,
+                "since_start_ms": since_start_ms,
                 "policy_checksum": self._policy_checksum,
                 **detail,
             }

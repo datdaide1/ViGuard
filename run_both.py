@@ -84,7 +84,7 @@ def _print_guardrail_trace(svc: GuardrailService, request_id: str) -> None:
                       "confirmation_id", "reevaluated_outcome", "error_code", "http_status")
             if k in e and e[k] is not None
         }
-        print(f"      · {e['event_type']:<22} {e['stage']:<13} {extra}")
+        print(f"      · {e['event_type']:<22} {e['stage']:<13} +{e.get('stage_ms', 0):.3f}ms  {extra}")
 
 
 def _slug(title: str) -> str:

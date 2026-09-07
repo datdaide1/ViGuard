@@ -92,6 +92,35 @@ def test_confirm_trace_records_the_confirmation_lifecycle():
     assert ev[-1]["event_type"] == "guardrail_completed"
 
 
+def test_confirm_reevaluated_into_a_different_rule_traces_a_new_request():
+    store = VehicleStateStore(VehicleState(gear="D", speed=40, rain_sensor=False))
+    svc = GuardrailService(store=store)
+    p = _proposal(proposal_id="t-cfm2", tool="control_cabin",
+                  arguments={"action": "open", "target": "driver_window"})  # R059 CONFIRM
+    _, body = svc.handle("/v1/evaluate/action", p)
+    cid = body["confirmation"]["confirmation_id"]
+
+    store.mutate(rain_sensor=True)  # now R061 CONFIRM -- a *different* rule
+    _, resolved = svc.handle("/v1/confirmations/confirm",
+                             {"contract_version": "1.0.0", "request_id": "t-cfm2-r",
+                              "confirmation_id": cid, "session_id": p["session_id"]})
+    assert resolved["outcome"] == "CONFIRM"
+    types = [e["event_type"] for e in svc.trace.get("t-cfm2-r")["events"]]
+    # the fresh pending token gets its own confirmation_requested -> full lifecycle
+    assert types.count("confirmation_requested") == 1
+    assert "confirmation_resolved" in types
+
+
+def test_events_carry_per_stage_and_since_start_latency():
+    svc = _svc(VehicleState(gear="P", speed=0))
+    svc.handle("/v1/evaluate/action", _proposal(proposal_id="t-lat"))
+    events = svc.trace.get("t-lat")["events"]
+    for e in events:
+        assert e["stage_ms"] >= 0 and e["since_start_ms"] >= 0
+    # since_start is monotonic non-decreasing
+    assert [e["since_start_ms"] for e in events] == sorted(e["since_start_ms"] for e in events)
+
+
 def test_monitor_trace_records_monitor_evaluated():
     svc = _svc(VehicleState(hand_off_wheel_duration_seconds=20))
     svc.handle("/v1/monitor/evaluate", {"contract_version": "1.0.0", "request_id": "t-mon",

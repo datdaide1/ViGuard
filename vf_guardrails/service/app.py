@@ -273,6 +273,9 @@ class GuardrailService:
         if decision.outcome == "CONFIRM":
             # A *different* confirmation rule now applies -> a new pending token.
             fresh = self.confirmations.create(record.proposal, record.intent, decision.rule_id or "")
+            self.trace.record(request_id, "confirmation_requested", stage="confirmation",
+                              confirmation_id=fresh.confirmation_id, intent=record.intent,
+                              expires_at=fresh.expires_at.isoformat())
             body = decision_envelope(
                 request_id=request_id,
                 proposal=record.proposal,
