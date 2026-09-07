@@ -13,7 +13,9 @@ main  (d9d4746 — chưa có gì của guardrail)
 └── guardrail-integration  (a8b3a7f)  ← nhánh tích lũy. Pha 1′ + 2′ ĐÃ VÀO.
       │     PR #48 (Pha 1′) + PR #49 (Pha 2′) — MERGED, nhánh phụ đã xoá.
       │
-      └── feat/guardrail-phase3  ← ĐANG Ở ĐÂY. Pha 3′ XONG, chờ PM duyệt → PR.
+      ▲  PR #50 (OPEN): Pha 3′ → guardrail-integration   github.com/datdaide1/ViGuard/pull/50
+      │
+      └── feat/guardrail-phase3  ← ĐANG Ở ĐÂY. Pha 3′ XONG, đã push, PR #50.
 ```
 
 **Session mới:** `git checkout feat/guardrail-phase3`. Pha 1′+2′+3′ đều xong.
@@ -344,9 +346,9 @@ PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
 ## 9. Việc git còn treo
 
-- **PR #48** (Pha 1′) + **PR #49** (Pha 2′): **MERGED** vào `guardrail-integration` (a8b3a7f). Nhánh `feat/guardrail-agent-integration` + `feat/guardrail-phase2-http` đã xoá (local + remote).
-- Nhánh hiện tại: **`feat/guardrail-phase3`** (từ `guardrail-integration`). Sau Pha 3′ → PR → `guardrail-integration`.
-- **Bước cuối (chưa làm):** `guardrail-integration` → `main`.
+- **PR #48** (Pha 1′) + **PR #49** (Pha 2′): **MERGED** vào `guardrail-integration` (a8b3a7f). 2 nhánh phụ đã xoá.
+- **PR #50** (Pha 3′, `feat/guardrail-phase3` → `guardrail-integration`): **OPEN**, MERGEABLE.
+- **Bước cuối (sau khi #50 vào):** `guardrail-integration` → `main`.
 - venv `.venv-phobert/` (~6 GB, gitignored) — chỉ để re-run PhoBERT, xoá được.
 - `reports/` + `reports.zip` (báo cáo Sprint 2) — **cố ý để untracked**, PM quyết sau.
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` — dọn nếu không dùng: `git worktree remove`.
