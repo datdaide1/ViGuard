@@ -4,6 +4,7 @@ Per docs/guardrail-integration/no-cv note: trained on the golden pool,
 evaluated ONLY on the frozen independent test set.
 """
 
-from .tfidf import TfidfIntentClassifier
+from .intent import IntentResolver, IntentResult
+from .tfidf import UNKNOWN, T2Config, TfidfIntentClassifier
 
-__all__ = ["TfidfIntentClassifier"]
+__all__ = ["IntentResolver", "IntentResult", "TfidfIntentClassifier", "T2Config", "UNKNOWN"]

@@ -11,7 +11,9 @@ decision-function score clears ``min_score`` AND beats the 2nd-best by
 """
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -85,3 +87,23 @@ class TfidfIntentClassifier:
         scores = self._scores(utterance)
         order = np.argsort(scores)[::-1]
         return str(self._labels[order[0]]), float(scores[order[0]]), float(scores[order[0]] - scores[order[1]])
+
+    # ------------------------------------------------------------------ persist
+    def save(self, path: str | Path) -> None:
+        assert self._pipe is not None, "classifier not fitted"
+        with open(path, "wb") as fh:
+            pickle.dump(
+                {"pipe": self._pipe, "labels": self._labels, "estimator": self.estimator,
+                 "char_ngram": self.char_ngram, "word_ngram": self.word_ngram},
+                fh, protocol=pickle.HIGHEST_PROTOCOL,
+            )
+
+    @classmethod
+    def load(cls, path: str | Path, config: T2Config | None = None) -> "TfidfIntentClassifier":
+        with open(path, "rb") as fh:
+            blob = pickle.load(fh)
+        obj = cls(config, estimator=blob["estimator"],
+                  char_ngram=blob["char_ngram"], word_ngram=blob["word_ngram"])
+        obj._pipe = blob["pipe"]
+        obj._labels = blob["labels"]
+        return obj
