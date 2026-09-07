@@ -222,7 +222,7 @@ def decision_envelope(
         "reason_code": _reason_token(reason_code),
         "relevant_state": dict(relevant_state),
     }
-    if outcome == "ANSWER" and answer is not None:
+    if outcome in ("ANSWER", "UNKNOWN") and answer is not None:
         decision["answer"] = dict(answer)
     if outcome == "CONFIRM":
         if not isinstance(confirmation, Mapping):
@@ -236,6 +236,41 @@ def decision_envelope(
             state_version=int(state_version),
             policy_checksum=policy_checksum,
         )
+    return decision
+
+
+def query_decision_envelope(
+    *,
+    request_id: str,
+    proposal_id: str,
+    intent: str,
+    outcome: str,
+    rule_id: str,
+    state_version: int,
+    policy_checksum: str,
+    reason_code: str,
+    relevant_state: Mapping[str, Any],
+    answer: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """A read-only-query decision (ANSWER / UNKNOWN). Never carries a permit."""
+
+    if outcome not in ("ANSWER", "UNKNOWN"):
+        raise WireError("UNKNOWN_OUTCOME", f"query path cannot return {outcome!r}")
+    decision: dict[str, Any] = {
+        "contract_version": CONTRACT_VERSION,
+        "kind": "decision",
+        "request_id": request_id or _new_id("req-query"),
+        "proposal_id": proposal_id,
+        "intent": intent,
+        "outcome": outcome,
+        "rule_id": rule_id or "Q000",
+        "state_version": int(state_version),
+        "policy_checksum": policy_checksum,
+        "reason_code": _reason_token(reason_code),
+        "relevant_state": dict(relevant_state),
+    }
+    if answer is not None:
+        decision["answer"] = dict(answer)
     return decision
 
 

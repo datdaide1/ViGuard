@@ -164,6 +164,12 @@ QUERY_INTENTS: frozenset[str] = frozenset(
 EXPLAIN_INTENTS: frozenset[str] = frozenset(
     r.intent for r in DEFAULT_MAPPING_RULES if r.tool_name == "explain_vehicle_feature"
 )
+# The 14 feature ids the workbook's explain_feature rules (R108/R109) treat as
+# "in the knowledge base". The Guardrail owns this list because R108/R109 gate on
+# ``kb_has_feature`` -- the Agent still supplies the actual explanation text.
+EXPLAIN_FEATURE_TARGETS: frozenset[str] = frozenset(
+    r.target for r in DEFAULT_MAPPING_RULES if r.tool_name == "explain_vehicle_feature"
+)
 
 
 def _index(rules: tuple[MappingRule, ...]) -> Mapping[MappingKey, str]:

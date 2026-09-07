@@ -25,9 +25,17 @@ def make_handler(service: GuardrailService) -> type[BaseHTTPRequestHandler]:
                 status, body = 400, error_envelope("unknown", "INVALID_JSON", "Invalid JSON body")
             self._send(status, body)
 
-        def do_GET(self) -> None:  # noqa: N802 - lightweight liveness probe
+        def do_GET(self) -> None:  # noqa: N802 - liveness probe + trace read-back
             if self.path == "/healthz":
                 self._send(200, {"status": "ok", "policy_checksum": service.engine.policy_checksum})
+                return
+            if self.path.startswith("/v1/trace/"):
+                request_id = self.path[len("/v1/trace/"):]
+                trace = service.trace.get(request_id)
+                if trace is None:
+                    self._send(404, error_envelope(request_id, "TRACE_NOT_FOUND", request_id))
+                else:
+                    self._send(200, trace)
                 return
             self._send(404, error_envelope("unknown", "ROUTE_NOT_FOUND", self.path))
 

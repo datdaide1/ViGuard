@@ -72,11 +72,10 @@ workbook (đã verify).
 - `turnon_LKA`: có dòng map (agent) nhưng KHÔNG có rule workbook → service trả typed
   error `INTENT_NOT_IN_CATALOG` (422), không bao giờ ALLOW. **PM 2026-09-07: chấp nhận
   tạm — phần của Long có thể thêm intent mà workbook/agent chưa có, bổ sung sau.**
-- `/v1/evaluate/query`: vẫn skeleton (route + validate + ANSWER thô từ `relevant_state`).
-  Fact-shaping đầy đủ theo P2-D3 → Pha 3′ (đường query chưa nằm trên gate nào của Pha 2′).
+- `/v1/evaluate/query` + fact-shaping P2-D3: ✅ XONG ở Pha 3′.1 (`service/answer_facts.py`). Endpoint query chưa nằm trên đường orchestrator hiện tại (route qua `/v1/evaluate/action`) — giữ contract-complete cho đường Gateway sau.
 - Monitor "keep running" phải mượn `outcome=ALLOW`+permit tổng hợp vì contract v1 không có
   tín hiệu monitor-continue riêng. Ghi nhận cho contract v1.1 (nếu có).
-- Trace/event stream (PRD §16) chưa wire đầy đủ → Pha 3′.
+- Trace/event stream (PRD §16): ✅ XONG ở Pha 3′.2 (`service/trace.py`, `GET /v1/trace/{id}`, `run_both.py`).
 - `_STATE_DEFAULTS` / preset `rainy`,`low_battery` là giả định, chưa map vào rule cụ thể.
 
 ### 2′.2 — CONFIRM lifecycle — ✅ XONG (2026-09-07)

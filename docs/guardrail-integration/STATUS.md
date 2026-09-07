@@ -1,6 +1,6 @@
 # ViGuard — Guardrail↔Agent Integration · STATUS (đọc file này trước)
 
-**Cập nhật:** 2026-09-07 (**Pha 1′ + 2′ đã MERGE vào `guardrail-integration`**)
+**Cập nhật:** 2026-09-07 (**Pha 3′ XONG** — Pha 1′+2′ đã merge; Pha 3′ trên `feat/guardrail-phase3`)
 **Người thực thi:** Đạt (solo). Long, Công đã rời dự án.
 
 > Đây là bản tổng quan cho **session/chat mới**. Đọc xong file này là nắm được:
@@ -13,12 +13,11 @@ main  (d9d4746 — chưa có gì của guardrail)
 └── guardrail-integration  (a8b3a7f)  ← nhánh tích lũy. Pha 1′ + 2′ ĐÃ VÀO.
       │     PR #48 (Pha 1′) + PR #49 (Pha 2′) — MERGED, nhánh phụ đã xoá.
       │
-      └── feat/guardrail-phase3  ← ĐANG Ở ĐÂY. Pha 3′.
+      └── feat/guardrail-phase3  ← ĐANG Ở ĐÂY. Pha 3′ XONG, chờ PM duyệt → PR.
 ```
 
-**Session mới:** `git checkout feat/guardrail-phase3` (nhánh từ `guardrail-integration`).
-Pha 1′ + 2′ đã merge. Còn lại: Pha 3′ → PR → `guardrail-integration`, rồi
-`guardrail-integration` → `main` (bước cuối, chưa làm).
+**Session mới:** `git checkout feat/guardrail-phase3`. Pha 1′+2′+3′ đều xong.
+Còn lại: PR `feat/guardrail-phase3` → `guardrail-integration`, rồi `guardrail-integration` → `main`.
 
 ---
 
@@ -62,7 +61,7 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
 | **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá. Trong PR #48. |
 | **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | ✅ **XONG (4/4 tăng).** `service/` đầy đủ; 45 test mới; gate AC-9/10/14–16/19 xanh qua adapter REAL. `run_both.py` chạy. |
-| **3′** | End-to-end demo polish + trace/event (PRD §16) + query fact-shaping (P2-D3) | 🔨 **bắt đầu** trên `feat/guardrail-phase3` (`run_both.py` skeleton đã có) |
+| **3′** | E2E demo + trace/event (§16) + query fact-shaping (P2-D3) + coverage report | ✅ **XONG.** `run_both.py` 5 kịch bản, `TraceRecorder`, `COVERAGE_REPORT.md` ✅ ĐẠT, 79/79 test. `PHASE3_REPORT.md`. |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
 Ước lượng còn lại: ~15–22 dev-days (đã sập từ 25–40 nhờ engine dựng sẵn từ golden-dataset tooling).
@@ -170,7 +169,8 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 - Xoá: `src/safety_engine.py`, `src/guardrail.py`, `src/models.py`, `src/agent.py`, `config/safety_rules.yaml`, `app_sim.py`, `car_status.py`, `tests/run_benchmark.py` (chuyển sang `evals/run_benchmark.py`).
 - **Gate Pha 1′ ✅:** engine 100% (2313/2313), T2 88.3% frozen, e2e latency **p99 2.4 ms** (target ≤25 ms), 19 test pass, code cũ đã xoá.
 
-### Bước 4 — Pha 2′ (HTTP contract layer) ✅ XONG — **`PHASE2_PLAN.md`** · **`PHASE2_REPORT.md`**
+### Bước 4 — Pha 2′ (HTTP contract layer) ✅ XONG — `PHASE2_PLAN.md` · `PHASE2_REPORT.md`
+### Bước 5 — Pha 3′ (demo + trace + query + coverage) ✅ XONG — **`PHASE3_REPORT.md`**
 
 **Phát hiện quan trọng (PHASE2_PLAN.md §0):** có **2 đường phân giải intent**.
 Đường CON-01 (agent authorization — cái Pha 2′ làm) **KHÔNG dùng TF-IDF** —
@@ -186,21 +186,23 @@ layer đầy đủ cho đường CON-01:
 | `POST /v1/evaluate/action` | ✅ map intent tất định → engine gate → decision + permit (chỉ ALLOW), digest-bound |
 | `POST /v1/confirmations/confirm` | ✅ `PendingConfirmationStore` single-use/TTL 30 s; re-eval trên **state mới**; replay → `CONFIRMATION_NOT_ACTIVE`; session ≠ gốc → `CONFIRMATION_SESSION_MISMATCH` |
 | `POST /v1/monitor/evaluate` | ✅ 5 monitor rule; no-trigger/monitor-ALLOW → "keep running"; block → outcome+`rule_id`; fail-closed → typed error (agent fail-safe stop) |
-| `POST /v1/evaluate/query` | 🟡 skeleton (route + validate + ANSWER thô) — fact-shaping đầy đủ để Pha 3′ |
+| `POST /v1/evaluate/query` | ✅ (3′.1) map → gate → `ANSWER`/`UNKNOWN` + `answer={grounded, facts}` chuẩn schema |
+| `GET /v1/trace/{request_id}` | ✅ (3′.2) trace đầy đủ 1 request (PRD FR-14 / §16) |
 
-- **45 test mới; 61/61 vf_guardrails, 940/940 vivi-agent, không regress.** Gate AC-9/AC-10
-  (2′.1), AC 14–16 (2′.2), AC-19 (2′.3) xanh qua `GuardrailClientAdapter(REAL)` +
-  `ConfirmationManager` thật. `proposal_digest` khớp byte-for-byte `examples.json`.
-- E2E swap: `vivi-agent/.../test_e2e_real_guardrail.py` (agent orchestrator thật ↔ service thật, không mock).
-- Demo: **`py -3 run_both.py`** (boot service + agent, 3 kịch bản ALLOW/BLOCK/CONFIRM).
-- Chạy service: `py -3 -m vf_guardrails.service` (P2-D5).
+- **Pha 2′: 45 test mới. Pha 3′: +18 (`test_answer_3p1.py` 8, `test_trace_3p2.py` 10).
+  Tổng 79/79 vf_guardrails, 941/941 vivi-agent, không regress.** Gate AC-9/10 (2′.1),
+  AC 14–16 (2′.2), AC-19 (2′.3) + ANSWER e2e (3′.1) xanh qua `GuardrailClientAdapter(REAL)`.
+- **Fact-shaping (P2-D3):** `service/answer_facts.py` — 5 state query → `{"<field>": <value>}`;
+  `explain_feature` → `{"feature", "kb_has_feature"}`. `UNKNOWN` → `grounded:false`.
+- **Trace (§16):** `service/trace.py::TraceRecorder` — `guardrail_started`…`guardrail_completed`,
+  latency từng stage + end-to-end, `policy_checksum` mỗi event, không log secret. `--trace-file` JSONL.
+- **Demo:** **`py -3 run_both.py`** — 5 kịch bản ALLOW/BLOCK/CONFIRM(+confirm)/ANSWER/MONITOR + trace.
+- **Coverage (DoD §20):** `py -3 vf_guardrails/evals/run_coverage.py` → `COVERAGE_REPORT.md` ✅ ĐẠT.
+- Chạy service: `py -3 -m vf_guardrails.service` (P2-D5). README: `vf_guardrails/service/README.md`.
 
-Chi tiết từng tăng + nợ kỹ thuật: `PHASE2_PLAN.md` §2. **Nợ nổi bật:** `turnon_LKA` map
-nhưng không có rule (PM chấp nhận tạm — Long có thể thêm intent sau); query fact-shaping +
-trace/event stream (PRD §16) → Pha 3′.
-
-**Tiếp theo — Pha 3′:** end-to-end demo polish, trace/event stream đầy đủ, `/v1/evaluate/query`
-fact-shaping (P2-D3), gộp PR. Xem `AUDIT.md` §6.
+Chi tiết: `PHASE2_PLAN.md` §2 · `PHASE2_REPORT.md` · `PHASE3_REPORT.md`. **Nợ:** `turnon_LKA`
+(PM chấp nhận — Long bổ sung sau); UI (D6) + T3 SLM (D5) hoãn; `/v1/evaluate/query` chưa nằm
+trên đường orchestrator (giữ contract-complete cho đường Gateway sau).
 
 **Nguồn contract (đọc trước khi code):**
 - `vivi-agent/src/vivi_agent/authorization/contract.py` — validator fail-closed
@@ -217,6 +219,9 @@ fact-shaping (P2-D3), gộp PR. Xem `AUDIT.md` §6.
 | Cần biết | Đọc |
 |---|---|
 | Pha 2′ — plan + báo cáo | `docs/guardrail-integration/PHASE2_PLAN.md` · `PHASE2_REPORT.md` |
+| **Pha 3′ — báo cáo** | **`docs/guardrail-integration/PHASE3_REPORT.md`** |
+| Báo cáo phủ (DoD §20) | `docs/guardrail-integration/COVERAGE_REPORT.md` (sinh bởi `evals/run_coverage.py`) |
+| Service README | `vf_guardrails/service/README.md` |
 | **Pha 2′ — báo cáo hoàn thành** | **`docs/guardrail-integration/PHASE2_REPORT.md`** |
 | HTTP contract layer (code) | `vf_guardrails/service/` — `app.py` (core), `http.py`, `tool_map.py`, `state_store.py`, `confirmations.py`, `active_actions.py`, `envelope.py` |
 | Demo E2E 2 service | `run_both.py` (repo root) |
@@ -273,19 +278,27 @@ vf_guardrails/
     state_store.py   VehicleStateStore — state_version đơn điệu, snapshot bất biến, 4 preset
     confirmations.py PendingConfirmationStore — id single-use, TTL 30s, giữ proposal + origin_rule_id
     active_actions.py ActiveActionRegistry + MONITORED_INTENTS (5)
-    envelope.py      copy proposal_digest + validate_action_proposal (contract v1); build decision/permit/error/confirmation schema-exact
-    app.py           GuardrailService.handle(path,payload) -> (status,body) — core không transport
-    http.py          stdlib ThreadingHTTPServer + /healthz
-    __main__.py      `py -3 -m vf_guardrails.service` (P2-D5)
+    answer_facts.py  (3′.1) shape answer={grounded,facts} theo intent; request_params kb_has_feature
+    trace.py         (3′.2) TraceRecorder — event từng stage + latency, policy_checksum, JSONL sink
+    envelope.py      copy proposal_digest + validate_action_proposal (contract v1); build decision/permit/error/confirmation/answer schema-exact
+    app.py           GuardrailService.handle(path,payload) -> (status,body) — core không transport, bọc trace span
+    http.py          stdlib ThreadingHTTPServer + /healthz + GET /v1/trace/{id}
+    __main__.py      `py -3 -m vf_guardrails.service [--trace-file X]` (P2-D5)
+    README.md        (3′) cách chạy + endpoint + phạm vi MÔ PHỎNG
+  evals/
+    run_coverage.py  (3′.3) -> docs/.../COVERAGE_REPORT.md (DoD §20)
+    run_benchmark.py (3′.3) + HTTP round-trip p50/p95/p99
   tests/
-    conftest.py            (mới) bootstrap cross-repo: path vivi-agent + shim `src`
+    conftest.py            bootstrap cross-repo: path vivi-agent + shim `src`
     test_tool_map.py       11 — conformance row-by-row vs agent + coverage 53 intent
     test_service_http.py   ~15 — routing/status/state_store/query
     test_gate_2p1.py       5 — AC-9/AC-10 qua adapter REAL
     test_confirm_2p2.py    7 — AC-14/15/16 + session-mismatch + ConfirmationManager e2e
     test_monitor_2p3.py    10 — AC-19 + keep-running + INVALID_VEHICLE_STATE
-run_both.py          (repo root) demo: service + agent, 3 kịch bản
-vivi-agent/tests/e2e/vertical_slice/e2e-01/test_e2e_real_guardrail.py  (mới, 3) — orchestrator thật ↔ service thật
+    test_answer_3p1.py     8 — ANSWER/UNKNOWN fact-shaping (P2-D3) qua adapter REAL
+    test_trace_3p2.py      10 — trace event stream + /v1/trace HTTP
+run_both.py          (repo root) demo: service + agent, 5 kịch bản + trace + latency
+vivi-agent/tests/e2e/vertical_slice/e2e-01/test_e2e_real_guardrail.py  (4) — orchestrator thật ↔ service thật
 ```
 
 ---
@@ -301,14 +314,16 @@ cd E:/V-GUARDRAIL/guardrail-for-agent
 # train lại T2 model (nếu golden dataset có mặt)
 py -3 -m vf_guardrails.classifier.train
 
-# test toàn bộ (58: policy engine + facade + service HTTP contract layer)
+# test toàn bộ (79: policy engine + facade + service + answer + trace)
 py -3 -m pytest vf_guardrails/tests/ -q
 # test contract phía agent không regress (940)
 cd vivi-agent && py -3 -m pytest -q && cd ..
 
 # Pha 2′: chạy service riêng, hoặc demo 2-service
 py -3 -m vf_guardrails.service            # http://127.0.0.1:8089  (+ GET /healthz)
-PYTHONIOENCODING=utf-8 py -3 run_both.py  # boot service + agent, 3 kịch bản ALLOW/BLOCK/CONFIRM
+PYTHONIOENCODING=utf-8 py -3 run_both.py               # boot service + agent, 5 kịch bản + trace
+PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_coverage.py   # COVERAGE_REPORT.md (DoD §20)
+PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py  # latency + HTTP round-trip
 
 # metrics: engine (100%), T1/frozen (53.4%), T2 TF-IDF/frozen (88.3%), latency
 PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_golden.py

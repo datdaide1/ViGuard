@@ -110,6 +110,20 @@ class E2ERealGuardrailTests(unittest.TestCase):
         self.assertEqual(response["rule_id"], "R002")
         self.assertEqual(env.spy_actuator.call_count, 0)
 
+    def test_state_query_completes_with_a_grounded_answer(self) -> None:
+        env = create_e2e_environment(speed=0.0, gear=Gear.PARK)
+        env.model_router = E2EMockModelRouter(
+            ModelActionProposal.action(
+                "query_vehicle_state", {"action": "get", "target": "current_speed"}, _META
+            )
+        )
+        self.store.mutate(speed=47)
+        response = self._endpoint(env).post_message(
+            self._msg(message="Xe đang chạy bao nhiêu?", session_id="sess-q", turn_id="turn-q", request_id="req-q")
+        )
+        self.assertEqual(response["status"], "completed")
+        self.assertEqual(env.spy_actuator.call_count, 0)  # queries never actuate
+
     def test_confirm_path_returns_needs_confirmation_and_executes_nothing(self) -> None:
         env = create_e2e_environment(speed=40.0, gear=Gear.DRIVE)
         env.model_router = E2EMockModelRouter(

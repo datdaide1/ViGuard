@@ -55,7 +55,55 @@ def main() -> int:
     valid = [i for i in intents if i in engine.ruleset.intents]
     _bench("PolicyEngine (gate)", lambda i: engine.evaluate(i, state), valid, "gate ≤5 ms p99")
     _bench("Guardrail.process (e2e)", lambda u: guard.process(u, state), utts, "fast-path ≤25 ms p99")
+
+    _bench_http()
     return 0
+
+
+def _bench_http() -> None:
+    """HTTP round-trip for the Phase 2' service endpoints (loopback, warm)."""
+    import threading
+    import urllib.request
+
+    from service.http import create_server  # noqa: PLC0415
+
+    srv = create_server(port=0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def _post(path: str, payload: dict) -> None:
+        req = urllib.request.Request(
+            base + path, data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2).read()
+
+    action = {
+        "contract_version": "1.0.0", "proposal_id": "bench", "session_id": "bench",
+        "source_turn_id": "bench", "tool": "control_access",
+        "arguments": {"action": "open", "target": "driver_door"},
+        "model_provider": "openai", "model_id": "gpt-5-mini",
+    }
+    monitor = {
+        "contract_version": "1.0.0", "request_id": "bench-m",
+        "active_action_id": "a", "intent": "activate_hda",
+    }
+    query = {
+        "contract_version": "1.0.0", "request_id": "bench-q", "tool": "query_vehicle_state",
+        "arguments": {"action": "get", "target": "current_speed"},
+    }
+
+    print("\nHTTP round-trip (stdlib http.server, loopback)\n")
+    try:
+        _bench("POST /v1/evaluate/action", lambda _: _post("/v1/evaluate/action", action),
+               list(range(300)), "e2e ≤25 ms p99")
+        _bench("POST /v1/evaluate/query", lambda _: _post("/v1/evaluate/query", query),
+               list(range(300)), "read-only")
+        _bench("POST /v1/monitor/evaluate", lambda _: _post("/v1/monitor/evaluate", monitor),
+               list(range(300)), "monitor tick")
+    finally:
+        srv.shutdown()
+        srv.server_close()
 
 
 if __name__ == "__main__":
