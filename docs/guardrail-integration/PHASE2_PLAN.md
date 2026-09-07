@@ -38,12 +38,37 @@ workbook (đã verify).
 
 ## 2. Việc — chia 4 tăng
 
-### 2′.1 — Contract layer + walking skeleton (~3–5 d)
+### 2′.1 — Contract layer + walking skeleton (~3–5 d) — ✅ XONG (2026-09-07)
 - `vf_guardrails/service/tool_map.py` — `(tool, action, target, value) → intent` + conformance test vs agent.
 - `vf_guardrails/service/state_store.py` — `VehicleStateStore`: state + `state_version`, snapshot bất biến, preset (parked-safe / driving / rainy / low-battery).
 - `vf_guardrails/service/envelope.py` — build `GuardrailDecision` / `GuardrailError` đúng schema; `proposal_digest` (sha256 projection); `ActionPermit` (digest-bound, single_use, issued_at/expires_at, field == decision).
 - `vf_guardrails/service/http.py` — `POST /v1/evaluate/action` + `/v1/evaluate/query`, stdlib `http.server`, contract-version check → 409, malformed → typed error.
 - **Gate:** `vivi-agent` `GuardrailClientAdapter(REAL)` gọi service thật, AC-9 (`open_door` parked → ALLOW + permit hợp lệ) + AC-10 (đang chạy → BLOCK_UNSAFE, không permit) xanh qua HTTP.
+
+**Đã ship:**
+- `vf_guardrails/service/` (7 file): `tool_map.py` (79 dòng explicit của agent, copy nguyên),
+  `state_store.py`, `envelope.py` (copy `proposal_digest` + `validate_action_proposal`
+  từ contract v1), `app.py` (`GuardrailService.handle` — transport-free core),
+  `http.py` (stdlib `ThreadingHTTPServer` + `/healthz`), `__main__.py`
+  (`py -3 -m vf_guardrails.service`, P2-D5). `vf_guardrails/__init__.py` mới.
+- Test: `test_tool_map.py` (11 — conformance row-by-row vs agent + coverage 53 intent),
+  `test_service_http.py` (14 — routing/409/400/422/404/healthz/state_store),
+  `test_gate_2p1.py` (5 — **AC-9 + AC-10 qua `GuardrailClientAdapter(REAL)` thật**).
+  `tests/conftest.py` mới (bootstrap cross-repo: path vivi-agent + shim `src`).
+- **45/45 vf_guardrails test pass; 43 vivi-agent guardrail-contract test pass (không regress).**
+  `proposal_digest` khớp byte-for-byte giá trị pin trong `examples.json`
+  (`sha256:19059c4c…`). Mọi decision qua `validate_guardrail_result` của agent.
+- **Status codes:** 200 decision · 409 version mismatch · 400 malformed proposal ·
+  422 fail-closed (unsupported mapping / engine fail-closed) · 404 route · 501 confirm+monitor (chưa làm).
+
+**Nợ / phát hiện chuyển sang tăng sau:**
+- `turnon_LKA`: có dòng map (agent) nhưng KHÔNG có rule workbook → service trả typed
+  error `INTENT_NOT_IN_CATALOG` (422), không bao giờ ALLOW. Cần xác nhận với workbook
+  (có phải cố ý bỏ `turnon` LKA?).
+- `/v1/evaluate/query`: mới skeleton (route + validate + ANSWER thô từ `relevant_state`).
+  Fact-shaping đầy đủ theo P2-D3 làm ở 2′.2.
+- CONFIRM outcome từ engine → 501 tạm (lifecycle ở 2′.2).
+- `_STATE_DEFAULTS` / preset `rainy`,`low_battery` là giả định, chưa map vào rule cụ thể.
 
 ### 2′.2 — CONFIRM lifecycle (~2–3 d)
 - `PendingConfirmationStore` — id single-use, expiry, gắn 1 proposal.

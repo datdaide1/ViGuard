@@ -1,6 +1,6 @@
 # ViGuard — Guardrail↔Agent Integration · STATUS (đọc file này trước)
 
-**Cập nhật:** 2026-09-07
+**Cập nhật:** 2026-09-07 (tăng 2′.1 xong)
 **Người thực thi:** Đạt (solo). Long, Công đã rời dự án.
 
 > Đây là bản tổng quan cho **session/chat mới**. Đọc xong file này là nắm được:
@@ -49,7 +49,7 @@ riêng SAU khi pipeline xong.
 |---|---|---|
 | **ViVi Agent** | `vivi-agent/` (package Python, 934 test) | ✅ Xong mức sản phẩm. Do Đạt làm. Đã có `MockGuardrail` nói đúng contract v1. |
 | **Contract v1** (Guardrail↔Agent) | `vivi-agent/src/vivi_agent/authorization/contract.py` + `integrations/viguard/` | ✅ Validator fail-closed hoàn chỉnh: HTTP JSON, 4 endpoint, permit digest-bound, typed error. |
-| **Guardrail mới** | `vf_guardrails/guardrail.py` + `policy/` + `classifier/` | ✅ Pha 1′ xong: engine 100%, T2 88.3% frozen, e2e p99 2.4 ms. HTTP layer (Pha 2′) chưa. |
+| **Guardrail mới** | `vf_guardrails/guardrail.py` + `policy/` + `classifier/` + `service/` | ✅ Pha 1′: engine 100%, T2 88.3% frozen, e2e p99 2.4 ms. 🔨 Pha 2′: tăng 2′.1 xong — `service/` HTTP contract layer (action path), gate AC-9/AC-10 xanh qua adapter REAL. |
 | ~~Guardrail cũ của Long~~ | ~~`src/safety_engine.py`, `config/safety_rules.yaml`, `src/agent.py`, `app_sim.py`, `car_status.py`~~ | ❌ **đã xoá** (Bước 3). `src/intent_classifier.py` (T1) giữ lại cho eval. |
 | **Golden dataset** | `golden-dataset/driver-constraints/` (gitignored) | 2.313 câu gán nhãn, `reviewed=0/2313`. `data/rules.json` = 109 rule canonical. `tools/derive_witness_states.py` có AST evaluator tái dùng được. |
 | **Workbook gốc** | `Driver_constraints.xlsx` + `vf_guardrails/Driver_constraints(Constraints).csv` | 109 rule, 53 intent, 104 gate + 5 monitor. Source of truth. |
@@ -64,7 +64,7 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 |---|---|---|
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
 | **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá. Trong PR #48. |
-| **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | 🔨 **PLAN CHỐT, chưa code.** Xem `PHASE2_PLAN.md` (5 quyết định P2-D1..D5 đã chốt, 4 tăng). Bắt đầu ở tăng **2′.1**. |
+| **2′** | HTTP service v1 (CON-01) + permit + CONFIRM + Monitor + swap MockGuardrail | 🔨 **Đang làm.** 2′.1 ✅ (action path + gate AC-9/AC-10). Tiếp: 2′.2 CONFIRM, 2′.3 Monitor, 2′.4 E2E swap. `PHASE2_PLAN.md`. |
 | **3′** | End-to-end demo (`run_both.py`) + trace + polish | ⬜ chưa bắt đầu |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
@@ -181,14 +181,18 @@ agent LLM chọn `tool`+`arguments`, guardrail map tất định `(tool,action,t
 (gương với `vivi-agent/.../tools/mapping/mapper.py`). TF-IDF của Pha 1 phục vụ
 đường Gateway/Simulator (Pha 3′/UI). `PolicyEngine` dùng chung.
 
-**Bắt đầu ở tăng 2′.1:**
-- `vf_guardrails/service/tool_map.py` — copy `DEFAULT_MAPPING_RULES` + conformance test vs agent (P2-D1).
-- `vf_guardrails/service/state_store.py` — `VehicleStateStore` (state + `state_version`, snapshot bất biến, preset) (P2-D2).
-- `vf_guardrails/service/envelope.py` — `GuardrailDecision`/`GuardrailError`/`ActionPermit` đúng `guardrail-agent.schema.json`; `proposal_digest`.
-- `vf_guardrails/service/http.py` — `http.server` stdlib (P2-D4), `POST /v1/evaluate/action` + `/v1/evaluate/query`.
-- **Gate 2′.1:** `vivi-agent` `GuardrailClientAdapter(REAL)` gọi service thật; AC-9 (open_door parked→ALLOW+permit) + AC-10 (moving→BLOCK_UNSAFE, no permit) xanh qua HTTP.
+**Tăng 2′.1 — ✅ XONG (2026-09-07).** `vf_guardrails/service/` (tool_map + state_store
++ envelope + app + http + `__main__`), 26 test mới (45/45 pass), gate AC-9/AC-10 xanh
+qua `GuardrailClientAdapter(REAL)` thật, digest khớp byte-for-byte với `examples.json`,
+43 test contract vivi-agent không regress. Chi tiết + nợ kỹ thuật: `PHASE2_PLAN.md` §2′.1.
+Chạy service: `py -3 -m vf_guardrails.service` (P2-D5).
 
-Tăng 2′.2 (CONFIRM), 2′.3 (Monitor — 5 rule đã nạp trong `policy/`), 2′.4 (E2E swap + `run_both.py`): xem `PHASE2_PLAN.md` §2.
+**Nợ nổi bật:** `turnon_LKA` có map nhưng không có rule workbook (service → typed error 422,
+không ALLOW) — cần xác nhận workbook. `/v1/evaluate/query` mới skeleton. CONFIRM/monitor → 501.
+
+**Tiếp theo — tăng 2′.2 (CONFIRM lifecycle):** `PendingConfirmationStore`, `CONFIRM` decision
+kèm `confirmation={...}`, `POST /v1/confirmations/confirm` (đọc state mới, re-eval). Gate AC 14–16.
+Tăng 2′.3 (Monitor — 5 rule đã nạp trong `policy/`), 2′.4 (E2E swap + `run_both.py`): xem `PHASE2_PLAN.md` §2.
 
 **Nguồn contract (đọc trước khi code):**
 - `vivi-agent/src/vivi_agent/authorization/contract.py` — validator fail-closed
