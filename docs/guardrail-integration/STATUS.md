@@ -89,11 +89,20 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 - Chứng minh: parser 109/109 condition, nạp workbook fail-closed, 3 rule precedence mode-exclusion (R034/R038/R041), tách phase gate/monitor, `speed<3→==0`.
 - **Đây là deliverable Sprint 3 chưa từng làm.**
 
-**T1 intent classifier** (`run_classifier.py`, T1-only vì T2 chặn môi trường):
-- **intent 58.1%** · macro-F1 0.658 · INTENT_UNKNOWN **37%** · pipeline (classified intent → engine) 59% · latency ~0.01 ms.
-- Hợp lệ làm **sàn** (T1 là keyword hand-authored, không train → không leakage).
-- **Kiểu lỗi áp đảo = `INTENT_UNKNOWN`** (T1 không khớp action+entity trên câu phương ngữ / diễn đạt biến thể). Vài confusion thật: `get_door_lock_status→lock_doors` (39), `unlock_doors→lock_doors` (29). `restore_driverseat_pos` & `ad_driverseat_pos` recall 0%.
-- Vì engine đã 100%, **toàn bộ khoảng cách end-to-end = intent classification**, và ~37 điểm của nó chính là phần T2 sinh ra để cứu.
+**Intent classifier** (đo trên frozen independent test set 530 dòng — leakage-free):
+
+| | frozen all | positive | hard-neg |
+|---|---|---|---|
+| T1 (keyword, không train) | 53.4% | 58.3% | 34.0% |
+| **T2 — TF-IDF + LinearSVC** ✅ CHỌN | **88.3%** | **91.0%** | 77.4% |
+| T2 — PhoBERT emb + LinearSVC (đối chứng) | 79.2% | 80.2% | 75.5% |
+
+- **Quyết định T2: chọn TF-IDF** (`char2-5+word1-2`, no-abstain, **primary**).
+  Hơn PhoBERT ~9 điểm, nhẹ hơn (sklearn only), nhanh hơn ~7–50×. Chi tiết +
+  lý do: `docs/guardrail-integration/T2_DECISION.md`.
+- **T2 standalone (88.3%) > T1→T2 cascade (85.7%)** → T2 làm primary, T1 hạ vai
+  trò (chỉ xác nhận / hoặc bỏ). Lỗi còn lại: cặp câu-hỏi↔lệnh (`get_door_lock_status`↔`lock_doors`…).
+- (`run_classifier.py` cũ đo T1 trên golden pool = 58.1% — chỉ để tham chiếu, KHÔNG dùng cho T2 vì leakage.)
 
 **Giới hạn chung:** golden dataset `reviewed=0/2313` (100% = "khớp nhãn", nhãn
 chưa kiểm độc lập). `_STATE_DEFAULTS` là giả định Pha 1. Chưa đo determinism
@@ -134,20 +143,19 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 - Còn thiếu: parse `state_hint` → outcome (pipeline end-to-end) — hoãn tới khi cần
   (TODO trong `run_frozen.py`; engine đã 100% nên chưa gấp).
 
-### Bước 2 — (Claude + Đạt) Quyết & làm T2 ← TIẾP THEO
-- **Ưu tiên đề xuất: TF-IDF (char+word n-gram) + LinearSVC**, sklearn thuần
-  (chạy được ở env hiện tại), train trên golden pool, **eval CHỈ trên frozen**
-  (`run_frozen.py`). Có confidence + margin → abstain về `INTENT_UNKNOWN` (FR-03).
-- Phương án B: PhoBERT ONNX trong venv sạch (`setup_model.py` + `pyvi` +
-  `onnxruntime`), nếu TF-IDF không đủ.
-- Tune keyword T1 từ domain knowledge (KHÔNG mine từ eval set) — nhắm intent
-  recall thấp (`switch_drivemode_*`, `restore_driverseat_pos`, `ad_driverseat_pos`,
-  `activate_epb`) + confusion `get_door_lock_status → lock_doors`.
+### Bước 2 — T2 classifier ✅ XONG
+- Đo cả TF-IDF (88.3%) và PhoBERT (79.2%) trên frozen → **chọn TF-IDF**
+  (`vf_guardrails/classifier/tfidf.py`). `T2_DECISION.md`.
+- T2 làm **primary**, T1 hạ vai trò.
 
-### Bước 3 — (Claude) Dọn & chốt Pha 1′
-- Xoá `vf_guardrails/src/safety_engine.py` + `config/safety_rules.yaml` + `src/agent.py` (Long) + `app_sim.py`.
-- Cập nhật `vf_guardrails/src/guardrail.py` (hoặc thay bằng module mới) dùng `policy/` engine + classifier mới.
-- Gate Pha 1′: 109/109 rule đúng (đã có) + báo cáo metrics classifier trên frozen + xoá code cũ.
+### Bước 3 — (Claude) Dọn & chốt Pha 1′ ← TIẾP THEO
+- Thêm hàm train + lưu model TF-IDF (pickle) vào `vf_guardrails/classifier/`.
+- Thay classifier trong `vf_guardrails/src/guardrail.py` bằng `policy/` engine +
+  `classifier/` TF-IDF (T2 primary, T1 phụ/bỏ).
+- Xoá `vf_guardrails/src/safety_engine.py` + `config/safety_rules.yaml` +
+  `src/agent.py` (Long) + `app_sim.py`.
+- Gate Pha 1′: 109/109 rule đúng (đã có) + classifier 88% trên frozen + xoá code cũ.
+- (Tuỳ chọn) venv `.venv-phobert/` ~6 GB — xoá nếu không cần re-run PhoBERT.
 
 ### Bước 4 — Pha 2′ (HTTP layer) — xem `AUDIT.md` §6
 
@@ -161,7 +169,8 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 | Vì sao bỏ `safety_rules.yaml` | `docs/guardrail-integration/PHASE0_RULE_DIFF.md` |
 | Constraint engine đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1.md` |
 | Classifier T1 trên golden pool | `docs/guardrail-integration/METRICS_PHASE1_CLASSIFIER.md` |
-| Classifier T1 trên frozen (số thật) | `docs/guardrail-integration/METRICS_PHASE1_FROZEN.md` (chạy `run_frozen.py`) |
+| Classifier T1 trên frozen | `docs/guardrail-integration/METRICS_PHASE1_FROZEN.md` (`run_frozen.py`) |
+| **T2: TF-IDF vs PhoBERT + quyết định** | **`docs/guardrail-integration/T2_DECISION.md`** (+ `METRICS_PHASE1_T2*.md`) |
 | Spec tập test độc lập | `docs/guardrail-integration/FROZEN_TESTSET_SPEC.md` |
 | Review tập test độc lập (đã gen) | `docs/guardrail-integration/FROZEN_TESTSET_REVIEW.md` |
 | Tập test độc lập + notes | `vf_guardrails/evals/data/frozen_testset*.` |
