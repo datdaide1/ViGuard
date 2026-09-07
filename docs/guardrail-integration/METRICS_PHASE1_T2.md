@@ -1,7 +1,7 @@
 # Phase 1' — TF-IDF T2 candidate (trained on golden pool, evaluated on FROZEN)
 
-> `vf_guardrails/evals/run_t2.py` · 2026-09-07 10:37
-> train: 2313 golden-pool rows · fit 0.5s · infer p50/p99 0.91/1.36 ms
+> `vf_guardrails/evals/run_t2.py` · 2026-09-07 10:56
+> train: 2313 golden-pool rows · fit 0.4s · infer p50/p99 1.04/3.71 ms
 > eval: 530 frozen rows (424 positive + 106 hard-negative)
 > working model = **SVC · char2-5 + word1-2**
 
@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | SVC · char3-5 + word1-2 | **87.9%** | 90.6% | 77.4% | 0.3 |
 | SVC · char3-5 only | **87.0%** | 90.1% | 74.5% | 0.2 |
-| SVC · char2-5 + word1-2 | **88.3%** | 91.0% | 77.4% | 0.5 |
+| SVC · char2-5 + word1-2 | **88.3%** | 91.0% | 77.4% | 0.4 |
 | LogReg · char3-5 + word1-2 | **87.4%** | 90.3% | 75.5% | 3.3 |
 
 ## TF-IDF T2 standalone (frozen)

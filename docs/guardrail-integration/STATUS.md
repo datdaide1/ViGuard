@@ -170,7 +170,8 @@ trong E2E của `vivi-agent/`. Contract: `vivi-agent/src/vivi_agent/authorizatio
 
 | Cần biết | Đọc |
 |---|---|
-| Tổng quan + roadmap + quyết định | **`docs/guardrail-integration/AUDIT.md`** |
+| Báo cáo hoàn thành Pha 1′ | **`docs/guardrail-integration/PHASE1_REPORT.md`** |
+| Tổng quan + roadmap + quyết định | `docs/guardrail-integration/AUDIT.md` |
 | Vì sao bỏ `safety_rules.yaml` | `docs/guardrail-integration/PHASE0_RULE_DIFF.md` |
 | Constraint engine đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1.md` |
 | Classifier T1 trên golden pool | `docs/guardrail-integration/METRICS_PHASE1_CLASSIFIER.md` |
