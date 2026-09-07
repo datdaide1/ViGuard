@@ -1,35 +1,28 @@
-# Archived content at any directory level
-old/
-
-# Project tracker is intentionally kept out of version control for now
-ViGuard_Tracker.xlsx
-.~lock.ViGuard_Tracker.xlsx#
-
-# Untracked working file, ignored temporarily pending review
-Intents_Candidate.xlsx
-# Local agent operating manuals (intentionally not versioned)
-AGENTS.md
+# Local AI operating manual (not versioned)
 CLAUDE.md
 .claude/
-achive/
 
-# Python-generated artifacts
-__pycache__/
-*.py[cod]
-
-# Local secrets — never commit API keys
+# Secrets
 .env
 .env.*
 !.env.example
 
-# Golden dataset work-in-progress (own workstream, kept out of version
-# control for now to avoid touching other in-flight branches/PRs)
-golden-dataset/
-
-# Local build/temp artifacts
-.codex-tmp/
-release/
-vivi-agent.zip
-
-# Python venvs
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
 .venv*/
+build/
+dist/
+*.egg-info/
+
+# Eval datasets — large, generated, own workstream (kept local)
+golden-dataset/
+guardrail/evals/data/*_test_data.json
+
+# Source workbooks (the canonical CSV is committed; the .xlsx masters are local)
+Intents_Candidate.xlsx
+
+# Editor / OS
+.DS_Store
+Thumbs.db
