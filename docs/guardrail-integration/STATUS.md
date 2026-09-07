@@ -115,11 +115,11 @@ Cấu trúc PASS (53/53 intent, 8+2 mỗi intent, 0 dup, balance OK). Positive l
 chính xác. T1 trên frozen = **55.3%** (golden pool 58.1%) — số hơi thấp hơn +
 failure mode giống → frozen đo đúng, không bị thổi.
 
-**Quyết định (2026-09-07):**
-- **3a → regen** 106 hard-negative (bị đóng khuôn "[X] chớ k phải [Y]").
-  Brief: `docs/guardrail-integration/FROZEN_TESTSET_REGEN_HARDNEG.md` → Đạt đưa
-  cho agent gen. Kết quả `frozen_hardneg_v2.jsonl` → Claude merge + re-validate.
-- **3b → xong.** `fix_frozen_metadata.py` đã sửa 94 `length_bucket`.
+**Vòng 2 — ĐÓNG BĂNG ĐƯỢC (2026-09-07).** Hard-neg đã regen + merge, metadata
+đã sửa. `validate_frozen.py` → 0 error/warning. Mẫu phủ định 15% (từ 84–98%).
+**T1 trên frozen v2: 53.4% toàn tập / 58.3% positive-only** (golden pool 58.1%
+→ khớp ⇒ frozen là thước đo độc lập hợp lệ). Chi tiết: `FROZEN_TESTSET_REVIEW.md`
+"VÒNG 2". Số liệu: `run_frozen.py` → `METRICS_PHASE1_FROZEN.md`.
 
 **Môi trường T2:** `E:\anaconda3` hỏng `torch`/`onnxruntime` → PhoBERT không
 chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (TF-IDF sklearn — chạy được).
@@ -128,30 +128,28 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 
 ## 6. VIỆC TIẾP THEO (thứ tự — làm lần lượt, không song song)
 
-### Bước 1 — Frozen test set: gen + review + fix ✅ / ⏳
-- ✅ Gen vòng 1 (`vf_guardrails/evals/data/frozen_testset.jsonl`), review (`FROZEN_TESTSET_REVIEW.md`), metadata fix 3b (`fix_frozen_metadata.py`).
-- ⏳ **(Đạt) Regen 106 hard-neg** từ `FROZEN_TESTSET_REGEN_HARDNEG.md` → `frozen_hardneg_v2.jsonl`.
+### Bước 1 — Frozen test set: gen + review + regen + merge ✅ XONG
+- v1 gen + review + metadata fix + hard-neg regen (v2) + merge. Final: 530 dòng,
+  `validate_frozen.py` sạch. `run_frozen.py` đo T1 = **53.4%** (positive 58.3%).
+- Còn thiếu: parse `state_hint` → outcome (pipeline end-to-end) — hoãn tới khi cần
+  (TODO trong `run_frozen.py`; engine đã 100% nên chưa gấp).
 
-### Bước 2 — (Claude) Merge hard-neg v2 + adapter + đo T1 ← TIẾP THEO
-- Merge `frozen_hardneg_v2.jsonl` (106 + FROZEN-0294) vào `frozen_testset.jsonl`; chạy `validate_frozen.py` + `fix_frozen_metadata.py --write`.
-- `run_classifier.py`: thêm `--dataset` + đọc format frozen; parse `state_hint` → `vehicle_state` → engine → `expected_outcome`.
-- Chạy → ghi `METRICS_PHASE1_FROZEN.md`. Baseline T1 thật. (Đo tay vòng 1: **55.3%**.)
-
-### Bước 3 — (Claude + Đạt) Quyết & làm T2
+### Bước 2 — (Claude + Đạt) Quyết & làm T2 ← TIẾP THEO
 - **Ưu tiên đề xuất: TF-IDF (char+word n-gram) + LinearSVC**, sklearn thuần
-  (chạy được ở env hiện tại), train trên golden pool, **eval CHỈ trên frozen**.
-  Có confidence + margin → abstain về `INTENT_UNKNOWN` (FR-03).
+  (chạy được ở env hiện tại), train trên golden pool, **eval CHỈ trên frozen**
+  (`run_frozen.py`). Có confidence + margin → abstain về `INTENT_UNKNOWN` (FR-03).
 - Phương án B: PhoBERT ONNX trong venv sạch (`setup_model.py` + `pyvi` +
   `onnxruntime`), nếu TF-IDF không đủ.
 - Tune keyword T1 từ domain knowledge (KHÔNG mine từ eval set) — nhắm intent
-  recall 0% (`restore_driverseat_pos`, `ad_driverseat_pos`) + confusion `lock_doors`.
+  recall thấp (`switch_drivemode_*`, `restore_driverseat_pos`, `ad_driverseat_pos`,
+  `activate_epb`) + confusion `get_door_lock_status → lock_doors`.
 
-### Bước 4 — (Claude) Dọn & chốt Pha 1′
+### Bước 3 — (Claude) Dọn & chốt Pha 1′
 - Xoá `vf_guardrails/src/safety_engine.py` + `config/safety_rules.yaml` + `src/agent.py` (Long) + `app_sim.py`.
 - Cập nhật `vf_guardrails/src/guardrail.py` (hoặc thay bằng module mới) dùng `policy/` engine + classifier mới.
 - Gate Pha 1′: 109/109 rule đúng (đã có) + báo cáo metrics classifier trên frozen + xoá code cũ.
 
-### Bước 5 — Pha 2′ (HTTP layer) — xem `AUDIT.md` §6
+### Bước 4 — Pha 2′ (HTTP layer) — xem `AUDIT.md` §6
 
 ---
 
@@ -162,7 +160,8 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 | Tổng quan + roadmap + quyết định | **`docs/guardrail-integration/AUDIT.md`** |
 | Vì sao bỏ `safety_rules.yaml` | `docs/guardrail-integration/PHASE0_RULE_DIFF.md` |
 | Constraint engine đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1.md` |
-| Classifier T1 đúng bao nhiêu | `docs/guardrail-integration/METRICS_PHASE1_CLASSIFIER.md` |
+| Classifier T1 trên golden pool | `docs/guardrail-integration/METRICS_PHASE1_CLASSIFIER.md` |
+| Classifier T1 trên frozen (số thật) | `docs/guardrail-integration/METRICS_PHASE1_FROZEN.md` (chạy `run_frozen.py`) |
 | Spec tập test độc lập | `docs/guardrail-integration/FROZEN_TESTSET_SPEC.md` |
 | Review tập test độc lập (đã gen) | `docs/guardrail-integration/FROZEN_TESTSET_REVIEW.md` |
 | Tập test độc lập + notes | `vf_guardrails/evals/data/frozen_testset*.` |

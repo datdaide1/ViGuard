@@ -4,7 +4,30 @@ File: `vf_guardrails/evals/data/frozen_testset.jsonl` (530 dòng) +
 `frozen_testset_generation_notes.md`. Gen bởi 1 agent khác từ
 [`FROZEN_TESTSET_SPEC.md`](FROZEN_TESTSET_SPEC.md), không đọc repo.
 
-## Verdict: **DÙNG ĐƯỢC — đã lưu vào repo.** 2 điểm cần bạn quyết (§3).
+---
+
+## VÒNG 2 — sau regen hard-neg + fix metadata (chốt)
+
+**Trạng thái: ĐÓNG BĂNG ĐƯỢC.** `validate_frozen.py` → 0 error, 0 warning.
+
+| | v1 | **v2 (final)** |
+|---|---|---|
+| Hard-neg dùng mẫu "[X] chớ k phải [Y]" | 84–98% | **15% (16/106)** |
+| `length_bucket` (tính lại từ số từ) | sai 94 dòng | đúng; `ngan` 95 (18%, sát ngưỡng 20%) |
+| Trùng / near-dup | 1 | **0** |
+| T1 intent acc (toàn tập) | 55.3% | **53.4%** |
+| — positive only | — | **58.3%** (golden pool: 58.1% → khớp gần như hoàn hảo ⇒ positive là thước đo độc lập hợp lệ) |
+| — hard-negative only | 43.4% | **34.0%** (giảm = hard-neg v2 khó thật, đúng ý đồ) |
+
+**Xử lý khi merge:**
+- Nhận `frozen_hardneg_v2.jsonl`: 106 hard-neg (OK) + `FROZEN-0294` (positive thay near-dup, OK) + `FROZEN-0261` **thừa** (agent tự sửa, bản sửa lại near-dup với `FROZEN-0262`) → **bỏ, giữ 0261 gốc**.
+- 3 hard-neg v2 (`FROZEN-0009/0390/0420`) trùng/gần trùng positive cùng intent và không còn yếu tố gây nhầm → **revert về v1** (bản v1 là hard-neg đúng, dùng mẫu phủ định — tổng vẫn 15%).
+
+Số liệu T1 hiện tại: `METRICS_PHASE1_FROZEN.md` (chạy `run_frozen.py`).
+
+---
+
+## Verdict (vòng 1, giữ để đối chiếu): DÙNG ĐƯỢC — đã lưu vào repo.
 
 ---
 
