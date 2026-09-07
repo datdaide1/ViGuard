@@ -253,8 +253,8 @@ Mục tiêu: **guardrail phân giải + đánh giá đúng 109 rule, đo đượ
   → **[METRICS_PHASE1.md](METRICS_PHASE1.md): constraint engine 2313/2313 = 100% trên golden dataset, latency p99 0.14 ms.** 15 test pass.
 - [x] **Pha 1′ — T1 baseline** ([METRICS_PHASE1_CLASSIFIER.md](METRICS_PHASE1_CLASSIFIER.md)): T1-only 58.1% intent / 59% pipeline / 37% UNKNOWN. T2 (PhoBERT) chặn môi trường (`E:\anaconda3` hỏng `torch`/`onnxruntime`).
 - [x] **Pha 1′ — chốt phương pháp đo**: CV trên golden pool bị leakage (pool sinh theo khuôn, nhiều câu gần trùng). Cần **frozen independent test set** trước khi đo T2 → [FROZEN_TESTSET_SPEC.md](FROZEN_TESTSET_SPEC.md) (bản hướng dẫn tự chứa cho agent gen, ~530 dòng). T1 58.1% vẫn hợp lệ (T1 không train).
-- [ ] **Pha 1′ (còn lại)** — (PM) gen frozen test set từ SPEC → tôi viết adapter cho `run_classifier.py` + đo T1 trên frozen → quyết T2 (TF-IDF vs PhoBERT trong venv) → xoá `src/safety_engine.py` + `config/safety_rules.yaml`.
-- [ ] **Pha 2′** — HTTP service v1, permit, CONFIRM lifecycle, Monitor wiring, swap MockGuardrail.
+- [x] **Pha 1′ XONG** — frozen test set (v2), T2 quyết định (TF-IDF 88.3% > PhoBERT 79.2% — `T2_DECISION.md`), `classifier/` + `guardrail.py` facade mới, xoá `safety_engine.py`/`safety_rules.yaml`/`agent.py`/`app_sim.py`/`car_status.py`. E2E p99 2.4 ms, 19 test.
+- [ ] **Pha 2′** ← TIẾP THEO — HTTP service v1, permit, CONFIRM lifecycle, Monitor wiring, swap MockGuardrail. Xem §6 "Pha 2′".
 
 ### Việc git còn treo
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` (detached HEAD) — dọn nếu không dùng (`git worktree remove`).

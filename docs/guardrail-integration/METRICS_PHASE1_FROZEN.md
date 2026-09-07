@@ -1,6 +1,6 @@
 # Phase 1' metrics — intent classifier vs FROZEN independent test set
 
-> `vf_guardrails/evals/run_frozen.py` · 2026-09-07 10:15 · 530 rows (424 positive + 106 hard-negative)
+> `vf_guardrails/evals/run_frozen.py` · 2026-09-07 10:48 · 530 rows (424 positive + 106 hard-negative)
 > tiers: **T1 only (T2 model not loaded)**
 > Leakage-free: T1 is hand-authored keywords (not trained). A trained T2 must also run here.
 
@@ -17,26 +17,26 @@
 
 | intent | recall | n |
 |---|---|---|
-| `get_door_lock_status` | 0% | 10 |
 | `restore_driverseat_pos` | 0% | 10 |
+| `get_door_lock_status` | 0% | 10 |
 | `switch_drivemode_sport` | 0% | 10 |
 | `ad_driverseat_pos` | 0% | 10 |
 | `get_avh_status` | 0% | 10 |
 | `activate_epb` | 10% | 10 |
-| `shift_gear_park` | 20% | 10 |
-| `explain_feature` | 20% | 10 |
+| `switch_drivemode_eco` | 20% | 10 |
 | `turnon_corneringlight` | 20% | 10 |
 | `turnon_turnsignal_left` | 20% | 10 |
-| `switch_drivemode_eco` | 20% | 10 |
+| `explain_feature` | 20% | 10 |
+| `shift_gear_park` | 20% | 10 |
+| `unlock_doors` | 30% | 10 |
+| `switch_drivemode_normal` | 30% | 10 |
 | `turnon_turnsignal_right` | 30% | 10 |
 | `get_current_speed` | 30% | 10 |
-| `switch_drivemode_normal` | 30% | 10 |
 | `get_gear` | 30% | 10 |
-| `unlock_doors` | 30% | 10 |
 | `open_window` | 40% | 10 |
-| `activate_creepmode` | 40% | 10 |
-| `activate_autopark` | 40% | 10 |
 | `get_battery_pct` | 40% | 10 |
+| `activate_autopark` | 40% | 10 |
+| `activate_creepmode` | 40% | 10 |
 
 ## Top confusions (true → predicted)
 

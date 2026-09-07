@@ -33,8 +33,8 @@ riêng SAU khi pipeline xong.
 |---|---|---|
 | **ViVi Agent** | `vivi-agent/` (package Python, 934 test) | ✅ Xong mức sản phẩm. Do Đạt làm. Đã có `MockGuardrail` nói đúng contract v1. |
 | **Contract v1** (Guardrail↔Agent) | `vivi-agent/src/vivi_agent/authorization/contract.py` + `integrations/viguard/` | ✅ Validator fail-closed hoàn chỉnh: HTTP JSON, 4 endpoint, permit digest-bound, typed error. |
-| **Guardrail cũ của Long** | `vf_guardrails/` (import từ repo sibling 2026-09-06, commit `cbfea6f`) | ⚠️ Bản đơn giản, lệch spec. Xem §4. `src/agent.py` 66KB = agent riêng của Long, **sẽ xoá** (dùng `vivi-agent/` là canonical). |
-| **Guardrail mới (đang xây)** | `vf_guardrails/policy/` | 🔨 Constraint engine ✅ xong 100%. Classifier + HTTP layer chưa. |
+| **Guardrail mới** | `vf_guardrails/guardrail.py` + `policy/` + `classifier/` | ✅ Pha 1′ xong: engine 100%, T2 88.3% frozen, e2e p99 2.4 ms. HTTP layer (Pha 2′) chưa. |
+| ~~Guardrail cũ của Long~~ | ~~`src/safety_engine.py`, `config/safety_rules.yaml`, `src/agent.py`, `app_sim.py`, `car_status.py`~~ | ❌ **đã xoá** (Bước 3). `src/intent_classifier.py` (T1) giữ lại cho eval. |
 | **Golden dataset** | `golden-dataset/driver-constraints/` (gitignored) | 2.313 câu gán nhãn, `reviewed=0/2313`. `data/rules.json` = 109 rule canonical. `tools/derive_witness_states.py` có AST evaluator tái dùng được. |
 | **Workbook gốc** | `Driver_constraints.xlsx` + `vf_guardrails/Driver_constraints(Constraints).csv` | 109 rule, 53 intent, 104 gate + 5 monitor. Source of truth. |
 
@@ -47,8 +47,8 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 | Pha | Mục tiêu | Trạng thái |
 |---|---|---|
 | **0** | Import guardrail, chốt quyết định, rule diff, sửa bug fail-open | ✅ **XONG** |
-| **1′** | Decision core + đo trên golden dataset | 🔨 **ĐANG** — engine ✅ 100%; classifier ⏳ chờ frozen test set |
-| **2′** | HTTP service v1 wrap engine + permit + CONFIRM + Monitor + swap MockGuardrail | ⬜ chưa bắt đầu |
+| **1′** | Decision core + classifier + đo trên frozen | ✅ **XONG** — engine 100%, T2 (TF-IDF) 88.3% frozen, guardrail facade mới, code cũ đã xoá |
+| **2′** | HTTP service v1 wrap engine + permit + CONFIRM + Monitor + swap MockGuardrail | ⬜ ← **TIẾP THEO** |
 | **3′** | End-to-end demo (`run_both.py`) + trace + polish | ⬜ chưa bắt đầu |
 | *sau* | Brainstorm scale (multi-agent / multi-vehicle) + UI | ⬜ ngoài phạm vi hiện tại |
 
@@ -77,6 +77,9 @@ Chi tiết đầy đủ: **`docs/guardrail-integration/AUDIT.md`** (§6 là road
 | `c1e0457` | **Constraint engine mới** `vf_guardrails/policy/` (`conditions.py`, `rules.py`, `state.py`, `engine.py`). Kết quả: **2313/2313 = 100%** outcome đúng trên golden dataset, latency p99 **0.14 ms**. 15 test pass. Chi tiết: `METRICS_PHASE1.md`. |
 | `58a5c43` | **T1 classifier baseline**: `evals/run_classifier.py` + thêm keyword 8 intent thiếu. Kết quả T1-only: **intent 58.1%**, UNKNOWN 37%, pipeline 59%. Chi tiết: `METRICS_PHASE1_CLASSIFIER.md`. |
 | `de5c609` | **`FROZEN_TESTSET_SPEC.md`** — hướng dẫn tự chứa để 1 agent khác (không đọc repo) gen tập test độc lập. |
+| `…` | Frozen test set v1→v2 (regen hard-neg), `run_frozen.py`, `validate_frozen.py`. |
+| `1c89e80` | **T2 quyết định** — TF-IDF 88.3% vs PhoBERT 79.2% trên frozen → chọn TF-IDF. `T2_DECISION.md`. |
+| *(Bước 3)* | `classifier/` (train/save + IntentResolver + model), `guardrail.py` facade mới, **xoá** `safety_engine.py`/`safety_rules.yaml`/`agent.py`/`app_sim.py`/`car_status.py`. E2E latency p99 2.4 ms. |
 
 ### Bằng chứng đã có (con số thật)
 
@@ -148,16 +151,18 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
   (`vf_guardrails/classifier/tfidf.py`). `T2_DECISION.md`.
 - T2 làm **primary**, T1 hạ vai trò.
 
-### Bước 3 — (Claude) Dọn & chốt Pha 1′ ← TIẾP THEO
-- Thêm hàm train + lưu model TF-IDF (pickle) vào `vf_guardrails/classifier/`.
-- Thay classifier trong `vf_guardrails/src/guardrail.py` bằng `policy/` engine +
-  `classifier/` TF-IDF (T2 primary, T1 phụ/bỏ).
-- Xoá `vf_guardrails/src/safety_engine.py` + `config/safety_rules.yaml` +
-  `src/agent.py` (Long) + `app_sim.py`.
-- Gate Pha 1′: 109/109 rule đúng (đã có) + classifier 88% trên frozen + xoá code cũ.
-- (Tuỳ chọn) venv `.venv-phobert/` ~6 GB — xoá nếu không cần re-run PhoBERT.
+### Bước 3 — Dọn & chốt Pha 1′ ✅ XONG
+- `classifier/`: `tfidf.py` (train/save/load) + `train.py` + `model_tfidf.pkl` (3.5 MB, committed — golden dataset gitignored nên model đi kèm repo) + `intent.py` (`IntentResolver`, T2 primary, abstain `min_score=-0.5`).
+- `vf_guardrails/guardrail.py` — facade mới: `IntentResolver` → `PolicyEngine` → `GuardrailResult`. Fail-closed: intent unresolved → `INTENT_UNRESOLVED` (không phải outcome).
+- Xoá: `src/safety_engine.py`, `src/guardrail.py`, `src/models.py`, `src/agent.py`, `config/safety_rules.yaml`, `app_sim.py`, `car_status.py`, `tests/run_benchmark.py` (chuyển sang `evals/run_benchmark.py`).
+- **Gate Pha 1′ ✅:** engine 100% (2313/2313), T2 88.3% frozen, e2e latency **p99 2.4 ms** (target ≤25 ms), 19 test pass, code cũ đã xoá.
 
-### Bước 4 — Pha 2′ (HTTP layer) — xem `AUDIT.md` §6
+### Bước 4 — Pha 2′ (HTTP layer) ← TIẾP THEO — xem `AUDIT.md` §6
+
+**Pha 2′ tóm tắt:** wrap `Guardrail` vào HTTP service v1 (4 endpoint, `ActionProposal`
++ `proposal_digest`, `ActionPermit` cho ALLOW, `policy_checksum` + `state_version`,
+typed error), CONFIRM lifecycle, Monitor engine, swap `MockGuardrail` → service thật
+trong E2E của `vivi-agent/`. Contract: `vivi-agent/src/vivi_agent/authorization/contract.py`.
 
 ---
 
@@ -182,16 +187,29 @@ chạy được ở đây (xem §8). Dùng venv sạch, hoặc hướng nhẹ (T
 ### Code mới (Pha 1′)
 
 ```
-vf_guardrails/policy/
-  conditions.py   AST evaluator (no eval()) + normalize + 7 MANUAL_REWRITES
-  rules.py        RuleSet.load() — 109 rule từ CSV, fail-closed, policy_checksum
-  state.py        VehicleState canonical + _STATE_DEFAULTS (giả định Pha 1, cần review)
-  engine.py       PolicyEngine.evaluate(intent, state, check_mode) -> Decision
-vf_guardrails/evals/
-  run_golden.py       metrics constraint engine vs golden dataset
-  run_classifier.py   metrics classifier + pipeline
-vf_guardrails/tests/
-  test_policy_engine.py   12 test + oracle 2313 dòng
+vf_guardrails/
+  guardrail.py      Guardrail.process(text, state) -> GuardrailResult   ← facade
+  policy/
+    conditions.py   AST evaluator (no eval()) + normalize + 7 MANUAL_REWRITES
+    rules.py        RuleSet.load() — 109 rule từ CSV, fail-closed, policy_checksum
+    state.py        VehicleState canonical + _STATE_DEFAULTS (giả định Pha 1)
+    engine.py       PolicyEngine.evaluate(intent, state, check_mode) -> Decision
+  classifier/
+    tfidf.py        TfidfIntentClassifier (train/save/load; char2-5 + word1-2 + LinearSVC)
+    train.py        fit trên golden pool -> model_tfidf.pkl
+    intent.py       IntentResolver — T2 primary, abstain min_score=-0.5
+    model_tfidf.pkl 3.5 MB, committed
+  src/intent_classifier.py   T1 (Aho-Corasick) — GIỮ, chỉ dùng cho eval so sánh
+  evals/
+    run_golden.py       engine vs golden dataset (100%)
+    run_frozen.py       T1 vs frozen
+    run_t2.py           TF-IDF T2 train+eval frozen
+    run_t2_phobert.py   PhoBERT T2 (venv .venv-phobert)
+    run_benchmark.py    latency p50/p95/p99
+    validate_frozen.py / fix_frozen_metadata.py
+  tests/
+    test_policy_engine.py   12 test + oracle 2313 dòng
+    test_guardrail.py       7 test e2e facade
 ```
 
 ---
@@ -204,23 +222,26 @@ vf_guardrails/tests/
 
 cd E:/V-GUARDRAIL/guardrail-for-agent
 
-# test engine + guardrail
-py -3 -m pytest vf_guardrails/tests/test_policy_engine.py vf_guardrails/tests/test_guardrail.py -q
+# train lại T2 model (nếu golden dataset có mặt)
+py -3 -m vf_guardrails.classifier.train
 
-# metrics constraint engine (ghi METRICS_PHASE1.md)
+# test toàn bộ (19: policy engine + guardrail e2e)
+py -3 -m pytest vf_guardrails/tests/ -q
+
+# metrics: engine (100%), T1/frozen (53.4%), T2 TF-IDF/frozen (88.3%), latency
 PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_golden.py
+PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_frozen.py
+PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_t2.py
+PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
-# metrics classifier (ghi METRICS_PHASE1_CLASSIFIER.md)
-PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_classifier.py
-
-# regen rule diff
-py -3 docs/guardrail-integration/phase0_diff.py
+# PhoBERT đối chứng (venv)
+.venv-phobert/Scripts/python vf_guardrails/evals/run_t2_phobert.py
 ```
 
 **Gotcha môi trường:**
-- `py -3` = Python 3.11 anaconda. `torch` / `transformers` hỏng DLL → T2 không chạy được ở đây.
-- `onnxruntime` đã bị reinstall `1.19.2` (fix DLL) → `protobuf 7.x` xung đột soft với `streamlit`/`weaviate` (không do dự án này).
-- `pyahocorasick`, `pyyaml`, `sklearn`, `scipy`, `pyvi` đã cài.
+- `py -3` = Python 3.11 anaconda. CPU `torch`/`transformers` hỏng DLL (cả máy). **CUDA torch chạy được** → venv `.venv-phobert/` (torch cu124 + sentence-transformers + pyvi) cho PhoBERT: `.venv-phobert\Scripts\python <script>`.
+- `onnxruntime` đã reinstall `1.19.2` → `protobuf 7.x` xung đột soft với `streamlit`/`weaviate` (không do dự án này).
+- Default env đã cài: `pyahocorasick`, `pyyaml`, `pydantic`, `scikit-learn`, `scipy`, `pytest`. TF-IDF T2 chạy ở đây bình thường.
 
 ---
 
