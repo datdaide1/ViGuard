@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis.local/contracts/guardrail-agent/1.0.0/schema.json",
+  "title": "Aegis Guardrail-Agent Contract",
+  "contract_version": "1.0.0",
+  "oneOf": [
+    { "$ref": "#/$defs/actionProposal" },
+    { "$ref": "#/$defs/guardrailResult" },
+    { "$ref": "#/$defs/confirmationRequest" },
+    { "$ref": "#/$defs/monitorRequest" }
+  ],
+  "$defs": {
+    "contractVersion": { "const": "1.0.0" },
+    "identifier": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "outcome": {
+      "enum": [
+        "ALLOW", "BLOCK_UNSAFE", "BLOCK_UNAVAILABLE", "CONFIRM",
+        "NOT_VOICE_ACTIONABLE", "ANSWER", "UNKNOWN"
+      ]
+    },
+    "actionProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version", "proposal_id", "session_id", "source_turn_id",
+        "tool", "arguments", "model_provider", "model_id"
+      ],
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/contractVersion" },
+        "proposal_id": { "$ref": "#/$defs/identifier" },
+        "session_id": { "$ref": "#/$defs/identifier" },
+        "source_turn_id": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "arguments": { "type": "object" },
+        "model_provider": { "enum": ["openai", "gemini"] },
+        "model_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "actionPermit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permit_id", "proposal_digest", "intent", "rule_id", "state_version",
+        "policy_checksum", "issued_at", "expires_at", "single_use"
+      ],
+      "properties": {
+        "permit_id": { "$ref": "#/$defs/identifier" },
+        "proposal_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "intent": { "$ref": "#/$defs/identifier" },
+        "rule_id": { "$ref": "#/$defs/identifier" },
+        "state_version": { "type": "integer", "minimum": 0 },
+        "policy_checksum": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "issued_at": { "$ref": "#/$defs/timestamp" },
+        "expires_at": { "$ref": "#/$defs/timestamp" },
+        "single_use": { "const": true }
+      }
+    },
+    "decisionBase": {
+      "type": "object",
+      "required": [
+        "contract_version", "kind", "request_id", "proposal_id", "intent",
+        "outcome", "rule_id", "state_version", "policy_checksum",
+        "reason_code", "relevant_state"
+      ],
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/contractVersion" },
+        "kind": { "const": "decision" },
+        "request_id": { "$ref": "#/$defs/identifier" },
+        "proposal_id": { "$ref": "#/$defs/identifier" },
+        "intent": { "$ref": "#/$defs/identifier" },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "rule_id": { "$ref": "#/$defs/identifier" },
+        "state_version": { "type": "integer", "minimum": 0 },
+        "policy_checksum": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "reason_code": { "$ref": "#/$defs/identifier" },
+        "relevant_state": { "type": "object" },
+        "answer": { "type": "object" },
+        "confirmation": { "$ref": "#/$defs/pendingConfirmation" },
+        "permit": { "$ref": "#/$defs/actionPermit" }
+      }
+    },
+    "allowDecision": {
+      "allOf": [
+        { "$ref": "#/$defs/decisionBase" },
+        {
+          "required": ["permit"],
+          "properties": { "outcome": { "const": "ALLOW" } },
+          "not": { "anyOf": [{ "required": ["answer"] }, { "required": ["confirmation"] }] }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "nonAllowDecision": {
+      "allOf": [
+        { "$ref": "#/$defs/decisionBase" },
+        {
+          "properties": {
+            "outcome": {
+              "enum": [
+                "BLOCK_UNSAFE", "BLOCK_UNAVAILABLE", "NOT_VOICE_ACTIONABLE",
+                "ANSWER", "UNKNOWN"
+              ]
+            }
+          },
+          "not": { "required": ["permit"] }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "confirmDecision": {
+      "allOf": [
+        { "$ref": "#/$defs/decisionBase" },
+        {
+          "required": ["confirmation"],
+          "properties": { "outcome": { "const": "CONFIRM" } },
+          "not": { "required": ["permit"] }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pendingConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "proposal_id", "expires_at", "single_use"],
+      "properties": {
+        "confirmation_id": { "$ref": "#/$defs/identifier" },
+        "proposal_id": { "$ref": "#/$defs/identifier" },
+        "expires_at": { "$ref": "#/$defs/timestamp" },
+        "single_use": { "const": true }
+      }
+    },
+    "guardrailError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "kind", "request_id", "error"],
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/contractVersion" },
+        "kind": { "const": "error" },
+        "request_id": { "$ref": "#/$defs/identifier" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": { "$ref": "#/$defs/identifier" },
+            "message": { "type": "string", "minLength": 1 },
+            "retryable": { "type": "boolean" },
+            "details": { "type": "object" }
+          }
+        }
+      }
+    },
+    "confirmationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "request_id", "confirmation_id", "session_id"],
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/contractVersion" },
+        "request_id": { "$ref": "#/$defs/identifier" },
+        "confirmation_id": { "$ref": "#/$defs/identifier" },
+        "session_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "monitorRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "request_id", "active_action_id", "intent"],
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/contractVersion" },
+        "request_id": { "$ref": "#/$defs/identifier" },
+        "active_action_id": { "$ref": "#/$defs/identifier" },
+        "intent": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "guardrailResult": {
+      "oneOf": [
+        { "$ref": "#/$defs/allowDecision" },
+        { "$ref": "#/$defs/nonAllowDecision" },
+        { "$ref": "#/$defs/confirmDecision" },
+        { "$ref": "#/$defs/guardrailError" }
+      ]
+    }
+  }
+}

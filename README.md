@@ -1,158 +1,112 @@
-# ViGuard — Guardrail-first ViVi Agent Simulator
+# Aegis — an action guardrail for tool-calling vehicle agents
 
-ViGuard là môi trường mô phỏng và đánh giá local cho một AI Agent trên xe. Mọi
-câu lệnh văn bản phải đi qua Guardrail trước khi ViVi Agent được phép phản hồi
-hoặc thực hiện hành động mô phỏng.
+Aegis is a **policy guardrail that sits in front of an AI agent** controlling a
+(simulated) electric vehicle. Every request the agent wants to act on is checked
+against the vehicle's real-time state before anything runs.
 
-Mục tiêu của pilot là biến một nguyên tắc kiến trúc thành bằng chứng quan sát
-được: cùng một câu lệnh có thể tạo kết quả khác nhau khi trạng thái xe thay đổi;
-đường bị chặn không được gọi actuator; đường được cho phép phải truy vết được từ
-câu lệnh, intent, state snapshot và rule đã áp dụng.
+The point it proves: **the same command can be safe or unsafe depending on
+vehicle state, and a blocked command never reaches an actuator** — and every
+allowed command is traceable from text → intent → state snapshot → rule → outcome.
 
-> **Trạng thái hiện tại (2026-09): Pha 1′ + 2′ đã merge vào `guardrail-integration`;
-> Pha 3′ (demo + trace + query) đang trên `feat/guardrail-phase3`.** Đọc
-> **`docs/guardrail-integration/STATUS.md`** để nắm tiến độ. Tóm tắt: agent ✅;
-> constraint engine ✅ 100% golden; T2 TF-IDF ✅ 88.3% frozen; HTTP contract layer
-> `vf_guardrails/service/` ✅ (action + confirm + monitor + query + trace).
-> Demo 2 service end-to-end: **`py -3 run_both.py`**. Báo cáo phủ: `py -3 vf_guardrails/evals/run_coverage.py`.
-> Đây là **MÔ PHỎNG** — chưa phải ứng dụng điều khiển xe, không phải bằng chứng
-> policy đã được chứng nhận cho xe thật, không có xác nhận an toàn của OEM.
+> **This is a simulation.** It is not a vehicle-control application, carries no
+> OEM safety sign-off, and its policy content is a design baseline, not certified
+> production policy.
 
-## Luồng sản phẩm
+---
 
-```text
-Text Input UI
-      │
-      ▼
-Guardrail Gateway
-  ├─ kiểm tra và chuẩn hóa text
-  ├─ phân loại intent qua T1 → T2 → T3
-  ├─ đọc Vehicle State Mock
-  └─ đánh giá constraint
-      │
-      ▼
-Guardrail Decision
-      │
-      ▼
-ViVi Agent
-  ├─ phản hồi có căn cứ
-  ├─ yêu cầu xác nhận và đánh giá lại state
-  └─ gọi Mock Actuator chỉ trên đường hợp lệ
-      │
-      ▼
-Vehicle events, state changes và audit trace
+## How it works
+
+```
+user text
+   │
+   ▼
+┌─────────────────────────────────────────────┐
+│ Agent  (agent/)                             │
+│  · picks one registered tool call           │
+│  · maps it to one of 53 canonical intents   │
+└───────────────┬─────────────────────────────┘
+                │ ActionProposal  (tool + arguments — no intent, no free text)
+                ▼
+┌─────────────────────────────────────────────┐
+│ Guardrail  (guardrail/)                     │
+│  1. recover the intent (same deterministic  │
+│     map the agent used)                     │
+│  2. read the owned VehicleState snapshot    │
+│  3. evaluate 109 rules → exactly one of 7   │
+│     outcomes                                │
+└───────────────┬─────────────────────────────┘
+                │ GuardrailDecision  (+ single-use ActionPermit only on ALLOW)
+                ▼
+        Agent executes — only on ALLOW, or after a fresh re-check on CONFIRM
 ```
 
-Guardrail đứng ngoài và trước ViVi Agent. Classifier chỉ xác định người dùng
-muốn gì; nó không tự quyết định an toàn. Kết quả cuối chỉ được tạo sau khi intent
-được đánh giá cùng Vehicle State Mock và constraint tương ứng.
+**7 outcomes:** `ALLOW` · `BLOCK_UNSAFE` · `BLOCK_UNAVAILABLE` · `CONFIRM` ·
+`NOT_VOICE_ACTIONABLE` · `ANSWER` · `UNKNOWN`. Only `ALLOW` (or a confirmed
+re-evaluation) yields a permit; every other outcome calls nothing.
 
-## Phạm vi pilot
+The guardrail and the agent are **two separate services** talking over an HTTP
+contract — the guardrail can be replaced or upgraded without touching the agent.
 
-Theo PRD hiện hành, sản phẩm mục tiêu bao gồm:
+---
 
-- text input đi qua một Guardrail Gateway duy nhất;
-- catalog đóng gồm 53 intent trong phạm vi pilot;
-- policy workbook gồm 109 constraint: 104 rule `gate` và 5 rule `monitor`;
-- ba tầng phân loại T1/T2/T3, trong đó T3 chỉ là fallback;
-- Vehicle State Mock là nguồn sự thật cho constraint evaluation;
-- ViVi Agent chuyển decision thành phản hồi, confirmation hoặc hành động mô phỏng;
-- Mock Actuator cho action/UI intent;
-- confirmation dùng một lần và luôn re-evaluate trên state mới;
-- monitor có thể dừng active action khi điều kiện không còn phù hợp;
-- trace đủ để tái dựng toàn bộ lượt xử lý.
+## Quick start
 
-Guardrail công bố đúng bảy outcome:
+```bash
+pip install -r requirements.txt
 
-| Outcome | Ý nghĩa ở biên Agent |
-| --- | --- |
-| `ALLOW` | Agent có thể đi vào execution path hợp lệ. |
-| `BLOCK_UNSAFE` | Chặn do điều kiện an toàn hiện tại. |
-| `BLOCK_UNAVAILABLE` | Chặn vì tính năng không khả dụng. |
-| `CONFIRM` | Chưa được thực thi; cần xác nhận và đánh giá lại. |
-| `NOT_VOICE_ACTIONABLE` | Không thực hiện qua luồng điều khiển bằng giọng nói. |
-| `ANSWER` | Trả lời từ state hoặc dữ liệu mô phỏng có căn cứ. |
-| `UNKNOWN` | Không có dữ liệu phù hợp để trả lời hoặc hành động. |
+# the guardrail service alone
+py -3 -m guardrail.service                       # http://127.0.0.1:8089
 
-## Các bất biến bắt buộc
+# both services end-to-end, with the trace
+py -3 run_demo.py
 
-- UI không gửi raw text trực tiếp cho ViVi Agent.
-- ViVi Agent không tự đổi outcome do Guardrail trả về.
-- Nội dung người dùng khai báo về state không thay thế Vehicle State Mock.
-- Block, error và confirmation-pending không được tạo execution hợp lệ.
-- Confirmation cũ, hết hạn hoặc replay không được gọi actuator.
-- Policy lỗi phải fail closed; không tiếp tục bằng tập rule bị thiếu hoặc mâu thuẫn.
-- Public event không chứa permit, credential, system prompt hoặc hidden reasoning.
-- Pilot đo mức độ implementation tuân theo workbook, không đo “physical safety accuracy”.
+# automated reports
+py -3 guardrail/evals/run_coverage.py            # -> docs/COVERAGE.md
+py -3 guardrail/evals/run_golden.py              # engine accuracy on the labelled dataset
+py -3 guardrail/evals/run_benchmark.py           # latency
 
-## Trạng thái triển khai
-
-| Hạng mục | Trạng thái | Evidence |
-| --- | --- | --- |
-| Guardrail–Agent contract (`CON-01`) | Implementation đã merge; chờ external acceptance | `src/vivi_agent/contracts/guardrail/v1/` |
-| Agent–UI contract (`CON-02`) | Implementation đã merge; chờ external acceptance | `src/vivi_agent/contracts/agent_ui/v1/` |
-| Runtime Agent/Vehicle, integration, evaluation và release | Theo tracker, phần lớn chưa triển khai | `VIVI_AGENT_TASK_TRACKER.yaml` |
-| Guardrail classifier/constraint runtime và web UI hoàn chỉnh | Chưa có trong checkout hiện tại | PRD và implementation plan |
-
-Status trong tracker chỉ chuyển sang `done` khi acceptance gate tương ứng đã có
-evidence; merge code không tự động đồng nghĩa với external approval.
-
-## Cấu trúc repository
-
-```text
-.
-├── specs/
-│   ├── prd/                         # Product requirements và scope chuẩn
-│   ├── architecture/                # Kiến trúc Guardrail
-│   └── agent/                       # ViVi Agent spec và implementation plan
-├── src/vivi_agent/
-│   ├── contracts/                   # Contract đã triển khai và task specs
-│   └── ...                          # Feature boundaries cho các task tiếp theo
-├── tests/                           # Contract, integration, E2E và performance
-├── evals/                           # Evaluation task boundaries
-├── docs/agent/                      # Integration/runbook work
-├── Driver_constraints.xlsx         # Policy workbook trong workspace hiện tại
-├── VIVI_AGENT_TASK_TRACKER.yaml     # Tracker và acceptance evidence
-└── VIVI_AGENT_WORKSPACE.md          # Quy ước workspace triển khai Agent
+# tests (guardrail + agent, one run)
+py -3 -m pytest
 ```
 
-## Kiểm tra phần đã triển khai
+`run_demo.py` walks `ALLOW / BLOCK_UNSAFE / CONFIRM (+ confirm) / ANSWER /
+MONITOR` through the real agent orchestrator and the real guardrail service,
+printing the guardrail trace and latency for each turn.
 
-Checkout hiện tại chưa có application runtime hoặc quy trình cài đặt hoàn chỉnh.
-Các contract tests có thể chạy bằng Python từ repository root:
+---
 
-```powershell
-python -m unittest `
-  tests.contracts.guardrail.test_consumer_contract `
-  tests.contracts.agent_ui.test_consumer_contract
+## Layout
+
+```
+guardrail/
+  policy/        constraint engine — condition evaluator, 109-rule loader,
+                 VehicleState, PolicyEngine (intent + state -> one outcome)
+  classifier/    intent classifier for the text→intent (gateway) path:
+                 TF-IDF + LinearSVC (primary), keyword baseline
+  service/       HTTP contract layer — action / confirm / monitor / query,
+                 permits, request trace   (guardrail/service/README.md)
+  evals/         golden / frozen / coverage / benchmark harnesses
+  tests/
+agent/
+  src/vehicle_agent/   tool-calling agent: catalog, tool registry + mapping,
+                 model-provider boundary, turn orchestrator, vehicle state
+                 machine, execution, behaviors / queries / responses,
+                 authorization ports, aegis wire integration
+  tests/
+docs/
+  ARCHITECTURE.md   how the two sides fit together
+  DECISIONS.md      the decisions that shaped the design (why, not just what)
+  METRICS.md        engine accuracy, classifier comparison, latency
+  HISTORY.md        how the codebase got here
+  COVERAGE.md       generated by guardrail/evals/run_coverage.py
+run_demo.py
 ```
 
-Contract suite kiểm tra version mismatch, fail-closed permit semantics, closed
-public payloads, redaction, correlation, event ordering, execution lifecycle và
-khả năng UI mock dựng lại ba demo scenario chỉ từ public events.
+---
 
-## Nguồn yêu cầu chuẩn
+## Status
 
-- [PRD Guardrail hiện hành](specs/prd/PRD_Guardrail_FINAL.md) — phạm vi sản phẩm,
-  business rules, requirements, acceptance criteria và success metrics.
-- [Kiến trúc Guardrail](specs/architecture/Architecture_Guardrail_FINAL.md) —
-  component boundaries và quyết định kỹ thuật.
-- [ViVi Agent specification](specs/agent/VIVI_VEHICLE_AGENT_SPEC.md) — contract,
-  behavior và simulator requirements phía Agent.
-- [ViVi Agent implementation plan](specs/agent/VIVI_IMPLEMENTATION_PLAN.md) —
-  task sequencing, dependencies và release gates.
-
-Các tài liệu có nhãn `Superseded` hoặc `Archived` không được dùng làm nguồn scope
-hiện tại.
-
-## Ngoài phạm vi
-
-- ASR và voice pipeline production;
-- CAN bus, ECU hoặc actuator xe thật;
-- trợ lý hội thoại mở ngoài catalog pilot;
-- cloud production deployment và multi-vehicle operation;
-- chứng nhận ISO 26262, phê duyệt OEM hoặc khẳng định policy đúng cho xe thật.
-
-ViGuard hiện là software pilot trên dữ liệu và trạng thái mô phỏng. Mọi tuyên bố
-về an toàn vật lý hoặc tuân thủ thực tế cần evidence và chủ sở hữu chuyên môn bên
-ngoài repository này.
+The guardrail + agent pipeline is complete for a single reference vehicle:
+constraint engine at 100% on the labelled dataset, intent classifier at 88.3%
+on an independent frozen test set, full HTTP contract layer, 1000+ tests. Next is
+scaling to multiple agents / vehicles and a UI — see `docs/HISTORY.md`.
