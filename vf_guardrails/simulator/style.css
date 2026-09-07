@@ -1,0 +1,95 @@
+/* Custom fonts and core styling overrides */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, button {
+    font-family: 'Outfit', sans-serif;
+}
+
+/* ----------------------------------------------------
+   SVG ANIMATIONS & INTERACTIVE TRANSITIONS
+   ---------------------------------------------------- */
+
+/* Trunk Door Hinge & Opening Animation */
+#trunkDoor {
+    transform-origin: 450px 115px;
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Class to open the trunk */
+.trunk-open #trunkDoor {
+    transform: rotate(-38deg);
+}
+
+/* Headlight Beam Transitions */
+#headlightBeam {
+    transition: opacity 0.4s ease-in-out;
+}
+
+/* Driver Seat Back Hinge & Reclining Animation */
+#driverSeatBack {
+    transform-origin: 275px 188px;
+    transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transform: rotate(var(--seat-rotate, 0deg));
+}
+
+/* Wheel Spin Keyframe Animations */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Rear Wheel Setup */
+#rearWheel {
+    transform-origin: 200px 210px;
+}
+
+/* Front Wheel Setup */
+#frontWheel {
+    transform-origin: 420px 210px;
+}
+
+/* Spining classes with customizable animation speed variable */
+.wheel-spinning {
+    animation: spin var(--spin-speed, 1s) linear infinite;
+}
+
+/* Custom styles for range input sliders to match the design */
+input[type="range"]::-webkit-slider-runnable-track {
+    background: #1e293b;
+    border-radius: 9999px;
+    height: 8px;
+}
+
+input[type="range"]::-moz-range-track {
+    background: #1e293b;
+    border-radius: 9999px;
+    height: 8px;
+}
+
+/* Custom background utility for cards */
+.bg-slate-850 {
+    background-color: #162032;
+}
+
+.border-slate-750 {
+    border-color: #1e293b;
+}
+
+/* Custom styling for status banners */
+.status-pass {
+    background-color: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.status-block {
+    background-color: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
