@@ -1,6 +1,6 @@
 # ViGuard — Guardrail↔Agent Integration · STATUS (đọc file này trước)
 
-**Cập nhật:** 2026-09-07 (**Pha 0/1′/2′/3′ XONG + đã MERGE vào `guardrail-integration`**)
+**Cập nhật:** 2026-09-07 (**Guardrail+Agent XONG — Pha 0/1′/2′/3′ đã VÀO `main`**)
 **Người thực thi:** Đạt (solo). Long, Công đã rời dự án.
 
 > Đây là bản tổng quan cho **session/chat mới**. Đọc xong file này là nắm được:
@@ -9,18 +9,19 @@
 ### Nhánh (2026-09-07)
 
 ```
-main  (d9d4746 — CHƯA có guardrail; kém guardrail-integration 35 commit)
-└── guardrail-integration  (870d587)  ← Pha 0 + 1′ + 2′ + 3′ ĐÃ VÀO ĐỦ.
-        PR #48 (1′) + #49 (2′) + #50 (3′) — MERGED. Cả 3 nhánh phụ đã xoá.
+main  (1f9b1a3)  ← Pha 0 + 1′ + 2′ + 3′ ĐÃ VÀO ĐỦ. Chỉ còn 1 nhánh này.
 ```
 
-**Session mới:** `git checkout guardrail-integration` (không còn nhánh feat nào).
-Toàn bộ phần **guardrail+agent đã xong** trên `guardrail-integration`, 81/81 test,
+PR #48 (1′) → #49 (2′) → #50 (3′) → #51 (`guardrail-integration` → `main`): **tất cả MERGED.**
+Mọi nhánh phụ + nhánh tích lũy đã xoá. 81/81 vf_guardrails test, 941/941 vivi-agent,
 `COVERAGE_REPORT.md` ✅ ĐẠT.
 
-**VIỆC TIẾP THEO — chỉ còn 1 bước:** mở PR **`guardrail-integration` → `main`**
-(bước cuối cùng của phần guardrail+agent). Sau đó: pha "scale (multi-agent /
-multi-vehicle) + UI" — brainstorm riêng, ngoài phạm vi hiện tại.
+**PHẦN GUARDRAIL+AGENT: HOÀN THÀNH** (Definition of Done PRD §20, trừ UI).
+Demo: `py -3 run_both.py`. Service: `py -3 -m vf_guardrails.service`.
+
+**VIỆC TIẾP THEO — pha mới, brainstorm riêng:** scale (multi-agent / multi-vehicle) + UI (D6).
+Nợ kỹ thuật mang theo: xem `PHASE3_REPORT.md` §5 (`turnon_LKA`, T3 SLM D5, query endpoint
+chưa trên orchestrator path, golden dataset `reviewed=0/2313`).
 
 ---
 
@@ -347,8 +348,9 @@ PYTHONIOENCODING=utf-8 py -3 vf_guardrails/evals/run_benchmark.py
 
 ## 9. Việc git còn treo
 
-- **PR #48 (1′) + #49 (2′) + #50 (3′): tất cả MERGED** vào `guardrail-integration` (870d587). Cả 3 nhánh phụ đã xoá (local + remote).
-- **Còn lại: PR `guardrail-integration` → `main`** (bước cuối). `main` đang ở d9d4746, kém 35 commit.
+- **PR #48 (1′) + #49 (2′) + #50 (3′) + #51 (`guardrail-integration` → `main`): TẤT CẢ MERGED.**
+- `main` @ `1f9b1a3`. Không còn nhánh nào khác (feat + accumulator đều đã xoá).
+- Việc git của phần guardrail+agent: **XONG.**
 - venv `.venv-phobert/` (~6 GB, gitignored) — chỉ để re-run PhoBERT, xoá được.
 - `reports/` + `reports.zip` (báo cáo Sprint 2) — **cố ý để untracked**, PM quyết sau.
 - Worktree cũ `.claude/worktrees/great-yalow-d7b474` — dọn nếu không dùng: `git worktree remove`.
